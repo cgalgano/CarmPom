@@ -1,0 +1,38 @@
+[project]
+name = "carmpom"
+version = "0.1.0"
+description = "KenPom-style NCAA Men's Basketball analytics platform"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "cbbpy>=2.1.2",
+    "httpx>=0.28.1",
+    "ipykernel>=7.2.0",
+    "jinja2>=3.1.6",
+    "lightgbm>=4.0.0",
+    "matplotlib>=3.10.8",
+    "pandas>=3.0.1",
+    "scikit-learn>=1.4.0",
+    "seaborn>=0.13.2",
+    "sqlalchemy>=2.0.48",
+    "xgboost>=2.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "ruff>=0.15.5",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Tell hatchling which folders are importable packages.
+# Add new top-level packages here as the project grows (ratings/, ml/, etc.).
+[tool.hatch.build.targets.wheel]
+packages = ["db", "pipeline", "ratings", "ml", "bracket", "ai"]
+
+# OneDrive does not support hardlinks — copy mode is required on this machine.
+[tool.uv]
+link-mode = "copy"
