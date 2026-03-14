@@ -15,6 +15,7 @@ dependencies = [
     "scikit-learn>=1.4.0",
     "seaborn>=0.13.2",
     "sqlalchemy>=2.0.48",
+    "streamlit>=1.35",
     "xgboost>=2.0.0",
 ]
 
@@ -36,3 +37,5 @@ packages = ["db", "pipeline", "ratings", "ml", "bracket", "ai"]
 # OneDrive does not support hardlinks — copy mode is required on this machine.
 [tool.uv]
 link-mode = "copy"
+# streamlit declares pandas<3 but is compatible at runtime — override that constraint
+override-dependencies = ["pandas>=3.0.1"]

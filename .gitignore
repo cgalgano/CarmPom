@@ -10,14 +10,11 @@ wheels/
 .venv
 MyVENV/
 
-# Database & data files (too large / local-only)
-data/
-*.db
+# Kaggle source data is large and not needed for the app
+data/kaggle/
 
 # ML experiment tracking (local runs only)
 mlruns/
-models/*.pkl
-models/*.joblib
 
 # Environment variables
 .env

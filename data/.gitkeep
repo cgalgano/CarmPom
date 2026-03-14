@@ -1,0 +1,2 @@
+# This file keeps the data/ directory in git while the actual database (*.db) is ignored.
+# The carmpom.db file will be created here automatically on first run.
