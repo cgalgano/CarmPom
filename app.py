@@ -1265,9 +1265,12 @@ with team_tab:
         score = f"{int(row['team_score'])}-{int(row['opp_score'])}" if pd.notna(row['team_score']) else "—"
         margin = f"+{int(row['margin'])}" if (pd.notna(row['margin']) and row['margin'] > 0) else (f"{int(row['margin'])}" if pd.notna(row['margin']) else "")
         opp_rank_str = f" (#{int(row['opp_rank'])}" + (f", {row['opp_adjem']:+.1f})" if pd.notna(row['opp_adjem']) else ")") if pd.notna(row['opp_rank']) else ""
+        loc = row["loc"]
+        loc_prefix = f"{loc} " if loc in ("vs", "at") else ""
+        loc_suffix = " (N)" if loc == "N" else ""
         return {
             "Date": str(row["date"]),
-            "Opponent": f"{row['loc']} {row['opponent']}{opp_rank_str}",
+            "Opponent": f"{loc_prefix}{row['opponent']}{loc_suffix}{opp_rank_str}",
             "Result": f"{row['result']} {score} ({margin})" if margin else f"{row['result']} {score}",
         }
 
