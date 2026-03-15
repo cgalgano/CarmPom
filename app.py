@@ -21,7 +21,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from db.database import SessionLocal
-from db.models import CarmPomRating, Team
+from db.models import BoxScore, CarmPomRating, Game, Team
 
 sns.set_theme(style="whitegrid", palette="muted")
 
@@ -166,11 +166,27 @@ st.divider()
 # ---------------------------------------------------------------------------
 
 @st.cache_data
+def _build_espn_id_map() -> dict[int, str]:
+    """Return {db_team_id: espn_stats_url} for all teams that have an espn_id."""
+    with SessionLocal() as session:
+        rows = session.query(Team.id, Team.espn_id).filter(Team.espn_id.isnot(None)).all()
+    return {
+        tid: f"https://www.espn.com/mens-college-basketball/team/stats/_/id/{eid}"
+        for tid, eid in rows
+    }
+
+
+# Build once at startup (not user-session cached — it's static data)
+_ESPN_ID_MAP: dict[int, str] = _build_espn_id_map()
+
+
+@st.cache_data
 def load_rankings(season: int) -> pd.DataFrame:
     """Pull ratings + team info for a given season from the database."""
     with SessionLocal() as session:
         rows = (
             session.query(
+                CarmPomRating.team_id,
                 CarmPomRating.rank,
                 Team.name,
                 Team.conference,
@@ -191,7 +207,11 @@ def load_rankings(season: int) -> pd.DataFrame:
 
     df = pd.DataFrame(
         rows,
-        columns=["Rank", "Team", "Conf", "AdjEM", "AdjO", "AdjD", "AdjT", "Luck", "SOS", "W", "L"],
+        columns=["team_id", "Rank", "Team", "Conf", "AdjEM", "AdjO", "AdjD", "AdjT", "Luck", "SOS", "W", "L"],
+    )
+    # Build ESPN team stats page URL — works without the slug, just the numeric ID
+    df["ESPN"] = df["team_id"].map(
+        lambda tid: _ESPN_ID_MAP.get(int(tid), None)
     )
     df["Record"] = df["W"].astype(str) + "-" + df["L"].astype(str)
     df["Conf"] = df["Conf"].str.removesuffix(" Conference")
@@ -203,6 +223,75 @@ def load_rankings(season: int) -> pd.DataFrame:
         df[f"{col}_nr"] = df[col].rank(ascending=asc, method="min").astype(int)
 
     return df
+
+
+@st.cache_data
+def load_per_game_stats(season: int) -> pd.DataFrame:
+    """Aggregate per-game counting stats from box_scores for all teams in a season."""
+    with SessionLocal() as session:
+        rows = (
+            session.query(
+                BoxScore.team_id,
+                BoxScore.game_id,
+                BoxScore.pts,
+                BoxScore.fgm,
+                BoxScore.fga,
+                BoxScore.fg3m,
+                BoxScore.fg3a,
+                BoxScore.ftm,
+                BoxScore.fta,
+                BoxScore.oreb,
+                BoxScore.dreb,
+                BoxScore.ast,
+                BoxScore.tov,
+            )
+            .join(Game, Game.id == BoxScore.game_id)
+            .filter(Game.season == season)
+            .all()
+        )
+
+    bs = pd.DataFrame(rows, columns=[
+        "team_id", "game_id", "pts", "fgm", "fga",
+        "fg3m", "fg3a", "ftm", "fta", "oreb", "dreb", "ast", "tov",
+    ])
+
+    # Self-join on game_id to get the opponent's pts for each game.
+    opp = bs[["game_id", "team_id", "pts"]].rename(columns={"team_id": "opp_id", "pts": "opp_pts"})
+    bs = bs.merge(opp, on="game_id", how="left")
+    bs = bs[bs["team_id"] != bs["opp_id"]]  # drop the self-row from the join
+
+    # Sum counting stats per team then divide by games played.
+    agg = bs.groupby("team_id").agg(
+        games=("pts", "count"),
+        pts_tot=("pts", "sum"),
+        opp_pts_tot=("opp_pts", "sum"),
+        fgm=("fgm", "sum"),
+        fga=("fga", "sum"),
+        fg3m=("fg3m", "sum"),
+        fg3a=("fg3a", "sum"),
+        ftm=("ftm", "sum"),
+        fta=("fta", "sum"),
+        oreb=("oreb", "sum"),
+        dreb=("dreb", "sum"),
+        ast=("ast", "sum"),
+        tov=("tov", "sum"),
+    ).reset_index()
+
+    g = agg["games"]
+    s = pd.DataFrame({"team_id": agg["team_id"]})
+    s["PPG"]    = (agg["pts_tot"] / g).round(1)
+    s["OppPPG"] = (agg["opp_pts_tot"] / g).round(1)
+    s["RebPG"]  = ((agg["oreb"] + agg["dreb"]) / g).round(1)
+    s["AstPG"]  = (agg["ast"] / g).round(1)
+    s["OrebPG"] = (agg["oreb"] / g).round(1)
+    s["TOPG"]   = (agg["tov"] / g).round(1)
+    s["FG%"]    = (agg["fgm"] / agg["fga"] * 100).round(1)
+    s["3P%"]    = (agg["fg3m"] / agg["fg3a"] * 100).round(1)
+    s["3PaPG"]  = (agg["fg3a"] / g).round(1)
+    s["3PmPG"]  = (agg["fg3m"] / g).round(1)
+    s["FT%"]    = (agg["ftm"] / agg["fta"] * 100).round(1)
+    s["FTmPG"]  = (agg["ftm"] / g).round(1)
+    return s
 
 
 # ---------------------------------------------------------------------------
@@ -279,24 +368,30 @@ with rankings_tab:
         filtered = filtered[filtered["Team"].str.contains(search, case=False, na=False)]
     filtered = filtered.head(top_n)
 
+    # Merge per-game stats on team_id
+    stats = load_per_game_stats(season)
+    filtered = filtered.merge(stats, on="team_id", how="left")
+
     st.caption(
-        f"{len(filtered)} teams shown  |  Each metric cell shows **value  national\_rank**  |  "
-        "**AdjEM** = pts/100 margin  |  "
-        "**AdjO** = off. eff. (higher = better)  |  "
-        "**AdjD** = def. eff. (lower = better)  |  "
-        "**AdjT** = tempo  |  "
-        "**Luck** = actual W% − expected W%"
+        f"{len(filtered)} teams shown  |  Efficiency cells: **value  national\_rank**  |  "
+        "**AdjEM** = pts/100 margin  |  **AdjO** = off. eff.  |  **AdjD** = def. eff. (lower=better)  |  "
+        "**AdjT** = tempo (red=fast, blue=slow)  |  **Luck** = actual W%−expected W%  |  "
+        "**OppPPG** = opponent pts/game  |  **TOPG** = turnovers/game"
     )
 
-    # Build display DataFrame with inline national ranks: "value  rank"
+    # Build display DataFrame — efficiency cols get inline national rank, stat cols are plain numbers.
     # gmap= feeds raw numeric values to the gradient so colors work on string cells.
-    display_df = filtered[["Rank", "Team", "Conf", "Record"]].copy()
+    display_df = filtered[["Rank", "Team", "Conf", "Record", "ESPN"]].copy()
     display_df["AdjEM"] = filtered.apply(lambda r: f"{r['AdjEM']:+.2f}  {r['AdjEM_nr']}", axis=1)
     display_df["AdjO"]  = filtered.apply(lambda r: f"{r['AdjO']:.2f}  {r['AdjO_nr']}", axis=1)
     display_df["AdjD"]  = filtered.apply(lambda r: f"{r['AdjD']:.2f}  {r['AdjD_nr']}", axis=1)
     display_df["AdjT"]  = filtered.apply(lambda r: f"{r['AdjT']:.1f}  {r['AdjT_nr']}", axis=1)
     display_df["Luck"]  = filtered.apply(lambda r: f"{r['Luck']:+.3f}  {r['Luck_nr']}", axis=1)
     display_df["SOS"]   = filtered.apply(lambda r: f"{r['SOS']:+.2f}  {r['SOS_nr']}", axis=1)
+    # Per-game stats — plain formatted numbers
+    for col in ["PPG", "OppPPG", "RebPG", "AstPG", "OrebPG", "TOPG",
+                "FG%", "3P%", "3PaPG", "3PmPG", "FT%", "FTmPG"]:
+        display_df[col] = filtered[col]
 
     styled = (
         display_df.style
@@ -310,9 +405,54 @@ with rankings_tab:
         .background_gradient(subset=["Luck"],  cmap="RdYlGn",   gmap=filtered["Luck"].values)
         # SOS: higher (tougher schedule) = green; lower (easier schedule) = red
         .background_gradient(subset=["SOS"],   cmap="RdYlGn",   gmap=filtered["SOS"].values)
+        # Per-game stat gradients
+        .background_gradient(subset=["PPG"],    cmap="Greens")
+        .background_gradient(subset=["OppPPG"], cmap="RdYlGn_r")  # lower opp scoring = green
+        .background_gradient(subset=["RebPG"],  cmap="Blues")
+        .background_gradient(subset=["AstPG"],  cmap="Blues")
+        .background_gradient(subset=["OrebPG"], cmap="Greens")
+        .background_gradient(subset=["TOPG"],   cmap="RdYlGn_r")  # lower TOs = green
+        .background_gradient(subset=["FG%"],    cmap="Greens")
+        .background_gradient(subset=["3P%"],    cmap="Greens")
+        .background_gradient(subset=["3PaPG"],  cmap="Blues")
+        .background_gradient(subset=["3PmPG"],  cmap="Greens")
+        .background_gradient(subset=["FT%"],    cmap="Greens")
+        .background_gradient(subset=["FTmPG"],  cmap="Blues")
+        .format({
+            "PPG": "{:.1f}", "OppPPG": "{:.1f}", "RebPG": "{:.1f}",
+            "AstPG": "{:.1f}", "OrebPG": "{:.1f}", "TOPG": "{:.1f}",
+            "FG%": "{:.1f}", "3P%": "{:.1f}", "3PaPG": "{:.1f}",
+            "3PmPG": "{:.1f}", "FT%": "{:.1f}", "FTmPG": "{:.1f}",
+        }, na_rep="—")
     )
 
-    st.dataframe(styled, use_container_width=True, hide_index=True, height=700)
+    col_cfg = {
+        "Rank":   st.column_config.NumberColumn("Rk",     width="small"),
+        "Conf":   st.column_config.TextColumn("Conf",    width="small"),
+        "Record": st.column_config.TextColumn("Record",  width="small"),
+        "Team":   st.column_config.TextColumn("Team",    width="medium"),
+        "ESPN":   st.column_config.LinkColumn("Stats",   width="small", display_text="ESPN"),
+        "AdjEM":  st.column_config.TextColumn("AdjEM",   width="small"),
+        "AdjO":   st.column_config.TextColumn("AdjO",    width="small"),
+        "AdjD":   st.column_config.TextColumn("AdjD",    width="small"),
+        "AdjT":   st.column_config.TextColumn("AdjT",    width="small"),
+        "Luck":   st.column_config.TextColumn("Luck",    width="small"),
+        "SOS":    st.column_config.TextColumn("SOS",     width="small"),
+        "PPG":    st.column_config.NumberColumn("PPG",    width="small"),
+        "OppPPG": st.column_config.NumberColumn("OppPPG", width="small"),
+        "RebPG":  st.column_config.NumberColumn("RebPG",  width="small"),
+        "AstPG":  st.column_config.NumberColumn("AstPG",  width="small"),
+        "OrebPG": st.column_config.NumberColumn("ORebPG", width="small"),
+        "TOPG":   st.column_config.NumberColumn("TOPG",   width="small"),
+        "FG%":    st.column_config.NumberColumn("FG%",    width="small"),
+        "3P%":    st.column_config.NumberColumn("3P%",    width="small"),
+        "3PaPG":  st.column_config.NumberColumn("3PaPG",  width="small"),
+        "3PmPG":  st.column_config.NumberColumn("3PmPG",  width="small"),
+        "FT%":    st.column_config.NumberColumn("FT%",    width="small"),
+        "FTmPG":  st.column_config.NumberColumn("FTmPG",  width="small"),
+    }
+
+    st.dataframe(styled, use_container_width=True, hide_index=True, height=700, column_config=col_cfg)
 
 # ---------------------------------------------------------------------------
 # KenPom comparison tab
