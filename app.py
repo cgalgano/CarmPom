@@ -193,6 +193,7 @@ def load_rankings(season: int) -> pd.DataFrame:
                 CarmPomRating.rank,
                 Team.name,
                 Team.conference,
+                Team.espn_id,
                 CarmPomRating.adjem,
                 CarmPomRating.adjo,
                 CarmPomRating.adjd,
@@ -210,11 +211,15 @@ def load_rankings(season: int) -> pd.DataFrame:
 
     df = pd.DataFrame(
         rows,
-        columns=["team_id", "Rank", "Team", "Conf", "AdjEM", "AdjO", "AdjD", "AdjT", "Luck", "SOS", "W", "L"],
+        columns=["team_id", "Rank", "Team", "Conf", "espn_id", "AdjEM", "AdjO", "AdjD", "AdjT", "Luck", "SOS", "W", "L"],
     )
     # Build ESPN team stats page URL — works without the slug, just the numeric ID
     df["ESPN"] = df["team_id"].map(
         lambda tid: _ESPN_ID_MAP.get(int(tid), None)
+    )
+    # Logo URL from ESPN CDN
+    df["logo_url"] = df["espn_id"].apply(
+        lambda eid: f"https://a.espncdn.com/i/teamlogos/ncaa/500/{eid}.png" if pd.notna(eid) else None
     )
     df["Record"] = df["W"].astype(str) + "-" + df["L"].astype(str)
     df["Conf"] = df["Conf"].str.removesuffix(" Conference")
@@ -985,10 +990,27 @@ def generate_team_writeup(t: pd.Series, ts: pd.Series | None, n: int) -> str:
 with team_tab:
     _all_teams = load_rankings(2026)
     team_options = _all_teams["Team"].sort_values().tolist()
+
+    # Search input filters the dropdown to matching teams
+    _search_query = st.text_input(
+        "Search team",
+        placeholder="🔍  Type a team name to filter...",
+        label_visibility="collapsed",
+        key="team_profile_search",
+    )
+    _filtered_opts = (
+        [t for t in team_options if _search_query.strip().lower() in t.lower()]
+        if _search_query.strip() else team_options
+    ) or team_options  # fall back to full list if nothing matches
+
+    _default_idx = 0
+    if not _search_query.strip() and "Duke" in _filtered_opts:
+        _default_idx = _filtered_opts.index("Duke")
+
     selected_team = st.selectbox(
-        "Choose a team",
-        team_options,
-        index=team_options.index("Duke") if "Duke" in team_options else 0,
+        "Team",
+        _filtered_opts,
+        index=min(_default_idx, len(_filtered_opts) - 1),
         label_visibility="collapsed",
     )
 
@@ -1000,9 +1022,14 @@ with team_tab:
     _team_id = int(_t["team_id"])
 
     # ── Header ──────────────────────────────────────────────────────────────
-    espn_url = _t["ESPN"] if pd.notna(_t.get("ESPN")) else None
-    h1, h2, h3, h4 = st.columns([4, 1, 1, 1])
-    with h1:
+    espn_url  = _t["ESPN"]     if pd.notna(_t.get("ESPN"))     else None
+    logo_url  = _t["logo_url"] if pd.notna(_t.get("logo_url")) else None
+
+    logo_col, name_col, h2, h3, h4 = st.columns([0.7, 3.5, 1, 1, 1])
+    with logo_col:
+        if logo_url:
+            st.image(logo_url, width=80)
+    with name_col:
         st.markdown(f"## {selected_team}")
         st.markdown(f"**{_t['Conf']}** · {_t['Record']} · CarmPom rank **#{int(_t['Rank'])}**")
     with h2:
