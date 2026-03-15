@@ -46,17 +46,17 @@ hero_left, hero_right = st.columns([3, 2], gap="large")
 
 with hero_left:
     st.markdown("""
-    If you've ever looked up a team on KenPom before a big game, you already know the drill:
-    win-loss records don't tell the whole story. **Beating bad teams by 30 looks the same as
-    barely squeaking past them** — and neither tells you much about March.
+    Win-loss records don't tell the full story. A 20-10 team that beat bad opponents by 30
+    looks identical on paper to one that went 20-10 grinding out close games against a tough
+    schedule. They are not the same team.
 
-    CarmPom uses the same idea as KenPom: rank every team by how efficiently they score
-    and defend, adjusted for the strength of who they played. The headline number is **AdjEM**
-    — the margin in points per 100 possessions once you account for schedule. The higher, the better.
+    CarmPom ranks every D1 team by **AdjEM** — points per 100 possessions you outscore
+    opponents by, after adjusting for who you played. It's the most honest single-number
+    summary of how good a team actually is.
 
-    Beyond ratings, CarmPom runs a machine learning model trained on 20+ years of NCAA
-    Tournament results to predict game outcomes — so you can see not just who's ranked higher,
-    but how likely they are to actually win.
+    On top of the ratings, an ML model trained on 20+ years of tournament data converts
+    efficiency numbers into win probabilities — so you can see not just who's ranked higher,
+    but how much it matters when they play.
     """)
 
 with hero_right:
@@ -506,8 +506,8 @@ def simulate_bracket(
 # Tabs
 # ---------------------------------------------------------------------------
 
-rankings_tab, team_tab, bracket_tab, kenpom_tab, about_tab = st.tabs(
-    ["📊 Team Rankings", "🏀 Team Profile", "🏆 Bracket Sim", "🆚 vs KenPom", "ℹ️ About"]
+rankings_tab, team_tab, bracket_tab, about_tab = st.tabs(
+    ["📊 Team Rankings", "🏀 Team Profile", "🏆 Bracket Sim", "ℹ️ About"]
 )
 
 # ---------------------------------------------------------------------------
@@ -1385,85 +1385,6 @@ with bracket_tab:
         ).sort_values(["Region", "Seed"])
         _seed_display["AdjEM"] = _seed_display["AdjEM"].map(lambda x: f"{x:+.2f}")
         st.dataframe(_seed_display, use_container_width=True, hide_index=True, height=500)
-
-# ---------------------------------------------------------------------------
-# KenPom comparison tab
-# ---------------------------------------------------------------------------
-
-with kenpom_tab:
-    st.subheader("CarmPom 2026 vs KenPom 2026 — Rank Disagreements")
-    st.caption(
-        "Positive (green) = CarmPom ranks the team **higher** than KenPom.  "
-        "Negative (red) = CarmPom ranks the team **lower**.  "
-        "Filtered to CarmPom's top 100."
-    )
-
-    compare_df = load_kenpom_comparison(2026)
-    top100_cmp = compare_df[compare_df["cp_rank"] <= 100].copy()
-
-    col_n2, col_conf2 = st.columns([1, 2])
-    with col_n2:
-        n_bars = st.slider("Teams per side", min_value=10, max_value=25, value=20)
-    with col_conf2:
-        confs2 = ["All conferences"] + sorted(top100_cmp["Conf"].dropna().unique().tolist())
-        selected_conf2 = st.selectbox("Filter conference", confs2, key="kp_conf")
-
-    filtered_cmp = top100_cmp.copy()
-    if selected_conf2 != "All conferences":
-        filtered_cmp = filtered_cmp[filtered_cmp["Conf"] == selected_conf2]
-
-    plot_disc = pd.concat([
-        filtered_cmp.nlargest(n_bars, "rank_diff"),
-        filtered_cmp.nsmallest(n_bars, "rank_diff"),
-    ]).drop_duplicates(subset="team_id").sort_values("rank_diff")
-
-    bar_colors = ["#4CAF50" if v > 0 else "#F44336" for v in plot_disc["rank_diff"]]
-
-    fig, ax = plt.subplots(figsize=(12, max(6, len(plot_disc) * 0.38)))
-    bars = ax.barh(plot_disc["Team"], plot_disc["rank_diff"], color=bar_colors, edgecolor="white", height=0.72)
-
-    for bar, (_, row) in zip(bars, plot_disc.iterrows()):
-        x = bar.get_width()
-        label = f"CP #{int(row['cp_rank'])} ({row['cp_adjem']:+.1f})  /  KP #{int(row['kp_rank'])}"
-        ax.text(
-            x + (0.4 if x >= 0 else -0.4),
-            bar.get_y() + bar.get_height() / 2,
-            label,
-            va="center", ha="left" if x >= 0 else "right",
-            fontsize=7.5, color="#333",
-        )
-
-    ax.axvline(0, color="#555", linewidth=1.0)
-    ax.set_xlabel("KenPom rank − CarmPom rank  |  Positive = CarmPom ranks higher", fontsize=10)
-    ax.set_title(
-        "CarmPom 2026 vs KenPom 2026 — Biggest Rank Disagreements (Top 100)\n"
-        "Green = CarmPom ranks higher  |  Red = CarmPom ranks lower",
-        fontsize=12, fontweight="bold", pad=12,
-    )
-    sns.despine(left=True, bottom=False)
-    plt.tight_layout()
-    st.pyplot(fig, use_container_width=True)
-    plt.close(fig)
-
-    st.divider()
-    st.markdown("#### Full disagreement table (top 100)")
-
-    table_cols = ["Team", "Conf", "cp_rank", "cp_adjem", "kp_rank", "rank_diff"]
-    display_cmp = (
-        top100_cmp[table_cols]
-        .rename(columns={"cp_rank": "CarmPom Rk", "cp_adjem": "CarmPom AdjEM",
-                         "kp_rank": "KenPom Rk", "rank_diff": "Rank Diff"})
-        .sort_values("Rank Diff", ascending=False)
-        .reset_index(drop=True)
-    )
-    st.dataframe(
-        display_cmp.style
-            .background_gradient(subset=["Rank Diff"], cmap="RdYlGn")
-            .format({"CarmPom AdjEM": "{:+.2f}", "Rank Diff": "{:+d}"}),
-        use_container_width=True,
-        hide_index=True,
-        height=500,
-    )
 
 # ---------------------------------------------------------------------------
 # About tab
