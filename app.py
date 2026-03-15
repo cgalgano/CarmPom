@@ -304,6 +304,8 @@ with rankings_tab:
         .background_gradient(subset=["AdjO"],  cmap="Greens",   gmap=filtered["AdjO"].values)
         # AdjD: lower pts allowed = better defense = green; higher = red
         .background_gradient(subset=["AdjD"],  cmap="RdYlGn_r", gmap=filtered["AdjD"].values)
+        # AdjT: fast (high) = red, mid = white, slow (low) = blue
+        .background_gradient(subset=["AdjT"],  cmap="RdBu_r",   gmap=filtered["AdjT"].values)
         # Luck: positive (lucky) = green; negative (unlucky) = red
         .background_gradient(subset=["Luck"],  cmap="RdYlGn",   gmap=filtered["Luck"].values)
         # SOS: higher (tougher schedule) = green; lower (easier schedule) = red
