@@ -686,12 +686,285 @@ def generate_matchup_analysis(
     return bullets
 
 
+def generate_style_profile(t: pd.Series, n: int) -> str:
+    """2-3 sentence style-focused summary of a single team, for use in matchup panels."""
+    name = t["Team"]
+    adjt = float(t.get("AdjT", 68.0))
+    adjt_nr = int(t.get("AdjT_nr", n // 2))
+    adjo = float(t.get("AdjO", 100.0))
+    adjo_nr = int(t.get("AdjO_nr", n // 2))
+    adjd = float(t.get("AdjD", 100.0))
+    adjd_nr = int(t.get("AdjD_nr", n // 2))
+    luck = float(t.get("Luck", 0.0))
+
+    # Tempo sentence
+    if adjt_nr <= 50:
+        tempo = f"pushes the pace as aggressively as almost anyone in D1 (#{adjt_nr} nationally, {adjt:.1f} adj. poss/40 min)"
+    elif adjt_nr <= 130:
+        tempo = f"operates at an above-average pace ({adjt:.1f} adj. poss/40 min)"
+    elif adjt_nr <= 250:
+        tempo = f"prefers a deliberate, controlled pace ({adjt:.1f} adj. poss/40 min)"
+    else:
+        tempo = f"plays one of the slowest tempos in college basketball (#{adjt_nr} nationally, {adjt:.1f} adj. poss/40 min)"
+
+    # Offense tier
+    if adjo_nr <= 15:
+        off_str = f"one of the most efficient offenses in D1 (#{adjo_nr}, {adjo:.1f} adj. pts/100)"
+    elif adjo_nr <= 50:
+        off_str = f"an elite offense (#{adjo_nr}, {adjo:.1f} pts/100)"
+    elif adjo_nr <= 120:
+        off_str = f"an above-average offense (#{adjo_nr})"
+    elif adjo_nr <= 230:
+        off_str = f"a serviceable but unspectacular offense (#{adjo_nr})"
+    else:
+        off_str = f"an offense that has struggled to generate efficient looks (#{adjo_nr})"
+
+    # Defense sentence
+    if adjd_nr <= 15:
+        def_str = f"Elite defensively (#{adjd_nr}, {adjd:.1f} adj. pts/100 allowed) — one of the hardest teams to score against in the country."
+    elif adjd_nr <= 50:
+        def_str = f"Defensively they're among the best in the country (#{adjd_nr}), making every possession a grind for opponents."
+    elif adjd_nr <= 120:
+        def_str = f"Defensively they're solid (#{adjd_nr}) — above average, but not a shutdown unit."
+    elif adjd_nr <= 230:
+        def_str = f"Their defense sits around the national median (#{adjd_nr}) — not a liability, but not a separator either."
+    else:
+        def_str = f"Defense has been a liability all season (#{adjd_nr}), something opponents will look to exploit."
+
+    # Luck context
+    luck_str = ""
+    if luck < -0.04:
+        luck_str = " Their record actually understates how well they've played — they've been genuinely unlucky in close games."
+    elif luck > 0.05:
+        luck_str = " Worth noting: they've been fortunate in close games, meaning their record may slightly flatter their real quality."
+
+    return f"{name} {tempo}, featuring {off_str}. {def_str}{luck_str}"
+
+
+def generate_clash_narrative(ta: pd.Series, tb: pd.Series, wp_a: float, n: int) -> str:
+    """2-3 sentence prose about how two teams' styles, schedules, and form will collide."""
+    name_a, name_b = ta["Team"], tb["Team"]
+    adjt_nr_a = int(ta.get("AdjT_nr", n // 2))
+    adjt_nr_b = int(tb.get("AdjT_nr", n // 2))
+    adjo_nr_a = int(ta.get("AdjO_nr", n // 2))
+    adjo_nr_b = int(tb.get("AdjO_nr", n // 2))
+    adjd_nr_a = int(ta.get("AdjD_nr", n // 2))
+    adjd_nr_b = int(tb.get("AdjD_nr", n // 2))
+    em_a = float(ta.get("AdjEM", 0.0))
+    em_b = float(tb.get("AdjEM", 0.0))
+    sos_nr_a = int(ta.get("SOS_nr", n // 2))
+    sos_nr_b = int(tb.get("SOS_nr", n // 2))
+    luck_a = float(ta.get("Luck", 0.0))
+    luck_b = float(tb.get("Luck", 0.0))
+    seed_a = int(ta.get("seed", 8))
+    seed_b = int(tb.get("seed", 9))
+
+    parts: list[str] = []
+
+    # 1. Pace tension
+    tempo_gap = abs(adjt_nr_a - adjt_nr_b)
+    if tempo_gap >= 120:
+        faster = name_a if adjt_nr_a < adjt_nr_b else name_b
+        slower = name_b if adjt_nr_a < adjt_nr_b else name_a
+        parts.append(
+            f"**Pace is the central battle** — {faster} wants to get out and run while {slower} thrives "
+            "in a half-court grind. Whoever controls tempo in the opening possessions sets the tone for everything that follows."
+        )
+    elif tempo_gap >= 50:
+        faster = name_a if adjt_nr_a < adjt_nr_b else name_b
+        slower = name_b if adjt_nr_a < adjt_nr_b else name_a
+        parts.append(
+            f"There's a meaningful pace differential: {faster} prefers to push while {slower} likes to slow things down — "
+            "expect both teams jostling for tempo control from the opening tip."
+        )
+    else:
+        parts.append(
+            "Both teams operate at a similar tempo, so this will come down to half-court execution — "
+            "shot quality, ball security, and who can impose their offensive system."
+        )
+
+    # 2. Key offensive vs. defensive matchup
+    if adjo_nr_a <= 60 and adjd_nr_b >= 200:
+        parts.append(
+            f"{name_a}'s efficient offense (#{adjo_nr_a}) runs into one of the weaker defenses in the field (#{adjd_nr_b}) — "
+            "the favorite should find comfortable looks throughout and won't need a perfect game to win."
+        )
+    elif adjo_nr_b <= 60 and adjd_nr_a >= 200:
+        parts.append(
+            f"{name_b}'s offense (#{adjo_nr_b}) against {name_a}'s defense (#{adjd_nr_a}) is a genuine mismatch that "
+            "could fuel an upset — if the underdog gets rolling early, this game can flip quickly."
+        )
+    elif adjd_nr_a <= 40 and adjo_nr_b >= 180:
+        parts.append(
+            f"{name_a}'s defense (#{adjd_nr_a}) matches up well against {name_b}'s offense (#{adjo_nr_b}), "
+            "which could keep the game low-scoring and well within the favorite's comfort zone."
+        )
+    elif adjd_nr_b <= 40 and adjo_nr_a >= 180:
+        parts.append(
+            f"{name_b}'s defense (#{adjd_nr_b}) is the key stress test for {name_a}'s offense (#{adjo_nr_a}) — "
+            "can the favorite generate quality looks against a unit that has been shutting teams down all season?"
+        )
+    else:
+        em_gap = abs(em_a - em_b)
+        if em_gap <= 3.0:
+            parts.append(
+                f"The efficiency gap is razor-thin ({em_a:+.1f} vs {em_b:+.1f}) — both teams are nearly identical in overall quality. "
+                "A single hot-shooting stretch, a turnover run, or one player stepping up can decide the whole thing."
+            )
+        elif em_gap <= 8.0:
+            fav = name_a if em_a > em_b else name_b
+            dog = name_b if em_a > em_b else name_a
+            parts.append(
+                f"{fav} holds a real efficiency edge ({em_gap:.1f} pts/100 AdjEM), but {dog} is capable enough "
+                "that a strong game plan and a few favorable bounces could absolutely swing this."
+            )
+        else:
+            fav = name_a if em_a > em_b else name_b
+            parts.append(
+                f"The efficiency gap ({em_gap:.1f} pts/100) heavily favors {fav} — the underdog's best path is controlling "
+                "pace, protecting the ball, and staying close enough that a hot second half becomes possible."
+            )
+
+    # 3. Schedule / luck context — pick the most interesting angle
+    sos_gap = abs(sos_nr_a - sos_nr_b)
+    if sos_gap >= 120:
+        harder = name_a if sos_nr_a < sos_nr_b else name_b
+        easier = name_b if sos_nr_a < sos_nr_b else name_a
+        hr = min(sos_nr_a, sos_nr_b)
+        er = max(sos_nr_a, sos_nr_b)
+        parts.append(
+            f"Schedule context adds a wrinkle: {harder}'s numbers were built against a top-{hr} strength of schedule, "
+            f"while {easier} compiled theirs against softer competition (#{er} SOS) — tournament basketball is a different animal."
+        )
+    elif luck_b < -0.04 and seed_b > seed_a:
+        parts.append(
+            f"One wildcard: {name_b} has been genuinely unlucky in close games all season — their record undersells "
+            "how competitive they've been, and a neutral-court tournament game is exactly when that tends to even out."
+        )
+    elif luck_a > 0.05 and seed_a < seed_b:
+        parts.append(
+            f"One caveat for {name_a}: they've been fortunate in clutch situations throughout the year, "
+            "meaning their record is a touch rosier than their underlying efficiency alone would suggest."
+        )
+
+    return " ".join(parts[:3])
+
+
+# ---------------------------------------------------------------------------
+# Pick'em helpers (bracket picker tab)
+# ---------------------------------------------------------------------------
+
+_BP_MU_PAIRS   = [(1, 16), (8, 9), (5, 12), (4, 13), (6, 11), (3, 14), (7, 10), (2, 15)]
+_BP_REGIONS    = ["East", "West", "South", "Midwest"]
+_BP_ROUND_NAMES = ["1st Round", "Round of 32", "Sweet 16", "Elite Eight", "Final Four", "Championship"]
+_BP_ROUND_SLOTS = [32, 16, 8, 4, 2, 1]  # total games per round
+
+
+def _bp_r1_teams(slot: int, brkt: pd.DataFrame) -> tuple[str, str]:
+    """(team_a, team_b) for a 1st-round slot index 0–31."""
+    region = _BP_REGIONS[slot // 8]
+    sa, sb = _BP_MU_PAIRS[slot % 8]
+    reg = brkt[brkt["region"] == region]
+    seed_lu = {int(r["seed"]): r["Team"] for _, r in reg.iterrows()}
+    return seed_lu.get(sa, "TBD"), seed_lu.get(sb, "TBD")
+
+
+def _bp_candidates(rnd: int, slot: int, picks: dict, brkt: pd.DataFrame) -> tuple[str, str]:
+    """The two teams that play in (rnd, slot), determined by prior picks."""
+    if rnd == 0:
+        return _bp_r1_teams(slot, brkt)
+    ta = picks.get((rnd - 1, 2 * slot)) or "TBD"
+    tb = picks.get((rnd - 1, 2 * slot + 1)) or "TBD"
+    return ta, tb
+
+
+def _bp_prob_stats(
+    picks: dict, brkt: pd.DataFrame, r_lu: dict
+) -> tuple[float, int, float]:
+    """
+    Returns (probability_pct, picks_made, expected_correct_picks).
+
+    probability_pct  — probability that every single pick is right (0–100).
+    picks_made       — count of filled slots.
+    expected_correct — sum of individual win-probs for each pick.
+    """
+    prob = 1.0
+    made = 0
+    expected = 0.0
+    for rnd, total in enumerate(_BP_ROUND_SLOTS):
+        for slot in range(total):
+            pick = picks.get((rnd, slot))
+            if pick is None:
+                continue
+            made += 1
+            ta, tb = _bp_candidates(rnd, slot, picks, brkt)
+            if ta == "TBD" or tb == "TBD":
+                continue
+            wp_a = _win_prob(
+                float(r_lu.get(ta, {}).get("AdjEM", 0)),
+                float(r_lu.get(tb, {}).get("AdjEM", 0)),
+            )
+            wp_pick = wp_a if pick == ta else (1.0 - wp_a)
+            prob *= wp_pick
+            expected += wp_pick
+    return prob * 100.0, made, expected
+
+
+def _bp_autofill(
+    mode: str, existing: dict, brkt: pd.DataFrame, r_lu: dict
+) -> dict:
+    """Return a new picks dict auto-filled according to mode.
+
+    mode: 'chalk'    — always pick the higher-AdjEM team.
+          'balanced' — pick favorites but allow clear-value upsets (dog WP > 35%, seed gap >= 4).
+          'chaos'    — pick the underdog whenever they have > 27% chance.
+    """
+    new_picks: dict = dict(existing)
+    for rnd, total in enumerate(_BP_ROUND_SLOTS):
+        for slot in range(total):
+            if (rnd, slot) in new_picks:
+                continue  # don't overwrite existing manual picks
+            ta, tb = _bp_candidates(rnd, slot, new_picks, brkt)
+            if ta == "TBD" or tb == "TBD":
+                continue
+            em_a = float(r_lu.get(ta, {}).get("AdjEM", 0))
+            em_b = float(r_lu.get(tb, {}).get("AdjEM", 0))
+            wp_a = _win_prob(em_a, em_b)
+
+            if mode == "chalk":
+                new_picks[(rnd, slot)] = ta if wp_a >= 0.5 else tb
+
+            elif mode == "balanced":
+                # Seed gap only meaningful in R0; later rounds use the actual seeds from bracket
+                seed_gap = 0
+                if rnd == 0:
+                    sa, sb = _BP_MU_PAIRS[slot % 8]
+                    seed_gap = sb - sa  # underdog = higher seed number
+                underdog_wp = (1 - wp_a) if wp_a >= 0.5 else wp_a
+                underdog = tb if wp_a >= 0.5 else ta
+                # Pick the underdog if they're a meaningful upset candidate
+                if underdog_wp >= 0.35 and (seed_gap >= 4 or rnd >= 2):
+                    new_picks[(rnd, slot)] = underdog
+                else:
+                    new_picks[(rnd, slot)] = ta if wp_a >= 0.5 else tb
+
+            else:  # chaos
+                underdog = tb if wp_a >= 0.5 else ta
+                underdog_wp = (1 - wp_a) if wp_a >= 0.5 else wp_a
+                if underdog_wp >= 0.27:
+                    new_picks[(rnd, slot)] = underdog
+                else:
+                    new_picks[(rnd, slot)] = ta if wp_a >= 0.5 else tb
+
+    return new_picks
+
+
 # ---------------------------------------------------------------------------
 # Tabs
 # ---------------------------------------------------------------------------
 
-rankings_tab, team_tab, bracket_tab, about_tab = st.tabs(
-    ["📊 Team Rankings", "🏀 Team Profile", "🏆 Bracket Sim", "ℹ️ About"]
+rankings_tab, team_tab, bracket_tab, pick_tab, about_tab = st.tabs(
+    ["📊 Team Rankings", "🏀 Team Profile", "🏆 Bracket Sim", "🗳️ My Bracket", "ℹ️ About"]
 )
 
 # ---------------------------------------------------------------------------
@@ -1682,30 +1955,97 @@ with bracket_tab:
             )
             st.markdown(rh, unsafe_allow_html=True)
 
-        # Playstyle badges
-        st.markdown("<div style='margin-top:12px'></div>", unsafe_allow_html=True)
-        _ps_a, _ps_b = st.columns(2, gap="medium")
-        for _psc, tname in [(_ps_a, name_a), (_ps_b, name_b)]:
+        # ── Playstyle Profiles ─────────────────────────────────────────────
+        st.markdown("<div style='margin-top:18px'></div>", unsafe_allow_html=True)
+        st.markdown("##### 🎨 Playstyle Profiles")
+
+        _ta_full = pd.Series({**_r_lookup.get(name_a, {}), "seed": ta.get("seed", 8), "Team": name_a})
+        _tb_full = pd.Series({**_r_lookup.get(name_b, {}), "seed": tb.get("seed", 9), "Team": name_b})
+
+        def _trait_pills(tdata: pd.Series) -> str:
+            """Build an HTML row of trait pills from a team's ratings."""
+            pills = []
+            tnr = int(tdata.get("AdjT_nr", n // 2))
+            onr = int(tdata.get("AdjO_nr", n // 2))
+            dnr = int(tdata.get("AdjD_nr", n // 2))
+            # Pace
+            if tnr <= 80:
+                pills.append(("🏃 Fast Pace", "#e3f2fd", "#1565c0"))
+            elif tnr >= 270:
+                pills.append(("🐢 Slow Pace", "#fff3e0", "#e65100"))
+            else:
+                pills.append(("⚖️ Mid Tempo", "#f5f5f5", "#555"))
+            # Offense
+            if onr <= 40:
+                pills.append(("🔥 Elite Off", "#e8f5e9", "#1b5e20"))
+            elif onr <= 100:
+                pills.append(("✅ Good Off", "#e8f5e9", "#2e7d32"))
+            elif onr <= 230:
+                pills.append(("➖ Avg Off", "#fafafa", "#888"))
+            else:
+                pills.append(("⚠️ Weak Off", "#ffebee", "#b71c1c"))
+            # Defense
+            if dnr <= 40:
+                pills.append(("🔒 Elite Def", "#e8f5e9", "#1b5e20"))
+            elif dnr <= 100:
+                pills.append(("✅ Good Def", "#e8f5e9", "#2e7d32"))
+            elif dnr <= 230:
+                pills.append(("➖ Avg Def", "#fafafa", "#888"))
+            else:
+                pills.append(("⚠️ Weak Def", "#ffebee", "#b71c1c"))
+            html = "<div style='display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 8px'>"
+            for label, bg, fg in pills:
+                html += (
+                    f"<span style='background:{bg};color:{fg};border-radius:12px;"
+                    f"padding:2px 9px;font-size:11px;font-weight:600'>{label}</span>"
+                )
+            html += "</div>"
+            return html
+
+        _ps_left, _ps_right = st.columns(2, gap="large")
+        for _psc, tdata, side_color in [
+            (_ps_left, _ta_full, "#1e7d32"),
+            (_ps_right, _tb_full, "#c62828"),
+        ]:
             with _psc:
+                tname = tdata["Team"]
                 _tr = _r_lookup.get(tname)
                 if _tr:
-                    _sname, _stag = generate_playstyle_name(pd.Series(_tr), None, n)
+                    _tr_s = pd.Series(_tr)
+                    _sname, _stag = generate_playstyle_name(_tr_s, None, n)
+                    # Playstyle badge (team-color coded)
                     st.markdown(
-                        f"<div style='background:#1e2d40;color:white;border-radius:8px;"
-                        f"padding:8px 14px;text-align:center'>"
-                        f"<div style='font-size:14px;font-weight:700'>{_sname}</div>"
-                        f"<div style='font-size:11px;opacity:0.65;margin-top:2px'>{tname}</div>"
-                        f"<div style='font-size:11px;opacity:0.55;font-style:italic'>{_stag}</div>"
+                        f"<div style='background:{side_color};color:white;border-radius:8px;"
+                        f"padding:9px 14px;text-align:center;margin-bottom:8px'>"
+                        f"<div style='font-size:15px;font-weight:700'>{_sname}</div>"
+                        f"<div style='font-size:11px;opacity:0.75;font-style:italic;margin-top:2px'>{_stag}</div>"
                         f"</div>",
                         unsafe_allow_html=True,
                     )
+                    # Trait pills
+                    st.markdown(_trait_pills(_tr_s), unsafe_allow_html=True)
+                    # Per-team style prose (2-3 sentences)
+                    _style_text = generate_style_profile(_tr_s, n)
+                    st.markdown(
+                        f"<div style='font-size:13px;color:#444;line-height:1.55'>{_style_text}</div>",
+                        unsafe_allow_html=True,
+                    )
 
-        # Analysis bullet points
-        st.markdown("<div style='margin-top:14px'></div>", unsafe_allow_html=True)
-        _ta_full = pd.Series({**_r_lookup.get(name_a, {}), "seed": ta.get("seed", 8), "Team": name_a})
-        _tb_full = pd.Series({**_r_lookup.get(name_b, {}), "seed": tb.get("seed", 9), "Team": name_b})
-        for bullet in generate_matchup_analysis(_ta_full, _tb_full, wp_a, n):
-            st.markdown(f"- {bullet}")
+        # ── Matchup Narrative ──────────────────────────────────────────────
+        st.markdown("<div style='margin-top:18px'></div>", unsafe_allow_html=True)
+        st.markdown("##### ⚔️ How They Match Up")
+        _clash = generate_clash_narrative(_ta_full, _tb_full, wp_a, n)
+        st.markdown(
+            f"<div style='background:#f8f9fa;border-left:3px solid #1e2d40;border-radius:0 8px 8px 0;"
+            f"padding:12px 16px;font-size:13px;color:#333;line-height:1.6'>{_clash}</div>",
+            unsafe_allow_html=True,
+        )
+
+        # ── Key Factors ────────────────────────────────────────────────────
+        st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
+        with st.expander("📋 Key Factors", expanded=True):
+            for bullet in generate_matchup_analysis(_ta_full, _tb_full, wp_a, n):
+                st.markdown(f"- {bullet}")
 
     # ── Header row ────────────────────────────────────────────────────────
     _hdr_l, _hdr_r = st.columns([3, 2])
@@ -1885,6 +2225,352 @@ with bracket_tab:
                     unsafe_allow_html=True,
                 )
                 st.markdown("<div style='margin:4px 0'></div>", unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------------------------
+# My Bracket (Pick'em) tab
+# ---------------------------------------------------------------------------
+
+with pick_tab:
+    # ── Load data ──────────────────────────────────────────────────────────
+    _pk_brkt = load_real_bracket()
+    if _pk_brkt is None:
+        st.warning("Real bracket data not loaded — pick'em unavailable.", icon="⚠️")
+    else:
+        _pk_df   = load_rankings(2026)
+        _pk_lu   = _pk_df.set_index("Team").to_dict("index")   # AdjEM/AdjO/AdjD/etc.
+
+        # ── Session state ──────────────────────────────────────────────────
+        if "bp_picks" not in st.session_state:
+            st.session_state["bp_picks"] = {}
+        _picks: dict = st.session_state["bp_picks"]
+
+        # ── Compute summary stats ──────────────────────────────────────────
+        _prob_pct, _made, _exp_correct = _bp_prob_stats(_picks, _pk_brkt, _pk_lu)
+        _total_games = 63
+        _remaining   = _total_games - _made
+
+        # ── Header ────────────────────────────────────────────────────────
+        st.markdown(
+            "<h2 style='font-family:system-ui,sans-serif;margin-bottom:0'>🗳️ My Bracket</h2>"
+            "<p style='color:#666;font-size:13px;margin-top:2px'>"
+            "Pick your bracket — CarmPom tracks the probability that every call lands.</p>",
+            unsafe_allow_html=True,
+        )
+
+        # ── Metrics strip ─────────────────────────────────────────────────
+        _m1, _m2, _m3, _m4 = st.columns(4)
+
+        # Progress bar visual
+        _fill_pct = round(_made / _total_games * 100)
+        _prog_bar = (
+            f"<div style='height:6px;border-radius:3px;background:#eee;margin-top:4px'>"
+            f"<div style='width:{_fill_pct}%;height:100%;background:#1e7d32;border-radius:3px'></div></div>"
+        )
+        with _m1:
+            st.markdown(
+                f"<div style='background:#fff;border:1px solid #dde3eb;border-radius:10px;"
+                f"padding:14px 16px;text-align:center'>"
+                f"<div style='font-size:28px;font-weight:800;color:#1e2d40'>{_made}<span style='font-size:14px;color:#888'>/{_total_games}</span></div>"
+                f"<div style='font-size:11px;color:#666;margin-top:2px'>Picks Made</div>"
+                f"{_prog_bar}</div>",
+                unsafe_allow_html=True,
+            )
+        with _m2:
+            if _made == 0:
+                _prob_display = "—"
+                _prob_sub = "Fill your bracket to see odds"
+            else:
+                if _prob_pct > 0.01:
+                    _prob_display = f"{_prob_pct:.4f}%"
+                else:
+                    _odds = round(1 / (_prob_pct / 100)) if _prob_pct > 0 else 0
+                    _prob_display = f"1 in {_odds:,}"
+                _prob_sub = "chance this bracket is perfect"
+            st.markdown(
+                f"<div style='background:#1e2d40;border-radius:10px;padding:14px 16px;text-align:center'>"
+                f"<div style='font-size:20px;font-weight:800;color:#f9d71c'>{_prob_display}</div>"
+                f"<div style='font-size:11px;color:rgba(255,255,255,0.6);margin-top:4px'>{_prob_sub}</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+        with _m3:
+            _exp_str = f"{_exp_correct:.1f}" if _made > 0 else "—"
+            st.markdown(
+                f"<div style='background:#fff;border:1px solid #dde3eb;border-radius:10px;"
+                f"padding:14px 16px;text-align:center'>"
+                f"<div style='font-size:28px;font-weight:800;color:#1565c0'>{_exp_str}</div>"
+                f"<div style='font-size:11px;color:#666;margin-top:2px'>Expected Correct Picks</div>"
+                f"<div style='font-size:10px;color:#aaa'>out of {_made} picked</div></div>",
+                unsafe_allow_html=True,
+            )
+        with _m4:
+            _champ_pick = _picks.get((5, 0), "—")
+            _champ_em   = _pk_lu.get(_champ_pick, {}).get("AdjEM")
+            _champ_label = _champ_pick if _champ_pick != "—" else "Not yet picked"
+            _champ_sub   = f"AdjEM {_champ_em:+.2f}" if _champ_em is not None else "Pick a champion below"
+            st.markdown(
+                f"<div style='background:#fff;border:1px solid #dde3eb;border-radius:10px;"
+                f"padding:14px 16px;text-align:center'>"
+                f"<div style='font-size:14px;font-weight:700;color:#1e2d40;line-height:1.3'>"
+                f"🏆 {_champ_label}</div>"
+                f"<div style='font-size:11px;color:#888;margin-top:4px'>{_champ_sub}</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("<div style='margin:12px 0 6px'></div>", unsafe_allow_html=True)
+
+        # ── Auto-fill controls ─────────────────────────────────────────────
+        with st.expander("⚙️ Auto-Fill Bracket", expanded=False):
+            st.markdown(
+                "<p style='font-size:13px;color:#555;margin:0 0 10px'>"
+                "Auto-fill all remaining unpicked games based on a strategy. "
+                "Your existing picks will be preserved.</p>",
+                unsafe_allow_html=True,
+            )
+            _af1, _af2, _af3, _af4 = st.columns([2, 2, 2, 1])
+            with _af1:
+                st.markdown(
+                    "<div style='background:#e3f2fd;border-radius:8px;padding:8px 12px;font-size:12px;color:#1565c0'>"
+                    "<b>🎯 Chalk</b> — Always pick the analytics favorite. Safe, boring, probably wrong.</div>",
+                    unsafe_allow_html=True,
+                )
+                if st.button("Fill with Chalk", use_container_width=True, key="bp_af_chalk"):
+                    st.session_state["bp_picks"] = _bp_autofill("chalk", _picks, _pk_brkt, _pk_lu)
+                    st.rerun()
+            with _af2:
+                st.markdown(
+                    "<div style='background:#e8f5e9;border-radius:8px;padding:8px 12px;font-size:12px;color:#1b5e20'>"
+                    "<b>⚖️ Balanced</b> — Chalk with select upsets where the model shows real value.</div>",
+                    unsafe_allow_html=True,
+                )
+                if st.button("Fill Balanced", use_container_width=True, key="bp_af_bal"):
+                    st.session_state["bp_picks"] = _bp_autofill("balanced", _picks, _pk_brkt, _pk_lu)
+                    st.rerun()
+            with _af3:
+                st.markdown(
+                    "<div style='background:#fff3e0;border-radius:8px;padding:8px 12px;font-size:12px;color:#e65100'>"
+                    "<b>🌪️ Chaos</b> — Aggressively targets underdogs with ≥ 27% win probability.</div>",
+                    unsafe_allow_html=True,
+                )
+                if st.button("Fill Chaos", use_container_width=True, key="bp_af_chaos"):
+                    st.session_state["bp_picks"] = _bp_autofill("chaos", _picks, _pk_brkt, _pk_lu)
+                    st.rerun()
+            with _af4:
+                st.markdown(
+                    "<div style='background:#ffebee;border-radius:8px;padding:8px 12px;font-size:12px;color:#b71c1c'>"
+                    "<b>🔄 Reset</b><br>Clear all picks and start over.</div>",
+                    unsafe_allow_html=True,
+                )
+                if st.button("Reset All", use_container_width=True, key="bp_reset", type="primary"):
+                    st.session_state["bp_picks"] = {}
+                    st.rerun()
+
+        st.divider()
+
+        # ── Round tabs ────────────────────────────────────────────────────
+        _pk_r1, _pk_r2, _pk_r3, _pk_r4, _pk_r5, _pk_r6 = st.tabs([
+            f"1st Round ({sum(1 for s in range(32) if (0,s) in _picks)}/32)",
+            f"Round of 32 ({sum(1 for s in range(16) if (1,s) in _picks)}/16)",
+            f"Sweet 16 ({sum(1 for s in range(8) if (2,s) in _picks)}/8)",
+            f"Elite Eight ({sum(1 for s in range(4) if (3,s) in _picks)}/4)",
+            f"Final Four ({sum(1 for s in range(2) if (4,s) in _picks)}/2)",
+            f"Championship ({sum(1 for s in range(1) if (5,s) in _picks)}/1)",
+        ])
+
+        # ── Helper: render one matchup card with pick buttons ──────────────
+        def _pk_render_matchup(rnd: int, slot: int, container) -> None:
+            """Render the pick card + two buttons for one matchup slot."""
+            ta, tb = _bp_candidates(rnd, slot, _picks, _pk_brkt)
+            picked = _picks.get((rnd, slot))
+
+            with container:
+                if ta == "TBD" or tb == "TBD":
+                    st.markdown(
+                        f"<div style='border:1px dashed #ccc;border-radius:8px;padding:14px;"
+                        f"text-align:center;color:#aaa;font-size:12px;min-height:110px;"
+                        f"display:flex;align-items:center;justify-content:center'>"
+                        f"<div>⏳ Awaiting<br>prior picks</div></div>",
+                        unsafe_allow_html=True,
+                    )
+                    return
+
+                em_a = float(_pk_lu.get(ta, {}).get("AdjEM", 0))
+                em_b = float(_pk_lu.get(tb, {}).get("AdjEM", 0))
+                wp_a = _win_prob(em_a, em_b)
+                wp_pct_a = round(wp_a * 100)
+                wp_pct_b = 100 - wp_pct_a
+
+                # Look up seeds (only meaningful in R1; later show AdjEM rank)
+                _sa_data = _pk_brkt[_pk_brkt["Team"] == ta]
+                _sb_data = _pk_brkt[_pk_brkt["Team"] == tb]
+                sa = int(_sa_data["seed"].values[0]) if len(_sa_data) else "?"
+                sb = int(_sb_data["seed"].values[0]) if len(_sb_data) else "?"
+
+                sel_a = picked == ta
+                sel_b = picked == tb
+                em_col_a = "#1e7d32" if em_a > 0 else "#c62828"
+                em_col_b = "#1e7d32" if em_b > 0 else "#c62828"
+                op_a = "1.0" if (sel_a or not picked) else "0.45"
+                op_b = "1.0" if (sel_b or not picked) else "0.45"
+                border_a = "2px solid #1e7d32" if sel_a else "1px solid #e0e0e0"
+                border_b = "2px solid #1e7d32" if sel_b else "1px solid #e0e0e0"
+                bg_a = "#e8f5e9" if sel_a else "#fafafa"
+                bg_b = "#e8f5e9" if sel_b else "#fafafa"
+
+                ta_short = ta[:17] + "…" if len(ta) > 17 else ta
+                tb_short = tb[:17] + "…" if len(tb) > 17 else tb
+
+                fav_bar_a = "#1565c0" if wp_pct_a >= wp_pct_b else "#b0bec5"
+                fav_bar_b = "#1565c0" if wp_pct_b > wp_pct_a else "#b0bec5"
+
+                st.markdown(
+                    f"<div style='font-family:system-ui,sans-serif;font-size:12px;margin-bottom:6px'>"
+                    # Team A
+                    f"<div style='border:{border_a};border-radius:7px;padding:6px 8px;"
+                    f"background:{bg_a};opacity:{op_a};margin-bottom:3px;"
+                    f"display:flex;justify-content:space-between;align-items:center'>"
+                    f"<div><span style='background:#1e2d40;color:white;border-radius:3px;"
+                    f"padding:1px 5px;font-size:9px;font-weight:700;margin-right:5px'>{sa}</span>"
+                    f"<span style='font-weight:{'700' if sel_a else '400'}'>"
+                    f"{'✅ ' if sel_a else ''}{ta_short}</span></div>"
+                    f"<span style='color:{em_col_a};font-size:11px;font-weight:600'>{em_a:+.1f}</span>"
+                    f"</div>"
+                    # Probability bar + labels
+                    f"<div style='display:flex;height:5px;border-radius:3px;overflow:hidden;margin:2px 2px'>"
+                    f"<div style='width:{wp_pct_a}%;background:{fav_bar_a}'></div>"
+                    f"<div style='width:{wp_pct_b}%;background:{fav_bar_b}'></div></div>"
+                    f"<div style='display:flex;justify-content:space-between;font-size:9px;"
+                    f"color:#999;padding:1px 2px 3px'>"
+                    f"<span><b style='color:#555'>{wp_pct_a}%</b></span>"
+                    f"<span><b style='color:#555'>{wp_pct_b}%</b></span></div>"
+                    # Team B
+                    f"<div style='border:{border_b};border-radius:7px;padding:6px 8px;"
+                    f"background:{bg_b};opacity:{op_b};"
+                    f"display:flex;justify-content:space-between;align-items:center'>"
+                    f"<div><span style='background:#78909c;color:white;border-radius:3px;"
+                    f"padding:1px 5px;font-size:9px;font-weight:700;margin-right:5px'>{sb}</span>"
+                    f"<span style='font-weight:{'700' if sel_b else '400'}'>"
+                    f"{'✅ ' if sel_b else ''}{tb_short}</span></div>"
+                    f"<span style='color:{em_col_b};font-size:11px;font-weight:600'>{em_b:+.1f}</span>"
+                    f"</div></div>",
+                    unsafe_allow_html=True,
+                )
+
+                # Pick buttons
+                _ba, _bundo, _bb = st.columns([5, 1, 5])
+                with _ba:
+                    if st.button(
+                        ta_short, key=f"bp_{rnd}_{slot}_a",
+                        use_container_width=True,
+                        type="primary" if sel_a else "secondary",
+                    ):
+                        st.session_state["bp_picks"][(rnd, slot)] = ta
+                        st.rerun()
+                with _bundo:
+                    if picked and st.button("✕", key=f"bp_{rnd}_{slot}_x", use_container_width=True):
+                        del st.session_state["bp_picks"][(rnd, slot)]
+                        # Cascade-clear all downstream picks derived from this slot.
+                        # In each subsequent round R, the slot that used this result sits at slot//2^(R-rnd).
+                        _cur_slot = slot
+                        for _dr in range(rnd + 1, 6):
+                            _cur_slot = _cur_slot // 2
+                            st.session_state["bp_picks"].pop((_dr, _cur_slot), None)
+                        st.rerun()
+                with _bb:
+                    if st.button(
+                        tb_short, key=f"bp_{rnd}_{slot}_b",
+                        use_container_width=True,
+                        type="primary" if sel_b else "secondary",
+                    ):
+                        st.session_state["bp_picks"][(rnd, slot)] = tb
+                        st.rerun()
+
+        # ── Round 1 (32 games, 4 regions × 8) ──────────────────────────────
+        with _pk_r1:
+            st.caption("Pick every first-round winner. All 32 matchups are live — start anywhere.")
+            for _ri, _region in enumerate(_BP_REGIONS):
+                st.markdown(f"**{_region} Region**")
+                _cols = st.columns(4, gap="small")
+                for _mi in range(8):
+                    _slot = _ri * 8 + _mi
+                    _pk_render_matchup(0, _slot, _cols[_mi % 4])
+                    if _mi == 3:
+                        _cols = st.columns(4, gap="small")
+                st.markdown("<div style='margin:8px 0'></div>", unsafe_allow_html=True)
+
+        # ── Round 2 (16 games, 4 regions × 4) ─────────────────────────────
+        with _pk_r2:
+            st.caption("Round of 32 — your Round 1 picks determine the matchups.")
+            for _ri, _region in enumerate(_BP_REGIONS):
+                st.markdown(f"**{_region} Region**")
+                _cols32 = st.columns(4, gap="small")
+                for _mi in range(4):
+                    _slot = _ri * 4 + _mi
+                    _pk_render_matchup(1, _slot, _cols32[_mi])
+                st.markdown("<div style='margin:8px 0'></div>", unsafe_allow_html=True)
+
+        # ── Sweet 16 (8 games, 4 regions × 2) ─────────────────────────────
+        with _pk_r3:
+            st.caption("Sweet 16 — four regions, two games each.")
+            _s16_cols = st.columns(4, gap="medium")
+            for _ri, _region in enumerate(_BP_REGIONS):
+                with _s16_cols[_ri]:
+                    st.markdown(f"**{_region}**")
+                    for _mi in range(2):
+                        _slot = _ri * 2 + _mi
+                        _pk_render_matchup(2, _slot, st.container())
+
+        # ── Elite Eight (4 games, one per region) ─────────────────────────
+        with _pk_r4:
+            st.caption("Elite Eight — regional champions. Four teams advance to the Final Four.")
+            _e8_cols = st.columns(4, gap="medium")
+            for _ri, _region in enumerate(_BP_REGIONS):
+                with _e8_cols[_ri]:
+                    st.markdown(f"**{_region}**")
+                    _pk_render_matchup(3, _ri, st.container())
+
+        # ── Final Four (2 games) ───────────────────────────────────────────
+        with _pk_r5:
+            st.caption("Final Four — East/West and South/Midwest bracket halves meet in Houston.")
+            _f4l, _f4_spacer, _f4r = st.columns([5, 1, 5])
+            with _f4l:
+                st.markdown("**East vs West**")
+                _pk_render_matchup(4, 0, st.container())
+            with _f4r:
+                st.markdown("**South vs Midwest**")
+                _pk_render_matchup(4, 1, st.container())
+
+        # ── Championship ───────────────────────────────────────────────────
+        with _pk_r6:
+            st.caption("National Championship — one pick to seal the bracket.")
+            _ncg_l, _ncg_m, _ncg_r = st.columns([2, 4, 2])
+            with _ncg_m:
+                st.markdown("### 🏆 National Championship")
+                _pk_render_matchup(5, 0, st.container())
+
+                # Final probability ribbon if bracket is complete
+                if _made == 63:
+                    st.markdown("<div style='margin-top:16px'></div>", unsafe_allow_html=True)
+                    if _prob_pct > 0.01:
+                        _ribbon_prob = f"{_prob_pct:.6f}%"
+                        _ribbon_odds = ""
+                    else:
+                        _ribbon_odds_val = round(1 / (_prob_pct / 100)) if _prob_pct > 0 else 0
+                        _ribbon_prob = f"1 in {_ribbon_odds_val:,}"
+                        _ribbon_odds = ""
+                    st.markdown(
+                        f"<div style='background:#1e2d40;color:white;border-radius:12px;"
+                        f"padding:20px 24px;text-align:center;font-family:system-ui'>"
+                        f"<div style='font-size:13px;opacity:0.7;margin-bottom:6px'>Your completed bracket has a</div>"
+                        f"<div style='font-size:32px;font-weight:800;color:#f9d71c'>{_ribbon_prob}</div>"
+                        f"<div style='font-size:13px;opacity:0.7;margin-top:6px'>probability of being perfect.</div>"
+                        f"<div style='font-size:12px;opacity:0.5;margin-top:4px'>"
+                        f"Expected correct picks: <b style='color:white'>{_exp_correct:.1f}</b> out of 63</div>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
 
 
 # ---------------------------------------------------------------------------
