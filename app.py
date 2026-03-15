@@ -785,6 +785,57 @@ def load_team_games(team_id: int, season: int) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
+def generate_playstyle_name(t: pd.Series, ts: pd.Series | None, n: int) -> tuple[str, str]:
+    """Return (playstyle_name, one-line tagline) based on stats."""
+    adjt_nr  = int(t["AdjT_nr"])
+    adjo_nr  = int(t["AdjO_nr"])
+    adjd_nr  = int(t["AdjD_nr"])
+    fast     = adjt_nr <= 80
+    slow     = adjt_nr >= 270
+    elite_off = adjo_nr <= 40
+    elite_def = adjd_nr <= 40
+
+    three_heavy = three_light = glass_eater = ball_safe = ft_heavy = pass_first = False
+    if ts is not None:
+        three_pa_nr = int(ts.get("3PaPG_nr",  n))
+        oreb_nr     = int(ts.get("OrebPG_nr", n))
+        to_nr       = int(ts.get("TOPG_nr",  n))
+        ft_nr       = int(ts.get("FTmPG_nr", n))
+        ast_nr      = int(ts.get("AstPG_nr", n))
+        three_heavy = three_pa_nr <= 50
+        three_light = three_pa_nr >= 280
+        glass_eater = oreb_nr     <= 40
+        ball_safe   = to_nr       <= 50
+        ft_heavy    = ft_nr       <= 50
+        pass_first  = ast_nr      <= 50
+
+    if elite_def and slow:
+        return "⛩️ Defensive Fortress", "Built on suffocating defense and half-court execution"
+    if fast and three_heavy and elite_off:
+        return "🚀 Perimeter Blitz", "Fires threes at an elite clip and never lets up"
+    if fast and elite_off:
+        return "⚡ Run & Gun", "Pushes before defenses can set and creates easy looks"
+    if slow and elite_def:
+        return "🐢 Grind-It-Out", "Slows every possession and suffocates opposing offenses"
+    if glass_eater and not three_heavy:
+        return "💪 Glass-Eating Machine", "Dominates the offensive boards and scores near the rim"
+    if three_heavy and ball_safe:
+        return "🎯 Sharpshooter System", "Disciplined ball movement and perimeter shooting"
+    if three_heavy:
+        return "🌎 Sniper Squad", "Lives behind the arc — win or lose by the three"
+    if slow and three_light:
+        return "⚒️ Post-Up Bully", "Methodical half-court team that attacks the paint"
+    if fast:
+        return "🏃 Up-Tempo Pusher", "Plays at a fast clip and looks to score in transition"
+    if elite_def:
+        return "🛡️ Lockdown Unit", "Defense-first identity that keeps opponents under wraps"
+    if elite_off:
+        return "🏀 Offensive Juggernaut", "One of the most efficient scoring teams in the country"
+    if pass_first and ball_safe:
+        return "🎭 Ball Movement Maestros", "Patient, pass-first offense with minimal turnovers"
+    return "⚖️ Balanced Contender", "Well-rounded program with no glaring identity or weakness"
+
+
 def generate_team_writeup(t: pd.Series, ts: pd.Series | None, n: int) -> str:
     """Build a template-driven narrative paragraph describing the team's identity."""
     name = t["Team"]
@@ -906,15 +957,19 @@ def generate_team_writeup(t: pd.Series, ts: pd.Series | None, n: int) -> str:
     elif luck < -0.04:
         luck_str = " Notably, they've been unlucky in close games — their record undersells how good they actually are."
 
-    # Assemble
+    # Assemble — bold key numbers for scannability
     parts = [
-        f"{name} is {tier} this season, sitting at #{rank} nationally with a {record} record. "
-        f"They feature {off_tier} (#{adjo_nr}) and {def_tier} (#{adjd_nr}), "
-        f"for an overall AdjEM of {adjem:+.2f}.",
+        f"{name} is **{tier}** this season, sitting at **#{rank} nationally** with a **{record}** record. "
+        f"They feature {off_tier} (**#{adjo_nr}**) and {def_tier} (**#{adjd_nr}**), "
+        f"for an overall AdjEM of **{adjem:+.2f}**.",
 
-        f"In terms of style, they {tempo_str}.",
+        f"In terms of style, they **{tempo_str}**.",
     ]
-    parts.extend(style_notes)
+    # Bold the rank numbers inside each style note
+    for note in style_notes:
+        import re as _re
+        bolded = _re.sub(r"(#\d+)", r"**\1**", note)
+        parts.append(bolded)
     if sos_str:
         parts.append(sos_str)
     if luck_str:
@@ -971,49 +1026,63 @@ with team_tab:
         st.markdown(writeup)
 
     with radar_col:
-        # Build 8-spoke percentile radar showing team identity
-        _radar_labels = ["Offense", "Defense", "Pace", "3PT Volume", "Off. Rebound", "Ball Security", "Free Throws", "Sch. Strength"]
+        # _pct: convert national rank to percentile (100 = best)
         def _pct(nr: int | float) -> float:
             """Convert a national rank to a 0-100 percentile (higher = better)."""
             return round((1 - (nr - 1) / _n) * 100)
 
-        _adjo_pct  = _pct(_t["AdjO_nr"])
-        _adjd_pct  = _pct(_t["AdjD_nr"])   # already inverted (rank 1 = best defense)
-        _adjt_pct  = _pct(_t["AdjT_nr"])
-        _sos_pct   = _pct(_t["SOS_nr"])
+        # ── Playstyle name badge ────────────────────────────────────────────
+        _style_name, _style_tag = generate_playstyle_name(_t, _ts, _n)
+        st.markdown(
+            f"<div style='background:#1e2d40;color:white;border-radius:8px;padding:10px 16px;"
+            f"margin-bottom:10px;font-family:system-ui'>"
+            f"<div style='font-size:18px;font-weight:700'>{_style_name}</div>"
+            f"<div style='font-size:12px;opacity:0.75;margin-top:2px'>{_style_tag}</div></div>",
+            unsafe_allow_html=True,
+        )
+
+        # ── 8-spoke playstyle radar (no Offense/Defense spokes) ─────────────
+        # All spokes describe HOW the team plays, not efficiency ratings.
+        _radar_labels = ["Pace", "3PT Volume", "3PT Accuracy", "Off. Rebounding",
+                         "Ball Security", "FT Drawing", "Assists", "Def. Rebounding"]
 
         if _ts is not None:
-            _3pa_pct  = _pct(_ts["3PaPG_nr"])
-            _oreb_pct = _pct(_ts["OrebPG_nr"])
-            _to_pct   = _pct(_ts["TOPG_nr"])    # rank 1 = fewest TOs = best ball security
-            _ft_pct   = _pct(_ts["FT%_nr"])
+            _adjt_pct  = _pct(_t["AdjT_nr"])
+            _3pa_pct   = _pct(_ts["3PaPG_nr"])
+            _3pct_pct  = _pct(_ts["3P%_nr"])
+            _oreb_pct  = _pct(_ts["OrebPG_nr"])
+            _to_pct    = _pct(_ts["TOPG_nr"])    # rank 1 = fewest TOs
+            _ftm_pct   = _pct(_ts["FTmPG_nr"])   # free throws drawn/made per game
+            _ast_pct   = _pct(_ts["AstPG_nr"])
+            _dreb_pct  = round((1 - (_ts["RebPG_nr"] - 1) / _n) * 100)
         else:
-            _3pa_pct = _oreb_pct = _to_pct = _ft_pct = 50
+            _adjt_pct = _3pa_pct = _3pct_pct = _oreb_pct = _to_pct = _ftm_pct = _ast_pct = _dreb_pct = 50
 
-        _radar_vals = [_adjo_pct, _adjd_pct, _adjt_pct, _3pa_pct, _oreb_pct, _to_pct, _ft_pct, _sos_pct]
+        _radar_vals = [_adjt_pct, _3pa_pct, _3pct_pct, _oreb_pct,
+                       _to_pct,  _ftm_pct,  _ast_pct,  _dreb_pct]
 
         N_spokes = len(_radar_labels)
         angles   = [n_i / N_spokes * 2 * 3.14159 for n_i in range(N_spokes)]
-        angles  += angles[:1]  # close the polygon
+        angles  += angles[:1]
         vals     = _radar_vals + _radar_vals[:1]
 
         fig_r, ax_r = plt.subplots(figsize=(4.5, 4.5), subplot_kw=dict(polar=True))
         ax_r.set_theta_offset(3.14159 / 2)
         ax_r.set_theta_direction(-1)
         ax_r.set_xticks(angles[:-1])
-        ax_r.set_xticklabels(_radar_labels, size=8, color="#333")
+        ax_r.set_xticklabels(_radar_labels, size=7.5, color="#333")
         ax_r.set_yticks([20, 40, 60, 80, 100])
         ax_r.set_yticklabels(["20", "40", "60", "80", "100"], size=6, color="#aaa")
         ax_r.set_ylim(0, 100)
         ax_r.plot(angles, vals, color="#1e2d40", linewidth=2)
         ax_r.fill(angles, vals, color="#4a90d9", alpha=0.35)
-        ax_r.set_title(f"{selected_team}\nPercentile Profile", size=9, pad=14, color="#222", fontweight="bold")
+        ax_r.set_title("Playstyle Profile", size=9, pad=14, color="#555", fontweight="bold")
         ax_r.spines["polar"].set_visible(False)
         ax_r.grid(color="#ccc", linestyle="--", linewidth=0.6)
         plt.tight_layout()
         st.pyplot(fig_r, use_container_width=True)
         plt.close(fig_r)
-        st.caption("Each spoke = national percentile (higher = better). Defense and Ball Security are already inverted.")
+        st.caption("Each spoke = national percentile for that playstyle dimension. Ball Security = inverted turnover rate.")
 
     st.divider()
 
@@ -1069,18 +1138,24 @@ with team_tab:
     # ── Efficiency metrics (compact row) ────────────────────────────────────
     st.markdown("#### Full Efficiency Breakdown")
     m1, m2, m3, m4, m5, m6 = st.columns(6)
-    for _col_ui, _metric, _val_fmt, _help in [
-        (m1, "AdjEM", f"{_t['AdjEM']:+.2f}",  "Adjusted Efficiency Margin — pts/100 margin."),
-        (m2, "AdjO",  f"{_t['AdjO']:.2f}",   "Adjusted Offensive Efficiency."),
-        (m3, "AdjD",  f"{_t['AdjD']:.2f}",   "Adjusted Defensive Efficiency (lower = better)."),
-        (m4, "AdjT",  f"{_t['AdjT']:.1f}",   "Adjusted Tempo — possessions per 40 min."),
-        (m5, "Luck",  f"{_t['Luck']:+.3f}",  "Actual win% minus Pythagorean expected win%."),
-        (m6, "SOS",   f"{_t['SOS']:+.2f}",   "Strength of Schedule."),
+    for _col_ui, _metric, _label, _val_fmt, _help in [
+        (m1, "AdjEM", "Adj. Efficiency Margin", f"{_t['AdjEM']:+.2f}",
+         "Adjusted Efficiency Margin — pts/100 margin vs an average D1 opponent. The headline ranking number."),
+        (m2, "AdjO",  "Adj. Offense",           f"{_t['AdjO']:.2f}",
+         "Adjusted Offensive Efficiency — points scored per 100 possessions. Higher is better."),
+        (m3, "AdjD",  "Adj. Defense",           f"{_t['AdjD']:.2f}",
+         "Adjusted Defensive Efficiency — points allowed per 100 possessions. Lower is better."),
+        (m4, "AdjT",  "Adj. Tempo",             f"{_t['AdjT']:.1f}",
+         "Adjusted Tempo — possessions per 40 minutes. Higher = faster pace."),
+        (m5, "Luck",  "Luck",                   f"{_t['Luck']:+.3f}",
+         "Actual win% minus Pythagorean expected win%. Positive = winning more than efficiency predicts."),
+        (m6, "SOS",   "Strength of Schedule",   f"{_t['SOS']:+.2f}",
+         "Average AdjEM of all opponents faced. Higher = tougher schedule."),
     ]:
         with _col_ui:
             _nr = int(_t[f"{_metric}_nr"])
             st.metric(
-                _metric, _val_fmt,
+                _label, _val_fmt,
                 delta=f"#{_nr} · {_pct(_nr)}th pct",
                 delta_color="off",
                 help=_help,
@@ -1114,16 +1189,42 @@ with team_tab:
                 "Percentile": pct_s if pct_s else 0,
             })
 
+        def _stat_bar_html(rows: list[dict]) -> str:
+            """Render a list of stat rows as color-coded HTML bars.
+
+            Green ≥ 75th pct, amber 40–74, red < 40.
+            """
+            def _bar_color(pct: int) -> str:
+                if pct >= 80: return "#2e7d32"
+                if pct >= 60: return "#66bb6a"
+                if pct >= 40: return "#ffa726"
+                if pct >= 20: return "#ef5350"
+                return "#b71c1c"
+
+            parts = ["<div style='font-family:system-ui,-apple-system,sans-serif;font-size:13px'>"]
+            for sr in rows:
+                pct  = int(sr["Percentile"])
+                color = _bar_color(pct)
+                _nr_str = sr["Nat'l Rank"]
+                parts.append(
+                    f"<div style='margin-bottom:10px'>"
+                    f"<div style='display:flex;justify-content:space-between;margin-bottom:3px'>"
+                    f"<span><b>{sr['Stat']}</b>: {sr['Value']}</span>"
+                    f"<span style='color:#666;font-size:12px'>{_nr_str} &nbsp; {pct}th pct</span>"
+                    f"</div>"
+                    f"<div style='background:#e8e8e8;border-radius:4px;height:7px;overflow:hidden'>"
+                    f"<div style='width:{pct}%;height:100%;background:{color};border-radius:4px;transition:width .3s'></div>"
+                    f"</div></div>"
+                )
+            parts.append("</div>")
+            return "".join(parts)
+
         _sc_a, _sc_b = st.columns(2)
         _half = len(stat_rows) // 2
-        for col_ui, rows_slice in [(_sc_a, stat_rows[:_half]), (_sc_b, stat_rows[_half:])]:
-            with col_ui:
-                for sr in rows_slice:
-                    _nr_lbl = sr["Nat'l Rank"]
-                    st.progress(
-                        int(sr["Percentile"]),
-                        text=f"**{sr['Stat']}**: {sr['Value']}  \u2014  {_nr_lbl} nationally"
-                    )
+        with _sc_a:
+            st.markdown(_stat_bar_html(stat_rows[:_half]), unsafe_allow_html=True)
+        with _sc_b:
+            st.markdown(_stat_bar_html(stat_rows[_half:]), unsafe_allow_html=True)
 
     st.divider()
 
