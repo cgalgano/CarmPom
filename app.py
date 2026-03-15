@@ -302,9 +302,12 @@ with rankings_tab:
         display_df.style
         .background_gradient(subset=["AdjEM"], cmap="RdYlGn",   gmap=filtered["AdjEM"].values)
         .background_gradient(subset=["AdjO"],  cmap="Greens",   gmap=filtered["AdjO"].values)
-        .background_gradient(subset=["AdjD"],  cmap="Reds_r",   gmap=filtered["AdjD"].values)
-        .background_gradient(subset=["Luck"],  cmap="coolwarm", gmap=filtered["Luck"].values)
-        .background_gradient(subset=["SOS"],   cmap="Purples",  gmap=filtered["SOS"].values)
+        # AdjD: lower pts allowed = better defense = green; higher = red
+        .background_gradient(subset=["AdjD"],  cmap="RdYlGn_r", gmap=filtered["AdjD"].values)
+        # Luck: positive (lucky) = green; negative (unlucky) = red
+        .background_gradient(subset=["Luck"],  cmap="RdYlGn",   gmap=filtered["Luck"].values)
+        # SOS: higher (tougher schedule) = green; lower (easier schedule) = red
+        .background_gradient(subset=["SOS"],   cmap="RdYlGn",   gmap=filtered["SOS"].values)
     )
 
     st.dataframe(styled, use_container_width=True, hide_index=True, height=700)
