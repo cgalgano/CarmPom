@@ -180,7 +180,7 @@ def _build_espn_id_map() -> dict[int, str]:
 _ESPN_ID_MAP: dict[int, str] = _build_espn_id_map()
 
 
-@st.cache_data
+@st.cache_data(ttl=3600)
 def load_rankings(season: int) -> pd.DataFrame:
     """Pull ratings + team info for a given season from the database."""
     with SessionLocal() as session:
@@ -225,7 +225,7 @@ def load_rankings(season: int) -> pd.DataFrame:
     return df
 
 
-@st.cache_data
+@st.cache_data(ttl=3600)
 def load_per_game_stats(season: int) -> pd.DataFrame:
     """Aggregate per-game counting stats from box_scores for all teams in a season."""
     with SessionLocal() as session:
@@ -308,7 +308,7 @@ def load_per_game_stats(season: int) -> pd.DataFrame:
 # KenPom comparison loader (cached)
 # ---------------------------------------------------------------------------
 
-@st.cache_data
+@st.cache_data(ttl=3600)
 def load_kenpom_comparison(season: int) -> pd.DataFrame:
     """Join CarmPom ratings with KenPom 2026 ranks and return disagreement data."""
     kp_ranks = pd.read_csv(ROOT / "data" / "kenpom2026_ranks.csv")
