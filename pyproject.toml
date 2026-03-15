@@ -12,6 +12,7 @@ dependencies = [
     "lightgbm>=4.0.0",
     "matplotlib>=3.10.8",
     "pandas>=3.0.1",
+    "pypdf>=6.9.0",
     "scikit-learn>=1.4.0",
     "seaborn>=0.13.2",
     "sqlalchemy>=2.0.48",

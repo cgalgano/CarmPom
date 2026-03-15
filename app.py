@@ -591,6 +591,100 @@ def simulate_bracket(
     return pd.DataFrame(results).sort_values("Champ%", ascending=False).reset_index(drop=True)
 
 
+def generate_matchup_analysis(
+    ta: pd.Series, tb: pd.Series, wp: float, n_teams: int
+) -> list[str]:
+    """Return bullet-point matchup insights for team A vs team B.
+
+    wp = CarmPom win probability for team A (0–1).
+    n_teams = total D1 rated teams (used for pct thresholds).
+    """
+    bullets: list[str] = []
+    a_name = ta["Team"]
+    b_name = tb["Team"]
+    adjem_diff = float(ta["AdjEM"]) - float(tb["AdjEM"])
+
+    # --- Overall outlook ---
+    if abs(adjem_diff) < 2:
+        bullets.append(
+            f"🎲 **True toss-up** — CarmPom rates these teams within {abs(adjem_diff):.1f} pts/100 of each other. "
+            "Either team wins this on any given night."
+        )
+    elif abs(adjem_diff) < 6:
+        fav = a_name if adjem_diff > 0 else b_name
+        bullets.append(
+            f"📊 **Slight edge for {fav}** — a {abs(adjem_diff):.1f} pt/100 efficiency gap is meaningful "
+            "but absolutely beatable in a single game."
+        )
+    elif abs(adjem_diff) < 15:
+        fav = a_name if adjem_diff > 0 else b_name
+        dog = b_name if adjem_diff > 0 else a_name
+        bullets.append(
+            f"📈 **{fav} is the clear favorite** ({abs(adjem_diff):.1f} pts/100 better). "
+            f"{dog} needs to neutralize that edge early or it could get away from them."
+        )
+    else:
+        fav = a_name if adjem_diff > 0 else b_name
+        dog = b_name if adjem_diff > 0 else a_name
+        bullets.append(
+            f"⚡ **Big mismatch** — {fav} is {abs(adjem_diff):.1f} pts/100 more efficient. "
+            f"{dog} would need an historically great performance to pull this off."
+        )
+
+    # --- Offensive battle ---
+    adjo_a = float(ta.get("AdjO", 100))
+    adjo_b = float(tb.get("AdjO", 100))
+    adjo_diff = adjo_a - adjo_b
+    adjd_a = float(ta.get("AdjD", 100))
+    adjd_b = float(tb.get("AdjD", 100))
+    adjd_diff = adjd_a - adjd_b  # negative = ta has better (lower) defense
+
+    if abs(adjo_diff) >= 4:
+        better_off = a_name if adjo_diff > 0 else b_name
+        faces_def = b_name if adjo_diff > 0 else a_name
+        def_rating = adjd_b if adjo_diff > 0 else adjd_a
+        bullets.append(
+            f"⚔️ **Offensive mismatch** — {better_off}'s offense ({max(adjo_a, adjo_b):.1f} AdjO) "
+            f"is the best attack {faces_def} has seen all season. Their defense gives up {def_rating:.1f} pts/100."
+        )
+
+    # --- Defensive battle ---
+    if abs(adjd_diff) >= 4:
+        better_def = a_name if adjd_diff < 0 else b_name  # lower AdjD = better defense
+        opp_def = b_name if adjd_diff < 0 else a_name
+        best_def = min(adjd_a, adjd_b)
+        bullets.append(
+            f"🛡️ **Defensive anchor** — {better_def} ({best_def:.1f} AdjD) is one of the stingiest "
+            f"defenses in the country. {opp_def} will need to shoot well to keep up."
+        )
+
+    # --- Tempo clash ---
+    adjt_a = float(ta.get("AdjT", 68))
+    adjt_b = float(tb.get("AdjT", 68))
+    adjt_diff = abs(adjt_a - adjt_b)
+    if adjt_diff >= 3:
+        faster = a_name if adjt_a > adjt_b else b_name
+        slower = b_name if adjt_a > adjt_b else a_name
+        bullets.append(
+            f"🏃 **Pace battle** — {faster} wants to run, {slower} wants to grind. "
+            "Whoever imposes their preferred tempo gains a structural edge — watch the early possessions."
+        )
+
+    # --- Seed / upset flag ---
+    seed_a = int(ta.get("seed", 8))
+    seed_b = int(tb.get("seed", 9))
+    high_seed = max(seed_a, seed_b)
+    model_wp = wp if adjem_diff >= 0 else (1 - wp)
+    if high_seed >= 10 and model_wp < 0.80:
+        underdog = a_name if seed_a > seed_b else b_name
+        bullets.append(
+            f"👀 **Upset potential** — the #{high_seed} seed ({underdog}) is closer in efficiency "
+            "than the seed gap suggests. Don't sleep on this one."
+        )
+
+    return bullets
+
+
 # ---------------------------------------------------------------------------
 # Tabs
 # ---------------------------------------------------------------------------
@@ -1398,9 +1492,7 @@ with team_tab:
 # ---------------------------------------------------------------------------
 
 with bracket_tab:
-    st.subheader("🏆 Bracket Simulation")
-
-    # Try real bracket first; fall back to projected if CSV isn't filled out yet
+    # --- Load bracket ---
     try:
         _real_bracket = load_real_bracket(2026)
     except ValueError as _brk_err:
@@ -1409,94 +1501,279 @@ with bracket_tab:
 
     if _real_bracket is not None:
         bracket = _real_bracket
-        st.success("Using **real 2026 NCAA Tournament bracket** seedings.", icon="✅")
+        _bracket_mode = "real"
     else:
         _brk_df = load_rankings(2026)
         bracket = build_projected_bracket(_brk_df, n_teams=64)
-        # Show info banner only while real bracket isn't loaded
-        filled_count = 0
-        if _BRACKET_CSV.exists():
-            _csv_raw = pd.read_csv(_BRACKET_CSV)
-            filled_count = int((_csv_raw["team"].notna() & (_csv_raw["team"].str.strip() != "")).sum())
-        if filled_count > 0:
-            st.warning(
-                f"bracket_2026.csv has {filled_count}/64 teams filled in — finish entering all 64 to switch to real seedings.",
-                icon="📝",
+        _bracket_mode = "projected"
+
+    # Auto-run simulation on first load (cached per bracket type)
+    _brk_key = "sim_2026_real" if _bracket_mode == "real" else "sim_2026_proj"
+    if _brk_key not in st.session_state:
+        with st.spinner("Running 25,000 tournament simulations…"):
+            st.session_state[_brk_key] = simulate_bracket(bracket, n_sims=25_000)
+    _sim = st.session_state[_brk_key]
+
+    # Load full rankings for national rank columns and playstyle lookup
+    _brk_full_r = load_rankings(2026)
+    _n_teams = len(_brk_full_r)
+    _r_lookup = _brk_full_r.set_index("Team").to_dict("index")
+
+    # ── Matchup card HTML ─────────────────────────────────────────────────
+    def _card_html(ta: pd.Series, tb: pd.Series, wp_a: float,
+                   champ_a: float, champ_b: float) -> str:
+        """Return HTML card for a single first-round matchup."""
+        sa, sb = int(ta["seed"]), int(tb["seed"])
+        fav_a = wp_a >= 0.5
+        wp_pct_a = round(wp_a * 100)
+        wp_pct_b = 100 - wp_pct_a
+        bar_left = "#1e7d32" if fav_a else "#c62828"
+        bar_right = "#1e7d32" if not fav_a else "#c62828"
+        em_a, em_b = float(ta["AdjEM"]), float(tb["AdjEM"])
+        em_col_a = "#1e7d32" if em_a > 0 else "#c62828"
+        em_col_b = "#1e7d32" if em_b > 0 else "#c62828"
+        style_a = "font-weight:700" if fav_a else "color:#555"
+        style_b = "font-weight:700" if not fav_a else "color:#555"
+        n_a = ta["Team"]
+        n_b = tb["Team"]
+        return (
+            f"<div style='border:1px solid #dde3eb;border-radius:10px;padding:12px 14px;"
+            f"margin-bottom:10px;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,0.07)'>"
+            # Team A row
+            f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:5px'>"
+            f"<div><span style='background:#1e2d40;color:white;border-radius:3px;padding:1px 6px;"
+            f"font-size:10px;font-weight:700;margin-right:5px'>{sa}</span>"
+            f"<span style='font-size:13px;{style_a}'>{n_a}</span></div>"
+            f"<span style='font-size:12px;color:{em_col_a};font-weight:600'>{em_a:+.1f}</span></div>"
+            # Win-prob bar
+            f"<div style='display:flex;height:6px;border-radius:3px;overflow:hidden;margin:4px 0'>"
+            f"<div style='width:{wp_pct_a}%;background:{bar_left}'></div>"
+            f"<div style='width:{wp_pct_b}%;background:{bar_right}'></div></div>"
+            # Team B row
+            f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px'>"
+            f"<div><span style='background:#78909c;color:white;border-radius:3px;padding:1px 6px;"
+            f"font-size:10px;font-weight:700;margin-right:5px'>{sb}</span>"
+            f"<span style='font-size:13px;{style_b}'>{n_b}</span></div>"
+            f"<span style='font-size:12px;color:{em_col_b};font-weight:600'>{em_b:+.1f}</span></div>"
+            # Footer: win% + champ%
+            f"<div style='display:flex;justify-content:space-between;font-size:11px;color:#777;"
+            f"border-top:1px solid #eee;padding-top:5px'>"
+            f"<span><b style='color:#333'>{wp_pct_a}%</b> {n_a.split()[0]} &nbsp;"
+            f"<b style='color:#333'>{wp_pct_b}%</b> {n_b.split()[0]}</span>"
+            f"<span>🏆 {champ_a:.1f}% / {champ_b:.1f}%</span></div>"
+            f"</div>"
+        )
+
+    # ── Matchup detail panel ──────────────────────────────────────────────
+    def _detail_panel(ta: pd.Series, tb: pd.Series, wp_a: float, n: int) -> None:
+        """Render full matchup analysis inside a bordered container."""
+        name_a, name_b = ta["Team"], tb["Team"]
+        em_a, em_b = float(ta["AdjEM"]), float(tb["AdjEM"])
+        wp_pct_a = round(wp_a * 100)
+        wp_pct_b = 100 - wp_pct_a
+        fav = name_a if wp_a >= 0.5 else name_b
+        fav_pct = max(wp_pct_a, wp_pct_b)
+
+        # Title
+        st.markdown(
+            f"<h3 style='text-align:center;margin:4px 0 2px;font-family:system-ui,sans-serif'>"
+            f"<span style='color:#1e2d40'>({int(ta['seed'])}) {name_a}</span>"
+            f"  <span style='color:#aaa;font-size:16px'>vs</span>  "
+            f"<span style='color:#1e2d40'>({int(tb['seed'])}) {name_b}</span></h3>",
+            unsafe_allow_html=True,
+        )
+
+        # Win probability gauge
+        st.markdown(
+            f"<div style='text-align:center;margin:8px 0 16px'>"
+            f"<div style='display:flex;height:20px;border-radius:10px;overflow:hidden;"
+            f"max-width:500px;margin:0 auto 6px'>"
+            f"<div style='width:{wp_pct_a}%;background:#1e7d32;display:flex;align-items:center;"
+            f"justify-content:center'><span style='color:white;font-size:12px;font-weight:700'>{wp_pct_a}%</span></div>"
+            f"<div style='width:{wp_pct_b}%;background:#c62828;display:flex;align-items:center;"
+            f"justify-content:center'><span style='color:white;font-size:12px;font-weight:700'>{wp_pct_b}%</span></div>"
+            f"</div>"
+            f"<div style='font-size:12px;color:#555'>CarmPom gives "
+            f"<b>{fav}</b> a <b>{fav_pct}%</b> chance to win</div></div>",
+            unsafe_allow_html=True,
+        )
+
+        # Side-by-side stat comparison
+        _left_col, _mid_col, _right_col = st.columns([4, 3, 4])
+
+        def _nr(tname: str, col: str) -> str:
+            nr = _r_lookup.get(tname, {}).get(f"{col}_nr")
+            return f"#{int(nr)}" if nr is not None else ""
+
+        stat_defs = [
+            ("AdjEM",   f"{em_a:+.2f}",  f"{em_b:+.2f}",  False),
+            ("AdjO",    f"{float(ta.get('AdjO',100)):.1f} {_nr(name_a,'AdjO')}",
+                        f"{float(tb.get('AdjO',100)):.1f} {_nr(name_b,'AdjO')}", False),
+            ("AdjD",    f"{float(ta.get('AdjD',100)):.1f} {_nr(name_a,'AdjD')}",
+                        f"{float(tb.get('AdjD',100)):.1f} {_nr(name_b,'AdjD')}", True),
+            ("Tempo",   f"{float(ta.get('AdjT',68)):.1f} {_nr(name_a,'AdjT')}",
+                        f"{float(tb.get('AdjT',68)):.1f} {_nr(name_b,'AdjT')}", False),
+            ("Record",  ta.get("Record","—"), tb.get("Record","—"), False),
+        ]
+
+        lh = "<div style='font-family:system-ui,sans-serif;text-align:right'>"
+        mh = "<div style='font-family:system-ui,sans-serif;text-align:center;color:#888'>"
+        rh = "<div style='font-family:system-ui,sans-serif;text-align:left'>"
+        _row = "padding:6px 0;border-bottom:1px solid #eee;font-size:13px"
+        for lbl, va, vb, lwr in stat_defs:
+            try:
+                diff = float(va.split()[0]) - float(vb.split()[0])
+                if lwr:
+                    diff = -diff
+                arr = "◀" if diff > 0.05 else ("▶" if diff < -0.05 else "—")
+                ac = "#1e7d32" if diff > 0.05 else ("#c62828" if diff < -0.05 else "#aaa")
+            except Exception:
+                arr, ac = "—", "#aaa"
+            lh += f"<div style='{_row}'><b>{va}</b></div>"
+            mh += f"<div style='{_row}'><span style='color:{ac}'>{arr}</span> <span style='font-size:11px'>{lbl}</span></div>"
+            rh += f"<div style='{_row}'><b>{vb}</b></div>"
+        lh += "</div>"; mh += "</div>"; rh += "</div>"
+
+        with _left_col:
+            st.markdown(
+                f"<div style='background:#eaf5ed;border-radius:8px;padding:8px 12px;"
+                f"text-align:center;margin-bottom:6px'><b>{name_a}</b></div>",
+                unsafe_allow_html=True,
             )
+            st.markdown(lh, unsafe_allow_html=True)
+        with _mid_col:
+            st.markdown("<div style='margin-top:40px'></div>", unsafe_allow_html=True)
+            st.markdown(mh, unsafe_allow_html=True)
+        with _right_col:
+            st.markdown(
+                f"<div style='background:#fdecea;border-radius:8px;padding:8px 12px;"
+                f"text-align:center;margin-bottom:6px'><b>{name_b}</b></div>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(rh, unsafe_allow_html=True)
+
+        # Playstyle badges
+        st.markdown("<div style='margin-top:12px'></div>", unsafe_allow_html=True)
+        _ps_a, _ps_b = st.columns(2, gap="medium")
+        for _psc, tname in [(_ps_a, name_a), (_ps_b, name_b)]:
+            with _psc:
+                _tr = _r_lookup.get(tname)
+                if _tr:
+                    _sname, _stag = generate_playstyle_name(pd.Series(_tr), None, n)
+                    st.markdown(
+                        f"<div style='background:#1e2d40;color:white;border-radius:8px;"
+                        f"padding:8px 14px;text-align:center'>"
+                        f"<div style='font-size:14px;font-weight:700'>{_sname}</div>"
+                        f"<div style='font-size:11px;opacity:0.65;margin-top:2px'>{tname}</div>"
+                        f"<div style='font-size:11px;opacity:0.55;font-style:italic'>{_stag}</div>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+
+        # Analysis bullet points
+        st.markdown("<div style='margin-top:14px'></div>", unsafe_allow_html=True)
+        _ta_full = pd.Series({**_r_lookup.get(name_a, {}), "seed": ta.get("seed", 8), "Team": name_a})
+        _tb_full = pd.Series({**_r_lookup.get(name_b, {}), "seed": tb.get("seed", 9), "Team": name_b})
+        for bullet in generate_matchup_analysis(_ta_full, _tb_full, wp_a, n):
+            st.markdown(f"- {bullet}")
+
+    # ── Header row ────────────────────────────────────────────────────────
+    _hdr_l, _hdr_r = st.columns([3, 2])
+    with _hdr_l:
+        st.subheader("🏆 2026 NCAA Tournament")
+        if _bracket_mode == "real":
+            st.success("Real bracket seedings loaded.", icon="✅")
         else:
-            st.info(
-                "Showing **projected bracket** based on CarmPom rankings.  "
-                "Fill in `data/bracket_2026.csv` with real seedings to activate real bracket mode.",
-                icon="📅",
+            st.info("Projected bracket from CarmPom rankings.", icon="📅")
+    with _hdr_r:
+        _n_sims_val = st.select_slider(
+            "Simulations", options=[5_000, 10_000, 25_000, 50_000, 100_000],
+            value=25_000,
+        )
+        if st.button("🔄 Re-run", use_container_width=True):
+            with st.spinner(f"Running {_n_sims_val:,} simulations…"):
+                st.session_state[_brk_key] = simulate_bracket(bracket, n_sims=_n_sims_val)
+            st.rerun()
+
+    # ── Championship odds strip ───────────────────────────────────────────
+    st.markdown("##### Top Championship Contenders")
+    _strip_cols = st.columns(8)
+    for _ci, (_, _crow) in enumerate(_sim.head(8).iterrows()):
+        with _strip_cols[_ci]:
+            st.markdown(
+                f"<div style='background:#1e2d40;color:white;border-radius:8px;padding:8px 6px;"
+                f"text-align:center;font-family:system-ui,sans-serif;margin-bottom:8px'>"
+                f"<div style='font-size:20px;font-weight:800;color:#f9d71c'>{_crow['Champ%']:.1f}%</div>"
+                f"<div style='font-size:10px;font-weight:600;line-height:1.3;margin-top:2px'>"
+                f"{_crow['Team']}</div>"
+                f"<div style='font-size:9px;opacity:0.55;margin-top:2px'>"
+                f"{_crow['Region']} · {int(_crow['Seed'])}-seed</div>"
+                f"</div>",
+                unsafe_allow_html=True,
             )
 
-    n_sims = st.slider(
-        "Simulations", min_value=5_000, max_value=100_000, value=25_000, step=5_000,
-        help="More simulations = smoother probabilities, slightly slower to compute."
+    st.divider()
+
+    # ── Region tabs with bracket cards ───────────────────────────────────
+    _MU_PAIRS = [(1, 16), (8, 9), (5, 12), (4, 13), (6, 11), (3, 14), (7, 10), (2, 15)]
+    _champ_lu = _sim.set_index("Team")["Champ%"].to_dict()
+
+    _brk_east, _brk_west, _brk_south, _brk_mw = st.tabs(
+        ["🗺️ East", "🗺️ West", "🗺️ South", "🗺️ Midwest"]
     )
 
-    if st.button("▶  Run simulation", type="primary"):
-        with st.spinner(f"Running {n_sims:,} tournament simulations…"):
-            sim_results = simulate_bracket(bracket, n_sims=n_sims)
-        st.session_state["sim_results"] = sim_results
+    for _rtab, _region in [
+        (_brk_east, "East"), (_brk_west, "West"),
+        (_brk_south, "South"), (_brk_mw, "Midwest")
+    ]:
+        with _rtab:
+            _reg = bracket[bracket["region"] == _region].copy()
+            _seed_lu: dict = {int(r["seed"]): r for _, r in _reg.iterrows()}
 
-    if "sim_results" in st.session_state:
-        sim_results = st.session_state["sim_results"]
+            # Build matchup option strings for the analyzer
+            _mu_opts: list[str] = []
+            for _sa, _sb in _MU_PAIRS:
+                if _sa in _seed_lu and _sb in _seed_lu:
+                    _ta = _seed_lu[_sa]
+                    _tb = _seed_lu[_sb]
+                    _mu_opts.append(
+                        f"({_sa}) {_ta['Team']}  vs  ({_sb}) {_tb['Team']}"
+                    )
 
-        st.divider()
-        st.markdown("#### Championship probability — all 64 teams")
-        st.caption(
-            "Percentages = how often each team reached that round across all simulations.  "
-            "\nProjected seeds based on current CarmPom rankings (S-curve seeding)."
-        )
+            # Cards: top half (1/8/5/4) then bottom half (6/3/7/2)
+            for _half in [_MU_PAIRS[:4], _MU_PAIRS[4:]]:
+                _card_cols = st.columns(4, gap="small")
+                for _ci, (_sa, _sb) in enumerate(_half):
+                    if _sa not in _seed_lu or _sb not in _seed_lu:
+                        continue
+                    _ta = _seed_lu[_sa]
+                    _tb = _seed_lu[_sb]
+                    _wp = _win_prob(float(_ta["AdjEM"]), float(_tb["AdjEM"]))
+                    _ca = _champ_lu.get(_ta["Team"], 0.0)
+                    _cb = _champ_lu.get(_tb["Team"], 0.0)
+                    with _card_cols[_ci]:
+                        st.markdown(_card_html(_ta, _tb, _wp, _ca, _cb), unsafe_allow_html=True)
 
-        # Build a styled DataFrame for the simulation results
-        _sim_display = sim_results[[
-            "Team", "Conf", "Record", "Region", "Seed", "CarmPomRk", "AdjEM",
-            "R64%", "R32%", "S16%", "E8%", "F4%", "Champ%"
-        ]].copy()
-        _sim_display["AdjEM"] = _sim_display["AdjEM"].map(lambda x: f"{x:+.2f}")
+            st.divider()
 
-        st.dataframe(
-            _sim_display.style
-                .background_gradient(subset=["R64%", "R32%", "S16%", "E8%", "F4%", "Champ%"],
-                                     cmap="YlGn")
-                .format({"R64%": "{:.1f}%", "R32%": "{:.1f}%", "S16%": "{:.1f}%",
-                         "E8%": "{:.1f}%", "F4%": "{:.1f}%", "Champ%": "{:.1f}%"}),
-            use_container_width=True,
-            hide_index=True,
-            height=650,
-        )
-
-        st.divider()
-        st.markdown("#### Projected bracket by region")
-        _tab_east, _tab_west, _tab_south, _tab_mw = st.tabs(["East", "West", "South", "Midwest"])
-        for _rtab, _rname in [
-            (_tab_east, "East"), (_tab_west, "West"),
-            (_tab_south, "South"), (_tab_mw, "Midwest")
-        ]:
-            with _rtab:
-                _region_df = bracket[bracket["region"] == _rname].sort_values("seed").copy()
-                _region_display = _region_df[["seed", "Team", "Conf", "Record", "Rank", "AdjEM"]].rename(
-                    columns={"seed": "Seed", "Rank": "CarmPomRk"}
-                )
-                _region_display["AdjEM"] = _region_display["AdjEM"].map(lambda x: f"{x:+.2f}")
-                # Pull Champ% from sim results for this region
-                _champ_lookup = sim_results.set_index("Team")["Champ%"].to_dict()
-                _region_display["Champ%"] = _region_display["Team"].map(
-                    lambda t: f"{_champ_lookup.get(t, 0):.1f}%"
-                )
-                st.dataframe(_region_display, use_container_width=True, hide_index=True)
-
-    else:
-        st.markdown("Press **▶ Run simulation** to generate championship probabilities.")
-        st.divider()
-        st.markdown("#### Projected seedings (pre-bracket, S-curve from CarmPom rankings)")
-        _seed_display = bracket[["region", "seed", "Team", "Conf", "Record", "Rank", "AdjEM"]].rename(
-            columns={"region": "Region", "seed": "Seed", "Rank": "CarmPomRk"}
-        ).sort_values(["Region", "Seed"])
-        _seed_display["AdjEM"] = _seed_display["AdjEM"].map(lambda x: f"{x:+.2f}")
-        st.dataframe(_seed_display, use_container_width=True, hide_index=True, height=500)
+            # Matchup Analyzer
+            st.markdown("##### 🔍 Matchup Analyzer")
+            st.caption("Select any first-round game for a full breakdown.")
+            _sel_mu = st.selectbox(
+                "Matchup",
+                options=_mu_opts,
+                index=0,
+                key=f"mu_sel_{_region}",
+                label_visibility="collapsed",
+            )
+            if _sel_mu and _sel_mu in _mu_opts:
+                _idx = _mu_opts.index(_sel_mu)
+                _sa_sel, _sb_sel = _MU_PAIRS[_idx]
+                _ta_sel = _seed_lu[_sa_sel]
+                _tb_sel = _seed_lu[_sb_sel]
+                _wp_sel = _win_prob(float(_ta_sel["AdjEM"]), float(_tb_sel["AdjEM"]))
+                with st.container(border=True):
+                    _detail_panel(_ta_sel, _tb_sel, _wp_sel, _n_teams)
 
 # ---------------------------------------------------------------------------
 # About tab
