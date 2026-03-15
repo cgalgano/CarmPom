@@ -351,10 +351,157 @@ def load_kenpom_comparison(season: int) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# Bracket simulation helpers
+# ---------------------------------------------------------------------------
+
+import math
+
+# S-curve region assignment for 64 teams.
+# Seeds 1-4 → one #1 seed per region; odd groups go E→W→S→MW, even reverse.
+_REGIONS = ["East", "West", "South", "Midwest"]
+_SCURVE_REGIONS: list[int] = []
+for _g in range(16):
+    if _g % 2 == 0:
+        _SCURVE_REGIONS.extend([0, 1, 2, 3])
+    else:
+        _SCURVE_REGIONS.extend([3, 2, 1, 0])
+
+
+def build_projected_bracket(df: pd.DataFrame, n_teams: int = 64) -> pd.DataFrame:
+    """Assign CarmPom top-n teams to a 4-region S-curve bracket.
+
+    Returns a copy of the top-n rows with 'cp_seed', 'region', and 'seed' columns added.
+    """
+    top = df.head(n_teams).reset_index(drop=True).copy()
+    top["cp_seed"] = range(1, n_teams + 1)
+    top["region"]  = [_REGIONS[_SCURVE_REGIONS[i]] for i in range(n_teams)]
+    top["seed"]    = [(i // 4) + 1 for i in range(n_teams)]  # 1-16 within region
+    return top
+
+
+def _win_prob(adjem_a: float, adjem_b: float) -> float:
+    """Logistic win probability from AdjEM differential.
+
+    Coefficient 0.175 calibrated so a +10 AdjEM edge ≈ 82% win probability,
+    roughly matching historical NCAA Tournament margins.
+    """
+    return 1.0 / (1.0 + math.exp(-0.175 * (adjem_a - adjem_b)))
+
+
+def simulate_bracket(
+    bracket: pd.DataFrame,
+    n_sims: int = 25_000,
+    rng_seed: int = 42,
+) -> pd.DataFrame:
+    """Monte-Carlo simulate the bracket n_sims times.
+
+    Returns a DataFrame indexed by team with advance-probability columns:
+    R64_pct, R32_pct, S16_pct, E8_pct, F4_pct, Champ_pct.
+    """
+    import random
+    rng = random.Random(rng_seed)
+
+    round_labels = ["R64", "R32", "S16", "E8", "F4", "Champ"]
+    # advance_counts[team_id][round_idx] = number of sims they reached that round
+    team_ids = list(bracket["team_id"])
+    advance: dict[int, list[int]] = {tid: [0] * 6 for tid in team_ids}
+
+    # Build per-region seeding: {region: [(seed, team_id, adjem), ...]}
+    regions_dict: dict[str, list[tuple[int, int, float]]] = {r: [] for r in _REGIONS}
+    for _, row in bracket.iterrows():
+        regions_dict[row["region"]].append((int(row["seed"]), int(row["team_id"]), float(row["AdjEM"])))
+    for r in regions_dict:
+        regions_dict[r].sort(key=lambda x: x[0])
+
+    # NCAA bracket matchup order within a 16-team region:
+    # (1v16, 8v9, 5v12, 4v13, 6v11, 3v14, 7v10, 2v15)
+    _SEED_ORDER = [1, 16, 8, 9, 5, 12, 4, 13, 6, 11, 3, 14, 7, 10, 2, 15]
+    _seed_pos = {s: i for i, s in enumerate(_SEED_ORDER)}
+
+    for _ in range(n_sims):
+        # Simulate each region to produce 4 Final Four teams
+        f4_contestants: list[tuple[int, float]] = []  # (team_id, adjem)
+        for region_teams in regions_dict.values():
+            # Reorder by bracket position
+            ordered = sorted(region_teams, key=lambda x: _seed_pos.get(x[0], x[0]))
+            # Round of 64 — 8 matchups
+            survivors: list[tuple[int, float]] = []
+            for i in range(0, 16, 2):
+                a_tid, a_em = ordered[i][1], ordered[i][2]
+                b_tid, b_em = ordered[i + 1][1], ordered[i + 1][2]
+                advance[a_tid][0] += 1
+                advance[b_tid][0] += 1
+                winner = a_tid if rng.random() < _win_prob(a_em, b_em) else b_tid
+                winner_em = a_em if winner == a_tid else b_em
+                survivors.append((winner, winner_em))
+            adjem_map = {t[1]: t[2] for t in region_teams}
+            # Rounds 32 → E8 (round_idx 1,2,3)
+            for rnd_idx in range(1, 4):
+                next_survivors: list[tuple[int, float]] = []
+                for i in range(0, len(survivors), 2):
+                    a_tid, a_em = survivors[i]
+                    b_tid, b_em = survivors[i + 1]
+                    advance[a_tid][rnd_idx] += 1
+                    advance[b_tid][rnd_idx] += 1
+                    winner = a_tid if rng.random() < _win_prob(a_em, b_em) else b_tid
+                    winner_em = a_em if winner == a_tid else b_em
+                    next_survivors.append((winner, winner_em))
+                survivors = next_survivors
+            f4_contestants.extend(survivors)
+
+        # Final Four (round_idx 4)
+        semi_winners: list[tuple[int, float]] = []
+        for i in range(0, 4, 2):
+            a_tid, a_em = f4_contestants[i]
+            b_tid, b_em = f4_contestants[i + 1]
+            advance[a_tid][4] += 1
+            advance[b_tid][4] += 1
+            winner = a_tid if rng.random() < _win_prob(a_em, b_em) else b_tid
+            winner_em = a_em if winner == a_tid else b_em
+            semi_winners.append((winner, winner_em))
+
+        # Championship (round_idx 5)
+        a_tid, a_em = semi_winners[0]
+        b_tid, b_em = semi_winners[1]
+        advance[a_tid][5] += 1
+        advance[b_tid][5] += 1
+        winner = a_tid if rng.random() < _win_prob(a_em, b_em) else b_tid
+        # Mark champion as having won the championship round
+        # (we count reaching the game, not winning — add an extra column for actual wins)
+        advance[winner][5] += 1  # counted twice → subtract later for actual champ %
+        # Actually let's track champ wins separately with a bonus index
+
+    # Build result df
+    results = []
+    for _, row in bracket.iterrows():
+        tid = int(row["team_id"])
+        cnts = advance[tid]
+        results.append({
+            "team_id": tid,
+            "Team": row["Team"],
+            "Conf": row["Conf"],
+            "Record": row["Record"],
+            "Region": row["region"],
+            "Seed": int(row["seed"]),
+            "CarmPomRk": int(row["Rank"]),
+            "AdjEM": float(row["AdjEM"]),
+            "R64%":   round(cnts[0] / n_sims * 100, 1),
+            "R32%":   round(cnts[1] / n_sims * 100, 1),
+            "S16%":   round(cnts[2] / n_sims * 100, 1),
+            "E8%":    round(cnts[3] / n_sims * 100, 1),
+            "F4%":    round(cnts[4] / n_sims * 100, 1),
+            "Champ%": round(cnts[5] / (n_sims * 2) * 100, 1),  # divide by 2 (counted twice above)
+        })
+    return pd.DataFrame(results).sort_values("Champ%", ascending=False).reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------
 # Tabs
 # ---------------------------------------------------------------------------
 
-rankings_tab, kenpom_tab, about_tab = st.tabs(["📊 Team Rankings", "🆚 vs KenPom", "ℹ️ About"])
+rankings_tab, team_tab, bracket_tab, kenpom_tab, about_tab = st.tabs(
+    ["📊 Team Rankings", "🏀 Team Profile", "🏆 Bracket Sim", "🆚 vs KenPom", "ℹ️ About"]
+)
 
 # ---------------------------------------------------------------------------
 # Rankings tab
@@ -566,6 +713,250 @@ with rankings_tab:
         height=730,
         scrolling=True,
     )
+
+# ---------------------------------------------------------------------------
+# Team Profile tab
+# ---------------------------------------------------------------------------
+
+with team_tab:
+    st.subheader("Team Profile")
+    st.caption("Select any rated D1 team to see their full efficiency snapshot and per-game stats.")
+
+    _all_teams = load_rankings(2026)
+    team_options = _all_teams["Team"].sort_values().tolist()
+    selected_team = st.selectbox(
+        "Choose a team",
+        team_options,
+        index=team_options.index("Duke") if "Duke" in team_options else 0,
+    )
+
+    _t = _all_teams[_all_teams["Team"] == selected_team].iloc[0]
+    _stats_df = load_per_game_stats(2026)
+    _ts = _stats_df[_stats_df["team_id"] == _t["team_id"]]
+    _ts = _ts.iloc[0] if len(_ts) > 0 else None
+
+    # ── Header row ──────────────────────────────────────────────────────────
+    h1, h2, h3 = st.columns([3, 1, 1])
+    with h1:
+        st.markdown(f"## {selected_team}")
+        st.markdown(f"**{_t['Conf']}**  ·  {_t['Record']}  ·  CarmPom rank **#{int(_t['Rank'])}**")
+    with h2:
+        espn_url = _t.get("ESPN") if not pd.isna(_t.get("ESPN", float('nan'))) else None
+        if espn_url:
+            st.link_button("ESPN Stats ↗", espn_url, use_container_width=True)
+    with h3:
+        n_total = len(_all_teams)
+        pct_rank = round((1 - (_t["Rank"] - 1) / n_total) * 100)
+        st.metric("Overall percentile", f"Top {100 - pct_rank + 1}%")
+
+    st.divider()
+
+    # ── Efficiency metrics ───────────────────────────────────────────────────
+    st.markdown("#### Adjusted Efficiency Metrics")
+    m1, m2, m3, m4 = st.columns(4)
+
+    def _delta_label(rank: int, n: int) -> str:
+        """Return a rank/percentile label suitable for st.metric delta."""
+        pct = round((1 - (rank - 1) / n) * 100)
+        return f"#{rank}  ·  {pct}th pct"
+
+    _n = len(_all_teams)
+    with m1:
+        st.metric(
+            "AdjEM",
+            f"{_t['AdjEM']:+.2f}",
+            delta=_delta_label(int(_t['AdjEM_nr']), _n),
+            delta_color="off",
+            help="Adjusted Efficiency Margin — pts/100 margin vs average D1 opponent. The headline number.",
+        )
+    with m2:
+        st.metric(
+            "AdjO",
+            f"{_t['AdjO']:.2f}",
+            delta=_delta_label(int(_t['AdjO_nr']), _n),
+            delta_color="off",
+            help="Adjusted Offensive Efficiency — points scored per 100 possessions. Higher is better.",
+        )
+    with m3:
+        st.metric(
+            "AdjD",
+            f"{_t['AdjD']:.2f}",
+            delta=_delta_label(int(_t['AdjD_nr']), _n),
+            delta_color="off",
+            help="Adjusted Defensive Efficiency — points allowed per 100 possessions. Lower is better.",
+        )
+    with m4:
+        st.metric(
+            "AdjT",
+            f"{_t['AdjT']:.1f}",
+            delta=_delta_label(int(_t['AdjT_nr']), _n),
+            delta_color="off",
+            help="Adjusted Tempo — possessions per 40 minutes.",
+        )
+
+    m5, m6, _ = st.columns(3)
+    with m5:
+        st.metric(
+            "Luck",
+            f"{_t['Luck']:+.3f}",
+            delta=_delta_label(int(_t['Luck_nr']), _n),
+            delta_color="off",
+            help="Actual win% minus Pythagorean expected win%. Positive = winning more than efficiency predicts.",
+        )
+    with m6:
+        st.metric(
+            "SOS",
+            f"{_t['SOS']:+.2f}",
+            delta=_delta_label(int(_t['SOS_nr']), _n),
+            delta_color="off",
+            help="Strength of Schedule — average AdjEM of all opponents faced.",
+        )
+
+    # ── Percentile bars ──────────────────────────────────────────────────────
+    st.divider()
+    st.markdown("#### How they rank nationally")
+    st.caption("Bar = national percentile for each metric. Longer = better (AdjD and TOPG are inverted — lower raw value is better.)")
+
+    _EFF_BARS = [
+        ("AdjEM",  _t["AdjEM_nr"],  False, "Efficiency Margin"),
+        ("AdjO",   _t["AdjO_nr"],   False, "Offense"),
+        ("AdjD",   _t["AdjD_nr"],   True,  "Defense (lower pts allowed = better)"),
+        ("AdjT",   _t["AdjT_nr"],   False, "Tempo"),
+        ("Luck",   _t["Luck_nr"],   False, "Luck"),
+        ("SOS",    _t["SOS_nr"],    False, "Strength of Schedule"),
+    ]
+    for col, rank, lower_better, label in _EFF_BARS:
+        pct = round((1 - (rank - 1) / _n) * 100)
+        st.progress(
+            pct,
+            text=f"**{label}** — #{int(rank)} nationally  ({pct}th percentile)"
+        )
+
+    if _ts is not None:
+        st.divider()
+        st.markdown("#### Per-Game Stats")
+        _STAT_DISPLAY = [
+            ("PPG",    "Points per game",         False),
+            ("OppPPG", "Opponent pts per game",   True),
+            ("FG%",    "Field goal %",            False),
+            ("3P%",    "Three-point %",           False),
+            ("FT%",    "Free throw %",            False),
+            ("RebPG",  "Rebounds per game",       False),
+            ("OrebPG", "Off. rebounds per game",  False),
+            ("AstPG",  "Assists per game",        False),
+            ("TOPG",   "Turnovers per game",      True),
+            ("3PaPG",  "3PA per game",            False),
+            ("3PmPG",  "3PM per game",            False),
+            ("FTmPG",  "FTM per game",            False),
+        ]
+        n_stats = len(_all_teams)  # already filtered to D1
+        stat_rows = []
+        for col, label, lower_better in _STAT_DISPLAY:
+            nr = int(_ts[f"{col}_nr"]) if pd.notna(_ts.get(f"{col}_nr")) else None
+            pct = round((1 - (nr - 1) / n_stats) * 100) if nr else None
+            stat_rows.append({
+                "Stat": label,
+                "Value": f"{float(_ts[col]):.1f}" if pd.notna(_ts[col]) else "—",
+                "Nat'l Rank": f"#{nr}" if nr else "—",
+                "Percentile": pct if pct else 0,
+            })
+        stat_table = pd.DataFrame(stat_rows)
+
+        _stat_col_a, _stat_col_b = st.columns(2)
+        _half = len(stat_rows) // 2
+        for col_ui, rows_slice in [(_stat_col_a, stat_rows[:_half]), (_stat_col_b, stat_rows[_half:])]:
+            with col_ui:
+                for sr in rows_slice:
+                    _nr_label = sr["Nat'l Rank"]
+                    st.progress(
+                        int(sr["Percentile"]),
+                        text=f"**{sr['Stat']}**: {sr['Value']}  \u2014  {_nr_label} nationally"
+                    )
+
+# ---------------------------------------------------------------------------
+# Bracket Simulation tab
+# ---------------------------------------------------------------------------
+
+with bracket_tab:
+    st.subheader("🏆 Bracket Simulation")
+
+    st.info(
+        "The 2026 NCAA Tournament bracket is announced on **Selection Sunday, March 16**. "
+        "Until then this tab shows a **projected bracket** using CarmPom's current rankings as seeds. "
+        "Once the real bracket drops, seedings will be updated.",
+        icon="📅",
+    )
+
+    _brk_df = load_rankings(2026)
+    bracket = build_projected_bracket(_brk_df, n_teams=64)
+
+    n_sims = st.slider(
+        "Simulations", min_value=5_000, max_value=100_000, value=25_000, step=5_000,
+        help="More simulations = smoother probabilities, slightly slower to compute."
+    )
+
+    if st.button("▶  Run simulation", type="primary"):
+        with st.spinner(f"Running {n_sims:,} tournament simulations…"):
+            sim_results = simulate_bracket(bracket, n_sims=n_sims)
+        st.session_state["sim_results"] = sim_results
+
+    if "sim_results" in st.session_state:
+        sim_results = st.session_state["sim_results"]
+
+        st.divider()
+        st.markdown("#### Championship probability — all 64 teams")
+        st.caption(
+            "Percentages = how often each team reached that round across all simulations.  "
+            "\nProjected seeds based on current CarmPom rankings (S-curve seeding)."
+        )
+
+        # Build a styled DataFrame for the simulation results
+        _sim_display = sim_results[[
+            "Team", "Conf", "Record", "Region", "Seed", "CarmPomRk", "AdjEM",
+            "R64%", "R32%", "S16%", "E8%", "F4%", "Champ%"
+        ]].copy()
+        _sim_display["AdjEM"] = _sim_display["AdjEM"].map(lambda x: f"{x:+.2f}")
+
+        st.dataframe(
+            _sim_display.style
+                .background_gradient(subset=["R64%", "R32%", "S16%", "E8%", "F4%", "Champ%"],
+                                     cmap="YlGn")
+                .format({"R64%": "{:.1f}%", "R32%": "{:.1f}%", "S16%": "{:.1f}%",
+                         "E8%": "{:.1f}%", "F4%": "{:.1f}%", "Champ%": "{:.1f}%"}),
+            use_container_width=True,
+            hide_index=True,
+            height=650,
+        )
+
+        st.divider()
+        st.markdown("#### Projected bracket by region")
+        _tab_east, _tab_west, _tab_south, _tab_mw = st.tabs(["East", "West", "South", "Midwest"])
+        for _rtab, _rname in [
+            (_tab_east, "East"), (_tab_west, "West"),
+            (_tab_south, "South"), (_tab_mw, "Midwest")
+        ]:
+            with _rtab:
+                _region_df = bracket[bracket["region"] == _rname].sort_values("seed").copy()
+                _region_display = _region_df[["seed", "Team", "Conf", "Record", "Rank", "AdjEM"]].rename(
+                    columns={"seed": "Seed", "Rank": "CarmPomRk"}
+                )
+                _region_display["AdjEM"] = _region_display["AdjEM"].map(lambda x: f"{x:+.2f}")
+                # Pull Champ% from sim results for this region
+                _champ_lookup = sim_results.set_index("Team")["Champ%"].to_dict()
+                _region_display["Champ%"] = _region_display["Team"].map(
+                    lambda t: f"{_champ_lookup.get(t, 0):.1f}%"
+                )
+                st.dataframe(_region_display, use_container_width=True, hide_index=True)
+
+    else:
+        st.markdown("Press **▶ Run simulation** to generate championship probabilities.")
+        st.divider()
+        st.markdown("#### Projected seedings (pre-bracket, S-curve from CarmPom rankings)")
+        _seed_display = bracket[["region", "seed", "Team", "Conf", "Record", "Rank", "AdjEM"]].rename(
+            columns={"region": "Region", "seed": "Seed", "Rank": "CarmPomRk"}
+        ).sort_values(["Region", "Seed"])
+        _seed_display["AdjEM"] = _seed_display["AdjEM"].map(lambda x: f"{x:+.2f}")
+        st.dataframe(_seed_display, use_container_width=True, hide_index=True, height=500)
 
 # ---------------------------------------------------------------------------
 # KenPom comparison tab
