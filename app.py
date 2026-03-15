@@ -50,9 +50,10 @@ with hero_left:
     looks identical on paper to one that went 20-10 grinding out close games against a tough
     schedule. They are not the same team.
 
-    CarmPom ranks every D1 team by **AdjEM** — points per 100 possessions you outscore
-    opponents by, after adjusting for who you played. It's the most honest single-number
-    summary of how good a team actually is.
+    CarmPom ranks every D1 team by **Adjusted Efficiency Margin (AdjEM)** — the difference
+    between Offensive and Defensive Adjusted Efficiency, measured in points per 100 possessions,
+    after adjusting for who you played. It's the most honest single-number summary of how good
+    a team actually is.
 
     On top of the ratings, an ML model trained on 20+ years of tournament data converts
     efficiency numbers into win probabilities — so you can see not just who's ranked higher,
@@ -1204,6 +1205,27 @@ with team_tab:
     _n    = len(_all_teams)
     _team_id = int(_t["team_id"])
 
+    # ── Seed lookup ──────────────────────────────────────────────────────────
+    # CarmPom projected seed: where the S-curve would place this team (top 64 only)
+    _cp_rank = int(_t["Rank"])
+    _cp_seed_str: str | None = None
+    if _cp_rank <= 64:
+        _cp_seed_num = ((_cp_rank - 1) // 4) + 1  # S-curve: ranks 1-4 → seed 1, 5-8 → seed 2, etc.
+        _cp_seed_str = f"#{_cp_seed_num} seed (CarmPom)"
+
+    # Real bracket seed: from bracket_2026.csv if loaded
+    _real_seed_str: str | None = None
+    try:
+        _brk_loaded = load_real_bracket(2026)
+        if _brk_loaded is not None:
+            _brk_row = _brk_loaded[_brk_loaded["Team"] == selected_team]
+            if not _brk_row.empty:
+                _rs = int(_brk_row.iloc[0]["seed"])
+                _rr = _brk_row.iloc[0]["region"]
+                _real_seed_str = f"#{_rs} seed · {_rr}"
+    except Exception:
+        pass
+
     # ── Header ──────────────────────────────────────────────────────────────
     espn_url  = _t["ESPN"]     if pd.notna(_t.get("ESPN"))     else None
     logo_url  = _t["logo_url"] if pd.notna(_t.get("logo_url")) else None
@@ -1214,7 +1236,16 @@ with team_tab:
             st.image(logo_url, width=80)
     with name_col:
         st.markdown(f"## {selected_team}")
-        st.markdown(f"**{_t['Conf']}** · {_t['Record']} · CarmPom rank **#{int(_t['Rank'])}**")
+        _seed_parts = []
+        if _real_seed_str:
+            _seed_parts.append(f"🏆 {_real_seed_str}")
+        if _cp_seed_str:
+            _seed_parts.append(_cp_seed_str)
+        _seed_line = "  ·  ".join(_seed_parts)
+        _subline = f"**{_t['Conf']}** · {_t['Record']} · CarmPom rank **#{_cp_rank}**"
+        if _seed_line:
+            _subline += f"  ·  {_seed_line}"
+        st.markdown(_subline)
     with h2:
         adjem_pct = round((1 - (_t['AdjEM_nr'] - 1) / _n) * 100)
         st.metric("AdjEM", f"{_t['AdjEM']:+.2f}", delta=f"#{int(_t['AdjEM_nr'])} · top {100-adjem_pct+1}%", delta_color="off")
