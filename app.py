@@ -36,7 +36,7 @@ st.set_page_config(
 )
 
 st.title("🏀 CarmPom")
-st.markdown("#### A KenPom-style NCAA Men's Basketball analytics engine — built from scratch in Python")
+st.markdown("#### NCAA Basketball rankings and tournament predictions — like KenPom, but open.")
 
 st.divider()
 
@@ -44,89 +44,90 @@ hero_left, hero_right = st.columns([3, 2], gap="large")
 
 with hero_left:
     st.markdown("""
-    **CarmPom** computes opponent-adjusted efficiency ratings for every Division I team — the same
-    kind of numbers you see on KenPom, but built entirely from public box-score data with an
-    open-source stack.
+    If you've ever looked up a team on KenPom before a big game, you already know the drill:
+    win-loss records don't tell the whole story. **Beating bad teams by 30 looks the same as
+    barely squeaking past them** — and neither tells you much about March.
 
-    The core loop works like this:
-    1. **Estimate possessions** from box score stats (FGA, FTA, TOV, OREB)
-    2. **Compute raw efficiency** — points scored and allowed per 100 possessions for every game
-    3. **Iterate adjustments** — each team's offensive rating is adjusted for the defensive
-       strength of its opponents, and vice versa, until the system converges
-    4. **Add secondary metrics** — tempo (pace), luck (actual W% vs Pythagorean W%), and
-       strength of schedule (avg opponent AdjEM)
+    CarmPom uses the same idea as KenPom: rank every team by how efficiently they score
+    and defend, adjusted for the strength of who they played. The headline number is **AdjEM**
+    — the margin in points per 100 possessions once you account for schedule. The higher, the better.
 
-    The result: **AdjEM** (adjusted efficiency margin), the headline number every team is ranked by.
+    Beyond ratings, CarmPom runs a machine learning model trained on 20+ years of NCAA
+    Tournament results to predict game outcomes — so you can see not just who's ranked higher,
+    but how likely they are to actually win.
     """)
 
 with hero_right:
-    st.markdown("#### How it compares to KenPom")
+    st.markdown("#### CarmPom vs KenPom at a glance")
     st.markdown("""
     | | KenPom | CarmPom |
     |---|---|---|
-    | **Source** | Proprietary | Open-source Python |
-    | **Data** | Synergy / premium feeds | Public box scores |
-    | **Ratings** | Closed formula | Fully auditable code |
-    | **ML predictor** | None (ratings only) | LightGBM trained on 20+ seasons |
-    | **Bracket sim** | Paywalled | Built-in — coming soon |
+    | **Ratings method** | Opponent-adjusted efficiency | Same |
+    | **Data source** | Premium proprietary feeds | Public ESPN box scores |
+    | **Updated** | Daily (paid) | On demand |
+    | **Tournament predictions** | Ratings only | ML model + bracket sim |
+    | **Cost** | $9.99/year | Free |
     """)
+    st.caption("Ratings will closely track KenPom — differences come from data source and methodology details.")
 
 st.divider()
 
 # --- Feature importance section ---
-st.markdown("### What our model learned about winning in March")
+st.markdown("### What actually wins in March?")
 st.markdown(
-    "We trained a machine learning model on every NCAA Tournament game from 2003–2025 "
-    "to predict upset probabilities. Here's what it found actually matters — and how much. "
-    "The bar shows each factor's relative importance to the final prediction."
+    "We looked at every NCAA Tournament game from 2003–2025 and asked: which stats actually "
+    "predicted who won? The bars below show what the model learned to lean on. "
+    "Longer bar = more predictive."
 )
 
 # Fan-friendly labels and plain-English explanations for each feature
 FEATURE_EXPLAINERS = {
     "adjem_diff": (
-        "Overall efficiency edge  *(CarmPom AdjEM)*",
-        "The single biggest predictor. How much better one team is at scoring **and** stopping the other team, "
-        "adjusted for who they played all season. It's like a one-number report card for the entire season.",
+        "Overall efficiency edge  *(AdjEM)*",
+        "The single biggest predictor — and the number CarmPom is built around. "
+        "It measures how much better one team is at scoring *and* defending, adjusted for the quality of "
+        "opponents all season. Think of it as the most honest one-number summary of a team.",
     ),
     "seed_diff": (
-        "Tournament seed gap",
-        "The committee's official opinion. A 1-seed vs a 16-seed gap is massive; "
-        "a 4 vs a 5 is basically a coin flip. Seeds matter, but they're just people reading the same stats.",
+        "Seed gap",
+        "The selection committee's verdict. A 1 vs 16 gap is enormous; a 4 vs 5 is basically a coin flip. "
+        "Seeds matter, but mostly because the committee is reading the same efficiency numbers everyone else is.",
     ),
     "kenpom_rank_diff": (
         "KenPom ranking gap",
-        "KenPom's own adjusted efficiency difference between the two teams. "
-        "Similar signal to CarmPom AdjEM — the model uses both and lets them compete.",
+        "KenPom's version of the same adjusted efficiency idea. The model uses both CarmPom and KenPom "
+        "ratings and figures out which one is more reliable for each situation.",
     ),
     "efg_diff": (
-        "Shooting quality edge  *(eFG%)*",
-        "Effective Field Goal % counts 3-pointers as worth 50% more than 2s. "
-        "Teams that shoot efficiently all season tend to keep doing it when it counts.",
+        "Shooting edge  *(effective FG%)*",
+        "A 3-pointer is worth more than a 2, so this weights them accordingly. "
+        "Teams that shoot the ball well all season don't suddenly forget how in March.",
     ),
     "pyth_wp_diff": (
-        "\"Deserved\" win % gap  *(Pythagorean)*",
-        "Based purely on points scored vs. points allowed — ignores actual wins. "
-        "Teams that win close games all year are often lucky; this strips that out.",
+        "\"Deserved\" record gap  *(Pythagorean W%)*",
+        "Calculated purely from points scored and allowed — not actual wins. "
+        "A team that went 25-5 by winning 10 games by 1 point is probably not as good as their record says. "
+        "This catches that.",
     ),
     "win_pct_diff": (
-        "Record advantage",
-        "Simple win-loss record gap. Less informative than efficiency but the model "
-        "still finds some signal — winning ugly beats losing pretty.",
+        "Record gap",
+        "Plain old win-loss percentage. Less telling than efficiency numbers, but the model still "
+        "finds a small edge here — winning ugly is still winning.",
     ),
     "or_pct_diff": (
-        "Second-chance points edge  *(Off. rebounding)*",
-        "The team that crashes the offensive glass gets extra possessions. "
-        "In a one-and-done tournament game, those extra shots can flip outcomes.",
+        "Second-chance opportunities  *(offensive rebounding)*",
+        "When your miss turns into another shot, that's a free possession. "
+        "In a one-and-done tournament game, a few extra chances can be the difference.",
     ),
     "ft_rate_diff": (
-        "Getting to the line  *(FT rate)*",
-        "Free throws are the most efficient shot in basketball. "
-        "Teams that draw fouls at a high rate stress opposing defenses and stay out of foul trouble themselves.",
+        "Getting to the free-throw line",
+        "Free throws are the most efficient way to score — no defense allowed. "
+        "Teams that draw fouls all season keep doing it against tournament defenses too.",
     ),
     "to_rate_diff": (
-        "Ball security edge  *(turnover rate)*",
-        "Turnovers are essentially gifted possessions to the opponent. "
-        "In tight tournament games, one bad stretch of careless passing can end a season.",
+        "Ball security  *(turnover rate)*",
+        "Every turnover is a gift to the other team. In tight tournament games, one sloppy stretch "
+        "against a defense you've never seen before can end your season.",
     ),
 }
 
