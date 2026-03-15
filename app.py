@@ -291,6 +291,16 @@ def load_per_game_stats(season: int) -> pd.DataFrame:
     s["3PmPG"]  = (agg["fg3m"] / g).round(1)
     s["FT%"]    = (agg["ftm"] / agg["fta"] * 100).round(1)
     s["FTmPG"]  = (agg["ftm"] / g).round(1)
+
+    # National rank for each stat (rank 1 = best); lower is better for OppPPG and TOPG
+    stat_rank_cfg = {
+        "PPG": False, "OppPPG": True, "RebPG": False, "AstPG": False,
+        "OrebPG": False, "TOPG": True, "FG%": False, "3P%": False,
+        "3PaPG": False, "3PmPG": False, "FT%": False, "FTmPG": False,
+    }
+    for col, asc in stat_rank_cfg.items():
+        s[f"{col}_nr"] = s[col].rank(ascending=asc, method="min").astype(int)
+
     return s
 
 
@@ -388,10 +398,13 @@ with rankings_tab:
     display_df["AdjT"]  = filtered.apply(lambda r: f"{r['AdjT']:.1f}  {r['AdjT_nr']}", axis=1)
     display_df["Luck"]  = filtered.apply(lambda r: f"{r['Luck']:+.3f}  {r['Luck_nr']}", axis=1)
     display_df["SOS"]   = filtered.apply(lambda r: f"{r['SOS']:+.2f}  {r['SOS_nr']}", axis=1)
-    # Per-game stats — plain formatted numbers
-    for col in ["PPG", "OppPPG", "RebPG", "AstPG", "OrebPG", "TOPG",
-                "FG%", "3P%", "3PaPG", "3PmPG", "FT%", "FTmPG"]:
-        display_df[col] = filtered[col]
+    # Per-game stats — inline national rank, no gradient
+    STAT_COLS = ["PPG", "OppPPG", "RebPG", "AstPG", "OrebPG", "TOPG",
+                 "FG%", "3P%", "3PaPG", "3PmPG", "FT%", "FTmPG"]
+    for col in STAT_COLS:
+        display_df[col] = filtered.apply(
+            lambda r, c=col: f"{r[c]:.1f}  {int(r[f'{c}_nr'])}" if pd.notna(r[c]) else "—", axis=1
+        )
 
     styled = (
         display_df.style
@@ -405,25 +418,6 @@ with rankings_tab:
         .background_gradient(subset=["Luck"],  cmap="RdYlGn",   gmap=filtered["Luck"].values)
         # SOS: higher (tougher schedule) = green; lower (easier schedule) = red
         .background_gradient(subset=["SOS"],   cmap="RdYlGn",   gmap=filtered["SOS"].values)
-        # Per-game stat gradients
-        .background_gradient(subset=["PPG"],    cmap="Greens")
-        .background_gradient(subset=["OppPPG"], cmap="RdYlGn_r")  # lower opp scoring = green
-        .background_gradient(subset=["RebPG"],  cmap="Blues")
-        .background_gradient(subset=["AstPG"],  cmap="Blues")
-        .background_gradient(subset=["OrebPG"], cmap="Greens")
-        .background_gradient(subset=["TOPG"],   cmap="RdYlGn_r")  # lower TOs = green
-        .background_gradient(subset=["FG%"],    cmap="Greens")
-        .background_gradient(subset=["3P%"],    cmap="Greens")
-        .background_gradient(subset=["3PaPG"],  cmap="Blues")
-        .background_gradient(subset=["3PmPG"],  cmap="Greens")
-        .background_gradient(subset=["FT%"],    cmap="Greens")
-        .background_gradient(subset=["FTmPG"],  cmap="Blues")
-        .format({
-            "PPG": "{:.1f}", "OppPPG": "{:.1f}", "RebPG": "{:.1f}",
-            "AstPG": "{:.1f}", "OrebPG": "{:.1f}", "TOPG": "{:.1f}",
-            "FG%": "{:.1f}", "3P%": "{:.1f}", "3PaPG": "{:.1f}",
-            "3PmPG": "{:.1f}", "FT%": "{:.1f}", "FTmPG": "{:.1f}",
-        }, na_rep="—")
     )
 
     col_cfg = {
@@ -438,18 +432,18 @@ with rankings_tab:
         "AdjT":   st.column_config.TextColumn("AdjT",    width="small"),
         "Luck":   st.column_config.TextColumn("Luck",    width="small"),
         "SOS":    st.column_config.TextColumn("SOS",     width="small"),
-        "PPG":    st.column_config.NumberColumn("PPG",    width="small"),
-        "OppPPG": st.column_config.NumberColumn("OppPPG", width="small"),
-        "RebPG":  st.column_config.NumberColumn("RebPG",  width="small"),
-        "AstPG":  st.column_config.NumberColumn("AstPG",  width="small"),
-        "OrebPG": st.column_config.NumberColumn("ORebPG", width="small"),
-        "TOPG":   st.column_config.NumberColumn("TOPG",   width="small"),
-        "FG%":    st.column_config.NumberColumn("FG%",    width="small"),
-        "3P%":    st.column_config.NumberColumn("3P%",    width="small"),
-        "3PaPG":  st.column_config.NumberColumn("3PaPG",  width="small"),
-        "3PmPG":  st.column_config.NumberColumn("3PmPG",  width="small"),
-        "FT%":    st.column_config.NumberColumn("FT%",    width="small"),
-        "FTmPG":  st.column_config.NumberColumn("FTmPG",  width="small"),
+        "PPG":    st.column_config.TextColumn("PPG",    width="small"),
+        "OppPPG": st.column_config.TextColumn("OppPPG", width="small"),
+        "RebPG":  st.column_config.TextColumn("RebPG",  width="small"),
+        "AstPG":  st.column_config.TextColumn("AstPG",  width="small"),
+        "OrebPG": st.column_config.TextColumn("ORebPG", width="small"),
+        "TOPG":   st.column_config.TextColumn("TOPG",   width="small"),
+        "FG%":    st.column_config.TextColumn("FG%",    width="small"),
+        "3P%":    st.column_config.TextColumn("3P%",    width="small"),
+        "3PaPG":  st.column_config.TextColumn("3PaPG",  width="small"),
+        "3PmPG":  st.column_config.TextColumn("3PmPG",  width="small"),
+        "FT%":    st.column_config.TextColumn("FT%",    width="small"),
+        "FTmPG":  st.column_config.TextColumn("FTmPG",  width="small"),
     }
 
     st.dataframe(styled, use_container_width=True, hide_index=True, height=700, column_config=col_cfg)
