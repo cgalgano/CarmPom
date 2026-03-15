@@ -500,6 +500,21 @@ with rankings_tab:
     </style>
     <script>
     (function() {
+      // Tooltip text for each column header abbreviation
+      var COL_TIPS = {
+        'Rank':   'CarmPom national rank, sorted by AdjEM',
+        'Team':   'Team name',
+        'Conf':   'Conference',
+        'Record': 'Win-loss record (includes conference tournament)',
+        'ESPN':   'Link to ESPN team stats page',
+        'AdjEM':  'Adjusted Efficiency Margin — points scored minus allowed per 100 possessions, adjusted for opponent strength. The headline ranking stat.',
+        'AdjO':   'Adjusted Offensive Efficiency — points scored per 100 possessions, adjusted for opponent defense. Higher is better.',
+        'AdjD':   'Adjusted Defensive Efficiency — points allowed per 100 possessions, adjusted for opponent offense. Lower is better.',
+        'AdjT':   'Adjusted Tempo — possessions per game. Higher = faster pace.',
+        'Luck':   'Luck — actual win% minus Pythagorean (expected) win%. Positive means the team won more close games than expected.',
+        'SOS':    'Strength of Schedule — average AdjEM of all opponents faced. Higher means a tougher schedule.',
+      };
+
       function cellVal(td) {
         // Cells like "+24.53  1" or "82.4  3" — sort by the leading numeric token.
         // Falls back to raw text for string columns (Team, Conf, etc.).
@@ -512,6 +527,10 @@ with rankings_tab:
         if (!table) return;
         var ths = table.querySelectorAll('thead th');
         ths.forEach(function(th, colIdx) {
+          // Set tooltip from the map, falling back to the header text itself
+          var label = th.innerText.trim().replace(/[\s▲▼]+$/, '');
+          if (COL_TIPS[label]) th.title = COL_TIPS[label];
+
           th.addEventListener('click', function() {
             var dir = th.getAttribute('data-dir') === 'asc' ? 'desc' : 'asc';
             ths.forEach(function(h) { h.removeAttribute('data-dir'); });
