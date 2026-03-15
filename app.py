@@ -406,8 +406,18 @@ with rankings_tab:
             lambda r, c=col: f"{r[c]:.1f}  {int(r[f'{c}_nr'])}" if pd.notna(r[c]) else "—", axis=1
         )
 
+    _PLAIN_COLS = [
+        "Rank", "Team", "Conf", "Record", "ESPN",
+        "PPG", "OppPPG", "RebPG", "AstPG", "OrebPG", "TOPG",
+        "FG%", "3P%", "3PaPG", "3PmPG", "FT%", "FTmPG",
+    ]
+    # Only include cols that are actually present (ESPN may be absent if espn_id is missing)
+    plain_present = [c for c in _PLAIN_COLS if c in display_df.columns]
+
     styled = (
         display_df.style
+        # Light gray background on identity + stat columns (gradient cols override their own bg)
+        .set_properties(subset=plain_present, **{"background-color": "#f4f6f8"})
         .background_gradient(subset=["AdjEM"], cmap="RdYlGn",   gmap=filtered["AdjEM"].values)
         .background_gradient(subset=["AdjO"],  cmap="Greens",   gmap=filtered["AdjO"].values)
         # AdjD: lower pts allowed = better defense = green; higher = red
