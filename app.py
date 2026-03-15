@@ -20,6 +20,8 @@ ROOT = Path(__file__).parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from sqlalchemy import or_
+
 from db.database import SessionLocal
 from db.models import BoxScore, CarmPomRating, Game, Team
 
@@ -715,129 +717,381 @@ with rankings_tab:
     )
 
 # ---------------------------------------------------------------------------
+# Team profile helpers
+# ---------------------------------------------------------------------------
+
+@st.cache_data(ttl=3600)
+def load_team_games(team_id: int, season: int) -> pd.DataFrame:
+    """Return every game for team_id in season with opponent name, score, and opponent AdjEM."""
+    with SessionLocal() as session:
+        rows = (
+            session.query(
+                Game.game_date,
+                Game.home_team_id,
+                Game.away_team_id,
+                Game.home_score,
+                Game.away_score,
+                Game.neutral_site,
+                Game.tournament,
+            )
+            .filter(
+                Game.season == season,
+                or_(Game.home_team_id == team_id, Game.away_team_id == team_id),
+            )
+            .order_by(Game.game_date)
+            .all()
+        )
+        team_names: dict[int, str] = {
+            r.id: r.name for r in session.query(Team.id, Team.name).all()
+        }
+        opp_adjem: dict[int, float] = {
+            r.team_id: r.adjem for r in
+            session.query(CarmPomRating.team_id, CarmPomRating.adjem)
+            .filter(CarmPomRating.season == season).all()
+        }
+        opp_rank: dict[int, int] = {
+            r.team_id: r.rank for r in
+            session.query(CarmPomRating.team_id, CarmPomRating.rank)
+            .filter(CarmPomRating.season == season).all()
+        }
+
+    records = []
+    for row in rows:
+        is_home = row.home_team_id == team_id
+        opp_id = row.away_team_id if is_home else row.home_team_id
+        team_score = row.home_score if is_home else row.away_score
+        opp_score = row.away_score if is_home else row.home_score
+        have_score = team_score is not None and opp_score is not None
+        win = have_score and team_score > opp_score
+        if row.neutral_site:
+            loc = "N"
+        elif is_home:
+            loc = "vs"
+        else:
+            loc = "at"
+        records.append({
+            "date": row.game_date,
+            "opponent": team_names.get(opp_id, f"Team {opp_id}"),
+            "opp_id": opp_id,
+            "team_score": team_score,
+            "opp_score": opp_score,
+            "result": "W" if win else ("L" if have_score else "?"),
+            "margin": (team_score - opp_score) if have_score else None,
+            "loc": loc,
+            "opp_adjem": opp_adjem.get(opp_id),
+            "opp_rank": opp_rank.get(opp_id),
+            "tournament": row.tournament or "Regular Season",
+        })
+    return pd.DataFrame(records)
+
+
+def generate_team_writeup(t: pd.Series, ts: pd.Series | None, n: int) -> str:
+    """Build a template-driven narrative paragraph describing the team's identity."""
+    name = t["Team"]
+    rank = int(t["Rank"])
+    adjem = float(t["AdjEM"])
+    adjo = float(t["AdjO"])
+    adjd = float(t["AdjD"])
+    adjt = float(t["AdjT"])
+    adjt_nr = int(t["AdjT_nr"])
+    adjo_nr = int(t["AdjO_nr"])
+    adjd_nr = int(t["AdjD_nr"])
+    sos_nr  = int(t["SOS_nr"])
+    luck    = float(t["Luck"])
+    record  = t["Record"]
+
+    # Overall tier
+    if rank <= 5:
+        tier = f"one of the five best teams in the country"
+    elif rank <= 15:
+        tier = f"a legitimate national title contender"
+    elif rank <= 30:
+        tier = f"a strong tournament team"
+    elif rank <= 64:
+        tier = f"an NCAA Tournament-caliber program"
+    elif rank <= 100:
+        tier = f"a bubble-level team"
+    else:
+        tier = f"a team outside the projected field"
+
+    # Offensive identity
+    if adjo_nr <= 10:
+        off_tier = "one of the most efficient offenses in college basketball"
+    elif adjo_nr <= 30:
+        off_tier = "an elite offense"
+    elif adjo_nr <= 75:
+        off_tier = "an above-average offense"
+    elif adjo_nr <= 150:
+        off_tier = "a middle-of-the-pack offense"
+    else:
+        off_tier = "an offense that has struggled to generate efficient looks"
+
+    # Defensive identity
+    if adjd_nr <= 10:
+        def_tier = "one of the stingiest defenses in the nation"
+    elif adjd_nr <= 30:
+        def_tier = "an elite defense"
+    elif adjd_nr <= 75:
+        def_tier = "an above-average defense"
+    elif adjd_nr <= 150:
+        def_tier = "a serviceable but unremarkable defense"
+    else:
+        def_tier = "a defense that has been a liability"
+
+    # Tempo flavor
+    if adjt_nr <= 30:
+        tempo_str = f"push the pace as aggressively as anyone in D1 ({adjt:.1f} adj. possessions/40 min, #{adjt_nr} nationally)"
+    elif adjt_nr <= 100:
+        tempo_str = f"play at an up-tempo pace ({adjt:.1f} adj. possessions/40 min)"
+    elif adjt_nr <= 250:
+        tempo_str = f"operate at a controlled, deliberate pace ({adjt:.1f} adj. possessions/40 min)"
+    else:
+        tempo_str = f"slow the game down as much as almost anyone in college basketball ({adjt:.1f} adj. possessions/40 min, #{adjt_nr} nationally)"
+
+    # Shooting style (from per-game stats)
+    style_notes = []
+    if ts is not None:
+        three_pa_nr  = int(ts.get("3PaPG_nr",  n))
+        three_pct_nr = int(ts.get("3P%_nr",    n))
+        oreb_nr      = int(ts.get("OrebPG_nr", n))
+        ft_nr        = int(ts.get("FT%_nr",    n))
+        to_nr        = int(ts.get("TOPG_nr",   n))
+        three_pct    = float(ts.get("3P%", 0) or 0)
+
+        if three_pa_nr <= 40:
+            style_notes.append(
+                f"They live behind the arc, attempting threes at one of the highest rates in the country "
+                f"(#{three_pa_nr} in 3PA/game)" +
+                (f" and shooting {three_pct:.1f}% from deep" if three_pct_nr <= 60 else " though their efficiency from distance has been mixed")
+                + "."
+            )
+        elif three_pa_nr >= 300:
+            style_notes.append(
+                "They rarely look for the three, preferring to attack inside and get to the line."
+            )
+
+        if oreb_nr <= 30:
+            style_notes.append(
+                f"Crashing the offensive glass is a defining trait — they rank #{oreb_nr} nationally in offensive rebounding, consistently generating second-chance points."
+            )
+
+        if to_nr <= 30:
+            style_notes.append(
+                f"Ball security is a genuine strength: #{to_nr} nationally in turnover rate."
+            )
+        elif to_nr >= 280:
+            style_notes.append(
+                f"Turnover issues have been a concern all season (#{to_nr} nationally)."
+            )
+
+        if ft_nr <= 25:
+            style_notes.append(
+                f"They're also an elite free-throw shooting team (#{ft_nr} nationally), a reliable way to protect leads late."
+            )
+
+    # Schedule context
+    if sos_nr <= 20:
+        sos_str = "Their schedule has been among the toughest in the country — every win came against legitimate competition."
+    elif sos_nr <= 60:
+        sos_str = "They've played a legitimately challenging schedule, which makes their efficiency numbers all the more meaningful."
+    elif sos_nr >= 300:
+        sos_str = "Strength of schedule has been light — their metrics may face more scrutiny come Selection Sunday."
+    else:
+        sos_str = ""
+
+    # Luck flag
+    luck_str = ""
+    if luck > 0.04:
+        luck_str = " They've also been somewhat fortunate in close games — their record slightly flatters their underlying efficiency."
+    elif luck < -0.04:
+        luck_str = " Notably, they've been unlucky in close games — their record undersells how good they actually are."
+
+    # Assemble
+    parts = [
+        f"{name} is {tier} this season, sitting at #{rank} nationally with a {record} record. "
+        f"They feature {off_tier} (#{adjo_nr}) and {def_tier} (#{adjd_nr}), "
+        f"for an overall AdjEM of {adjem:+.2f}.",
+
+        f"In terms of style, they {tempo_str}.",
+    ]
+    parts.extend(style_notes)
+    if sos_str:
+        parts.append(sos_str)
+    if luck_str:
+        parts[-1] = parts[-1].rstrip(".?") + luck_str
+
+    return "  \n\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
 # Team Profile tab
 # ---------------------------------------------------------------------------
 
 with team_tab:
-    st.subheader("Team Profile")
-    st.caption("Select any rated D1 team to see their full efficiency snapshot and per-game stats.")
-
     _all_teams = load_rankings(2026)
     team_options = _all_teams["Team"].sort_values().tolist()
     selected_team = st.selectbox(
         "Choose a team",
         team_options,
         index=team_options.index("Duke") if "Duke" in team_options else 0,
+        label_visibility="collapsed",
     )
 
-    _t = _all_teams[_all_teams["Team"] == selected_team].iloc[0]
+    _t    = _all_teams[_all_teams["Team"] == selected_team].iloc[0]
     _stats_df = load_per_game_stats(2026)
-    _ts = _stats_df[_stats_df["team_id"] == _t["team_id"]]
-    _ts = _ts.iloc[0] if len(_ts) > 0 else None
+    _ts_rows  = _stats_df[_stats_df["team_id"] == _t["team_id"]]
+    _ts   = _ts_rows.iloc[0] if len(_ts_rows) > 0 else None
+    _n    = len(_all_teams)
+    _team_id = int(_t["team_id"])
 
-    # ── Header row ──────────────────────────────────────────────────────────
-    h1, h2, h3 = st.columns([3, 1, 1])
+    # ── Header ──────────────────────────────────────────────────────────────
+    espn_url = _t["ESPN"] if pd.notna(_t.get("ESPN")) else None
+    h1, h2, h3, h4 = st.columns([4, 1, 1, 1])
     with h1:
         st.markdown(f"## {selected_team}")
-        st.markdown(f"**{_t['Conf']}**  ·  {_t['Record']}  ·  CarmPom rank **#{int(_t['Rank'])}**")
+        st.markdown(f"**{_t['Conf']}** · {_t['Record']} · CarmPom rank **#{int(_t['Rank'])}**")
     with h2:
-        espn_url = _t.get("ESPN") if not pd.isna(_t.get("ESPN", float('nan'))) else None
-        if espn_url:
-            st.link_button("ESPN Stats ↗", espn_url, use_container_width=True)
+        adjem_pct = round((1 - (_t['AdjEM_nr'] - 1) / _n) * 100)
+        st.metric("AdjEM", f"{_t['AdjEM']:+.2f}", delta=f"#{int(_t['AdjEM_nr'])} · top {100-adjem_pct+1}%", delta_color="off")
     with h3:
-        n_total = len(_all_teams)
-        pct_rank = round((1 - (_t["Rank"] - 1) / n_total) * 100)
-        st.metric("Overall percentile", f"Top {100 - pct_rank + 1}%")
+        st.metric("AdjO", f"{_t['AdjO']:.1f}", delta=f"#{int(_t['AdjO_nr'])} off.", delta_color="off")
+    with h4:
+        st.metric("AdjD", f"{_t['AdjD']:.1f}", delta=f"#{int(_t['AdjD_nr'])} def.", delta_color="off")
+    if espn_url:
+        st.markdown(f"[View on ESPN ↗]({espn_url})")
 
     st.divider()
 
-    # ── Efficiency metrics ───────────────────────────────────────────────────
-    st.markdown("#### Adjusted Efficiency Metrics")
-    m1, m2, m3, m4 = st.columns(4)
+    # ── AI overview + radar chart ────────────────────────────────────────────
+    overview_col, radar_col = st.columns([3, 2], gap="large")
 
-    def _delta_label(rank: int, n: int) -> str:
-        """Return a rank/percentile label suitable for st.metric delta."""
-        pct = round((1 - (rank - 1) / n) * 100)
-        return f"#{rank}  ·  {pct}th pct"
+    with overview_col:
+        st.markdown("#### Team Overview")
+        writeup = generate_team_writeup(_t, _ts, _n)
+        st.markdown(writeup)
 
-    _n = len(_all_teams)
-    with m1:
-        st.metric(
-            "AdjEM",
-            f"{_t['AdjEM']:+.2f}",
-            delta=_delta_label(int(_t['AdjEM_nr']), _n),
-            delta_color="off",
-            help="Adjusted Efficiency Margin — pts/100 margin vs average D1 opponent. The headline number.",
-        )
-    with m2:
-        st.metric(
-            "AdjO",
-            f"{_t['AdjO']:.2f}",
-            delta=_delta_label(int(_t['AdjO_nr']), _n),
-            delta_color="off",
-            help="Adjusted Offensive Efficiency — points scored per 100 possessions. Higher is better.",
-        )
-    with m3:
-        st.metric(
-            "AdjD",
-            f"{_t['AdjD']:.2f}",
-            delta=_delta_label(int(_t['AdjD_nr']), _n),
-            delta_color="off",
-            help="Adjusted Defensive Efficiency — points allowed per 100 possessions. Lower is better.",
-        )
-    with m4:
-        st.metric(
-            "AdjT",
-            f"{_t['AdjT']:.1f}",
-            delta=_delta_label(int(_t['AdjT_nr']), _n),
-            delta_color="off",
-            help="Adjusted Tempo — possessions per 40 minutes.",
-        )
+    with radar_col:
+        # Build 8-spoke percentile radar showing team identity
+        _radar_labels = ["Offense", "Defense", "Pace", "3PT Volume", "Off. Rebound", "Ball Security", "Free Throws", "Sch. Strength"]
+        def _pct(nr: int | float) -> float:
+            """Convert a national rank to a 0-100 percentile (higher = better)."""
+            return round((1 - (nr - 1) / _n) * 100)
 
-    m5, m6, _ = st.columns(3)
-    with m5:
-        st.metric(
-            "Luck",
-            f"{_t['Luck']:+.3f}",
-            delta=_delta_label(int(_t['Luck_nr']), _n),
-            delta_color="off",
-            help="Actual win% minus Pythagorean expected win%. Positive = winning more than efficiency predicts.",
-        )
-    with m6:
-        st.metric(
-            "SOS",
-            f"{_t['SOS']:+.2f}",
-            delta=_delta_label(int(_t['SOS_nr']), _n),
-            delta_color="off",
-            help="Strength of Schedule — average AdjEM of all opponents faced.",
-        )
+        _adjo_pct  = _pct(_t["AdjO_nr"])
+        _adjd_pct  = _pct(_t["AdjD_nr"])   # already inverted (rank 1 = best defense)
+        _adjt_pct  = _pct(_t["AdjT_nr"])
+        _sos_pct   = _pct(_t["SOS_nr"])
 
-    # ── Percentile bars ──────────────────────────────────────────────────────
+        if _ts is not None:
+            _3pa_pct  = _pct(_ts["3PaPG_nr"])
+            _oreb_pct = _pct(_ts["OrebPG_nr"])
+            _to_pct   = _pct(_ts["TOPG_nr"])    # rank 1 = fewest TOs = best ball security
+            _ft_pct   = _pct(_ts["FT%_nr"])
+        else:
+            _3pa_pct = _oreb_pct = _to_pct = _ft_pct = 50
+
+        _radar_vals = [_adjo_pct, _adjd_pct, _adjt_pct, _3pa_pct, _oreb_pct, _to_pct, _ft_pct, _sos_pct]
+
+        N_spokes = len(_radar_labels)
+        angles   = [n_i / N_spokes * 2 * 3.14159 for n_i in range(N_spokes)]
+        angles  += angles[:1]  # close the polygon
+        vals     = _radar_vals + _radar_vals[:1]
+
+        fig_r, ax_r = plt.subplots(figsize=(4.5, 4.5), subplot_kw=dict(polar=True))
+        ax_r.set_theta_offset(3.14159 / 2)
+        ax_r.set_theta_direction(-1)
+        ax_r.set_xticks(angles[:-1])
+        ax_r.set_xticklabels(_radar_labels, size=8, color="#333")
+        ax_r.set_yticks([20, 40, 60, 80, 100])
+        ax_r.set_yticklabels(["20", "40", "60", "80", "100"], size=6, color="#aaa")
+        ax_r.set_ylim(0, 100)
+        ax_r.plot(angles, vals, color="#1e2d40", linewidth=2)
+        ax_r.fill(angles, vals, color="#4a90d9", alpha=0.35)
+        ax_r.set_title(f"{selected_team}\nPercentile Profile", size=9, pad=14, color="#222", fontweight="bold")
+        ax_r.spines["polar"].set_visible(False)
+        ax_r.grid(color="#ccc", linestyle="--", linewidth=0.6)
+        plt.tight_layout()
+        st.pyplot(fig_r, use_container_width=True)
+        plt.close(fig_r)
+        st.caption("Each spoke = national percentile (higher = better). Defense and Ball Security are already inverted.")
+
     st.divider()
-    st.markdown("#### How they rank nationally")
-    st.caption("Bar = national percentile for each metric. Longer = better (AdjD and TOPG are inverted — lower raw value is better.)")
 
-    _EFF_BARS = [
-        ("AdjEM",  _t["AdjEM_nr"],  False, "Efficiency Margin"),
-        ("AdjO",   _t["AdjO_nr"],   False, "Offense"),
-        ("AdjD",   _t["AdjD_nr"],   True,  "Defense (lower pts allowed = better)"),
-        ("AdjT",   _t["AdjT_nr"],   False, "Tempo"),
-        ("Luck",   _t["Luck_nr"],   False, "Luck"),
-        ("SOS",    _t["SOS_nr"],    False, "Strength of Schedule"),
+    # ── Strengths & Weaknesses ───────────────────────────────────────────────
+    st.markdown("#### Strengths & Weaknesses")
+    sw_col_a, sw_col_b = st.columns(2)
+
+    # Build a unified list of (label, percentile, is_stat) for all metrics
+    _all_metrics: list[tuple[str, float]] = [
+        ("Adjusted Offense",  _pct(_t["AdjO_nr"])),
+        ("Adjusted Defense",  _pct(_t["AdjD_nr"])),
+        ("Tempo / Pace",      _pct(_t["AdjT_nr"])),
+        ("Luck / Clutch",     _pct(_t["Luck_nr"])),
+        ("Str. of Schedule",  _pct(_t["SOS_nr"])),
     ]
-    for col, rank, lower_better, label in _EFF_BARS:
-        pct = round((1 - (rank - 1) / _n) * 100)
-        st.progress(
-            pct,
-            text=f"**{label}** — #{int(rank)} nationally  ({pct}th percentile)"
-        )
+    if _ts is not None:
+        _stat_labels = [
+            ("Scoring (PPG)",     "PPG_nr",    False),
+            ("Scoring Defense",   "OppPPG_nr", False),
+            ("3PT Volume",        "3PaPG_nr",  False),
+            ("3PT Accuracy",      "3P%_nr",    False),
+            ("FT Shooting",       "FT%_nr",    False),
+            ("Rebounding",        "RebPG_nr",  False),
+            ("Off. Rebounding",   "OrebPG_nr", False),
+            ("Ball Security",     "TOPG_nr",   False),
+            ("Assists",           "AstPG_nr",  False),
+        ]
+        for lbl, col, _ in _stat_labels:
+            if pd.notna(_ts.get(col)):
+                _all_metrics.append((lbl, _pct(int(_ts[col]))))
+
+    _strengths = sorted([m for m in _all_metrics if m[1] >= 75], key=lambda x: -x[1])[:6]
+    _weaknesses = sorted([m for m in _all_metrics if m[1] < 40], key=lambda x: x[1])[:6]
+
+    with sw_col_a:
+        st.markdown("**💪 Strengths** *(top 25% nationally)*")
+        if _strengths:
+            for lbl, pct_val in _strengths:
+                st.markdown(f"- **{lbl}** — {pct_val}th percentile")
+        else:
+            st.caption("No standout strengths identified.")
+
+    with sw_col_b:
+        st.markdown("**⚠️ Weaknesses** *(bottom 40% nationally)*")
+        if _weaknesses:
+            for lbl, pct_val in _weaknesses:
+                st.markdown(f"- **{lbl}** — {pct_val}th percentile")
+        else:
+            st.caption("No glaring weaknesses identified.")
+
+    st.divider()
+
+    # ── Efficiency metrics (compact row) ────────────────────────────────────
+    st.markdown("#### Full Efficiency Breakdown")
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    for _col_ui, _metric, _val_fmt, _help in [
+        (m1, "AdjEM", f"{_t['AdjEM']:+.2f}",  "Adjusted Efficiency Margin — pts/100 margin."),
+        (m2, "AdjO",  f"{_t['AdjO']:.2f}",   "Adjusted Offensive Efficiency."),
+        (m3, "AdjD",  f"{_t['AdjD']:.2f}",   "Adjusted Defensive Efficiency (lower = better)."),
+        (m4, "AdjT",  f"{_t['AdjT']:.1f}",   "Adjusted Tempo — possessions per 40 min."),
+        (m5, "Luck",  f"{_t['Luck']:+.3f}",  "Actual win% minus Pythagorean expected win%."),
+        (m6, "SOS",   f"{_t['SOS']:+.2f}",   "Strength of Schedule."),
+    ]:
+        with _col_ui:
+            _nr = int(_t[f"{_metric}_nr"])
+            st.metric(
+                _metric, _val_fmt,
+                delta=f"#{_nr} · {_pct(_nr)}th pct",
+                delta_color="off",
+                help=_help,
+            )
 
     if _ts is not None:
         st.divider()
         st.markdown("#### Per-Game Stats")
         _STAT_DISPLAY = [
             ("PPG",    "Points per game",         False),
-            ("OppPPG", "Opponent pts per game",   True),
+            ("OppPPG", "Opp. pts per game",       True),
             ("FG%",    "Field goal %",            False),
             ("3P%",    "Three-point %",           False),
             ("FT%",    "Free throw %",            False),
@@ -849,29 +1103,75 @@ with team_tab:
             ("3PmPG",  "3PM per game",            False),
             ("FTmPG",  "FTM per game",            False),
         ]
-        n_stats = len(_all_teams)  # already filtered to D1
         stat_rows = []
-        for col, label, lower_better in _STAT_DISPLAY:
+        for col, label, _ in _STAT_DISPLAY:
             nr = int(_ts[f"{col}_nr"]) if pd.notna(_ts.get(f"{col}_nr")) else None
-            pct = round((1 - (nr - 1) / n_stats) * 100) if nr else None
+            pct_s = round((1 - (nr - 1) / _n) * 100) if nr else None
             stat_rows.append({
                 "Stat": label,
                 "Value": f"{float(_ts[col]):.1f}" if pd.notna(_ts[col]) else "—",
                 "Nat'l Rank": f"#{nr}" if nr else "—",
-                "Percentile": pct if pct else 0,
+                "Percentile": pct_s if pct_s else 0,
             })
-        stat_table = pd.DataFrame(stat_rows)
 
-        _stat_col_a, _stat_col_b = st.columns(2)
+        _sc_a, _sc_b = st.columns(2)
         _half = len(stat_rows) // 2
-        for col_ui, rows_slice in [(_stat_col_a, stat_rows[:_half]), (_stat_col_b, stat_rows[_half:])]:
+        for col_ui, rows_slice in [(_sc_a, stat_rows[:_half]), (_sc_b, stat_rows[_half:])]:
             with col_ui:
                 for sr in rows_slice:
-                    _nr_label = sr["Nat'l Rank"]
+                    _nr_lbl = sr["Nat'l Rank"]
                     st.progress(
                         int(sr["Percentile"]),
-                        text=f"**{sr['Stat']}**: {sr['Value']}  \u2014  {_nr_label} nationally"
+                        text=f"**{sr['Stat']}**: {sr['Value']}  \u2014  {_nr_lbl} nationally"
                     )
+
+    st.divider()
+
+    # ── Game history ────────────────────────────────────────────────────────
+    _games_df = load_team_games(_team_id, 2026)
+
+    games_big_col, games_recent_col = st.columns(2, gap="large")
+
+    def _fmt_game_row(row: pd.Series) -> dict:
+        """Format a game row for display."""
+        score = f"{int(row['team_score'])}-{int(row['opp_score'])}" if pd.notna(row['team_score']) else "—"
+        margin = f"+{int(row['margin'])}" if (pd.notna(row['margin']) and row['margin'] > 0) else (f"{int(row['margin'])}" if pd.notna(row['margin']) else "")
+        opp_rank_str = f" (#{int(row['opp_rank'])}" + (f", {row['opp_adjem']:+.1f})" if pd.notna(row['opp_adjem']) else ")") if pd.notna(row['opp_rank']) else ""
+        return {
+            "Date": str(row["date"]),
+            "Opponent": f"{row['loc']} {row['opponent']}{opp_rank_str}",
+            "Result": f"{row['result']} {score} ({margin})" if margin else f"{row['result']} {score}",
+        }
+
+    with games_big_col:
+        st.markdown("#### 5 Biggest Games")
+        st.caption("By opponent CarmPom rank (toughest competition first)")
+        if not _games_df.empty:
+            _big_games = (
+                _games_df[_games_df["opp_rank"].notna()]
+                .sort_values("opp_rank")   # rank 1 = toughest opponent
+                .head(5)
+            )
+            if not _big_games.empty:
+                _big_rows = [_fmt_game_row(r) for _, r in _big_games.iterrows()]
+                st.dataframe(pd.DataFrame(_big_rows), use_container_width=True, hide_index=True)
+            else:
+                st.caption("No ranked opponents found.")
+        else:
+            st.caption("No game data available.")
+
+    with games_recent_col:
+        st.markdown("#### 5 Most Recent Games")
+        st.caption("Latest results")
+        if not _games_df.empty:
+            _recent = _games_df[_games_df["team_score"].notna()].sort_values("date", ascending=False).head(5)
+            if not _recent.empty:
+                _recent_rows = [_fmt_game_row(r) for _, r in _recent.iterrows()]
+                st.dataframe(pd.DataFrame(_recent_rows), use_container_width=True, hide_index=True)
+            else:
+                st.caption("No completed game data available.")
+        else:
+            st.caption("No game data available.")
 
 # ---------------------------------------------------------------------------
 # Bracket Simulation tab
