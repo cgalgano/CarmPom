@@ -293,7 +293,15 @@ def load_per_game_stats(season: int) -> pd.DataFrame:
     s["FT%"]    = (agg["ftm"] / agg["fta"] * 100).round(1)
     s["FTmPG"]  = (agg["ftm"] / g).round(1)
 
-    # National rank for each stat (rank 1 = best); lower is better for OppPPG and TOPG
+    # National rank for each stat (rank 1 = best); lower is better for OppPPG and TOPG.
+    # Filter to rated D1 teams only before ranking so max rank = number of rated teams.
+    with SessionLocal() as session:
+        rated_ids = {
+            row[0] for row in
+            session.query(CarmPomRating.team_id).filter(CarmPomRating.season == season).all()
+        }
+    s = s[s["team_id"].isin(rated_ids)].copy()
+
     stat_rank_cfg = {
         "PPG": False, "OppPPG": True, "RebPG": False, "AstPG": False,
         "OrebPG": False, "TOPG": True, "FG%": False, "3P%": False,
