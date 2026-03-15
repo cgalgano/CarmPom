@@ -386,6 +386,95 @@ def build_projected_bracket(df: pd.DataFrame, n_teams: int = 64) -> pd.DataFrame
     return top
 
 
+_BRACKET_CSV = ROOT / "data" / "bracket_2026.csv"
+
+
+def load_real_bracket(season: int = 2026) -> pd.DataFrame | None:
+    """Read data/bracket_2026.csv and merge in CarmPom ratings.
+
+    Returns a bracket DataFrame (same shape as build_projected_bracket output)
+    when the CSV is fully filled out (all 64 rows have a team name), otherwise
+    returns None so the caller can fall back to the projected bracket.
+    """
+    import difflib
+
+    if not _BRACKET_CSV.exists():
+        return None
+
+    raw = pd.read_csv(_BRACKET_CSV)
+    filled = raw[raw["team"].notna() & (raw["team"].str.strip() != "")].copy()
+    if len(filled) < 64:
+        return None  # bracket not fully entered yet
+
+    # Pull all team names + IDs from DB
+    with SessionLocal() as session:
+        db_teams = pd.DataFrame(
+            session.query(Team.id, Team.name).all(),
+            columns=["team_id", "db_name"],
+        )
+        ratings = pd.DataFrame(
+            session.query(
+                CarmPomRating.team_id,
+                CarmPomRating.rank,
+                CarmPomRating.adjem,
+                CarmPomRating.adjo,
+                CarmPomRating.adjd,
+                CarmPomRating.wins,
+                CarmPomRating.losses,
+            )
+            .filter(CarmPomRating.season == season)
+            .all(),
+            columns=["team_id", "Rank", "AdjEM", "AdjO", "AdjD", "W", "L"],
+        )
+
+    # Build a lookup: normalized db name → team_id
+    db_teams["norm"] = db_teams["db_name"].str.lower().str.strip()
+    norm_to_id = dict(zip(db_teams["norm"], db_teams["team_id"]))
+    norm_to_name = dict(zip(db_teams["norm"], db_teams["db_name"]))
+    all_norms = list(norm_to_id.keys())
+
+    def _resolve(csv_name: str) -> int | None:
+        """Map a CSV team name to a DB team_id."""
+        key = csv_name.lower().strip()
+        if key in norm_to_id:
+            return norm_to_id[key]
+        # Try substring: DB name contains the CSV name or vice versa
+        for norm in all_norms:
+            if key in norm or norm in key:
+                return norm_to_id[norm]
+        # Difflib close match as last resort
+        matches = difflib.get_close_matches(key, all_norms, n=1, cutoff=0.7)
+        return norm_to_id[matches[0]] if matches else None
+
+    filled["team_id"] = filled["team"].apply(_resolve)
+    unmatched = filled[filled["team_id"].isna()]["team"].tolist()
+    if unmatched:
+        # Surface unmatched names so the user can fix the CSV
+        raise ValueError(f"bracket_2026.csv: could not match these team names — {unmatched}")
+
+    filled["team_id"] = filled["team_id"].astype(int)
+
+    # Merge in ratings + metadata
+    bracket = (
+        filled
+        .merge(db_teams[["team_id", "db_name"]].rename(columns={"db_name": "Team"}), on="team_id")
+        .merge(ratings, on="team_id", how="left")
+    )
+    bracket["seed"] = bracket["seed"].astype(int)
+    bracket["region"] = bracket["region"].str.strip()
+    bracket["Record"] = bracket["W"].fillna(0).astype(int).astype(str) + "-" + bracket["L"].fillna(0).astype(int).astype(str)
+    bracket["Conf"] = ""
+    # Attach conference from DB
+    with SessionLocal() as session:
+        conf_map = {r.id: (r.conference or "").removesuffix(" Conference")
+                    for r in session.query(Team.id, Team.conference).all()}
+    bracket["Conf"] = bracket["team_id"].map(conf_map).fillna("")
+    bracket["cp_seed"] = bracket["Rank"].fillna(999).astype(int)
+    bracket["AdjEM"] = bracket["AdjEM"].fillna(0.0)
+    bracket["Rank"] = bracket["Rank"].fillna(999).astype(int)
+    return bracket.reset_index(drop=True)
+
+
 def _win_prob(adjem_a: float, adjem_b: float) -> float:
     """Logistic win probability from AdjEM differential.
 
@@ -1311,15 +1400,35 @@ with team_tab:
 with bracket_tab:
     st.subheader("🏆 Bracket Simulation")
 
-    st.info(
-        "The 2026 NCAA Tournament bracket is announced on **Selection Sunday, March 16**. "
-        "Until then this tab shows a **projected bracket** using CarmPom's current rankings as seeds. "
-        "Once the real bracket drops, seedings will be updated.",
-        icon="📅",
-    )
+    # Try real bracket first; fall back to projected if CSV isn't filled out yet
+    try:
+        _real_bracket = load_real_bracket(2026)
+    except ValueError as _brk_err:
+        _real_bracket = None
+        st.error(f"bracket_2026.csv error: {_brk_err}")
 
-    _brk_df = load_rankings(2026)
-    bracket = build_projected_bracket(_brk_df, n_teams=64)
+    if _real_bracket is not None:
+        bracket = _real_bracket
+        st.success("Using **real 2026 NCAA Tournament bracket** seedings.", icon="✅")
+    else:
+        _brk_df = load_rankings(2026)
+        bracket = build_projected_bracket(_brk_df, n_teams=64)
+        # Show info banner only while real bracket isn't loaded
+        filled_count = 0
+        if _BRACKET_CSV.exists():
+            _csv_raw = pd.read_csv(_BRACKET_CSV)
+            filled_count = int((_csv_raw["team"].notna() & (_csv_raw["team"].str.strip() != "")).sum())
+        if filled_count > 0:
+            st.warning(
+                f"bracket_2026.csv has {filled_count}/64 teams filled in — finish entering all 64 to switch to real seedings.",
+                icon="📝",
+            )
+        else:
+            st.info(
+                "Showing **projected bracket** based on CarmPom rankings.  "
+                "Fill in `data/bracket_2026.csv` with real seedings to activate real bracket mode.",
+                icon="📅",
+            )
 
     n_sims = st.slider(
         "Simulations", min_value=5_000, max_value=100_000, value=25_000, step=5_000,

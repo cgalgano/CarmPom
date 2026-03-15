@@ -1,0 +1,65 @@
+region,seed,team
+East,1,Duke Blue Devils
+East,2,UConn Huskies
+East,3,Michigan State Spartans
+East,4,Kansas Jayhawks
+East,5,St. John's Red Storm
+East,6,Louisville Cardinals
+East,7,UCLA Bruins
+East,8,Ohio State Buckeyes
+East,9,TCU Horned Frogs
+East,10,UCF Knights
+East,11,South Florida Bulls
+East,12,Northern Iowa Panthers
+East,13,California Baptist Lancers
+East,14,North Dakota State Bison
+East,15,Furman Paladins
+East,16,Siena Saints
+West,1,Arizona Wildcats
+West,2,Purdue Boilermakers
+West,3,Gonzaga Bulldogs
+West,4,Arkansas Razorbacks
+West,5,Wisconsin Badgers
+West,6,BYU Cougars
+West,7,Miami Hurricanes
+West,8,Villanova Wildcats
+West,9,Utah State Aggies
+West,10,Missouri Tigers
+West,11,NC State Wolfpack
+West,12,High Point Panthers
+West,13,Hawai''i Rainbow Warriors
+West,14,Kennesaw State Owls
+West,15,Queens University Royals
+West,16,Long Island University Sharks
+South,1,Florida Gators
+South,2,Houston Cougars
+South,3,Illinois Fighting Illini
+South,4,Nebraska Cornhuskers
+South,5,Vanderbilt Commodores
+South,6,North Carolina Tar Heels
+South,7,Saint Mary''s Gaels
+South,8,Clemson Tigers
+South,9,Iowa Hawkeyes
+South,10,Texas A&M Aggies
+South,11,VCU Rams
+South,12,McNeese Cowboys
+South,13,Troy Trojans
+South,14,Pennsylvania Quakers
+South,15,Idaho Vandals
+South,16,Lehigh Mountain Hawks
+Midwest,1,Michigan Wolverines
+Midwest,2,Iowa State Cyclones
+Midwest,3,Virginia Cavaliers
+Midwest,4,Alabama Crimson Tide
+Midwest,5,Texas Tech Red Raiders
+Midwest,6,Tennessee Volunteers
+Midwest,7,Kentucky Wildcats
+Midwest,8,Georgia Bulldogs
+Midwest,9,Saint Louis Billikens
+Midwest,10,Santa Clara Broncos
+Midwest,11,SMU Mustangs
+Midwest,12,Akron Zips
+Midwest,13,Hofstra Pride
+Midwest,14,Wright State Raiders
+Midwest,15,Tennessee State Tigers
+Midwest,16,UMBC Retrievers
