@@ -195,6 +195,13 @@ def load_rankings(season: int) -> pd.DataFrame:
     )
     df["Record"] = df["W"].astype(str) + "-" + df["L"].astype(str)
     df["Conf"] = df["Conf"].str.removesuffix(" Conference")
+
+    # Compute national rank for each metric (rank 1 = best for that stat).
+    # AdjD is ascending because lower points allowed is better.
+    rank_cfg = {"AdjEM": False, "AdjO": False, "AdjD": True, "AdjT": False, "Luck": False, "SOS": False}
+    for col, asc in rank_cfg.items():
+        df[f"{col}_nr"] = df[col].rank(ascending=asc, method="min").astype(int)
+
     return df
 
 
@@ -272,33 +279,32 @@ with rankings_tab:
         filtered = filtered[filtered["Team"].str.contains(search, case=False, na=False)]
     filtered = filtered.head(top_n)
 
-    display_cols = ["Rank", "Team", "Conf", "Record", "AdjEM", "AdjO", "AdjD", "AdjT", "Luck", "SOS"]
-
     st.caption(
-        f"{len(filtered)} teams shown  |  "
-        "**AdjEM** = pts/100 poss margin  |  "
-        "**AdjO** = off. efficiency (higher = better)  |  "
-        "**AdjD** = def. efficiency (lower = better)  |  "
+        f"{len(filtered)} teams shown  |  Each metric cell shows **value  national\_rank**  |  "
+        "**AdjEM** = pts/100 margin  |  "
+        "**AdjO** = off. eff. (higher = better)  |  "
+        "**AdjD** = def. eff. (lower = better)  |  "
         "**AdjT** = tempo  |  "
         "**Luck** = actual W% − expected W%"
     )
 
+    # Build display DataFrame with inline national ranks: "value  rank"
+    # gmap= feeds raw numeric values to the gradient so colors work on string cells.
+    display_df = filtered[["Rank", "Team", "Conf", "Record"]].copy()
+    display_df["AdjEM"] = filtered.apply(lambda r: f"{r['AdjEM']:+.2f}  {r['AdjEM_nr']}", axis=1)
+    display_df["AdjO"]  = filtered.apply(lambda r: f"{r['AdjO']:.2f}  {r['AdjO_nr']}", axis=1)
+    display_df["AdjD"]  = filtered.apply(lambda r: f"{r['AdjD']:.2f}  {r['AdjD_nr']}", axis=1)
+    display_df["AdjT"]  = filtered.apply(lambda r: f"{r['AdjT']:.1f}  {r['AdjT_nr']}", axis=1)
+    display_df["Luck"]  = filtered.apply(lambda r: f"{r['Luck']:+.3f}  {r['Luck_nr']}", axis=1)
+    display_df["SOS"]   = filtered.apply(lambda r: f"{r['SOS']:+.2f}  {r['SOS_nr']}", axis=1)
+
     styled = (
-        filtered[display_cols]
-        .style
-        .background_gradient(subset=["AdjEM"], cmap="RdYlGn")
-        .background_gradient(subset=["AdjO"], cmap="Greens")
-        .background_gradient(subset=["AdjD"], cmap="Reds_r")
-        .background_gradient(subset=["Luck"], cmap="coolwarm")
-        .background_gradient(subset=["SOS"], cmap="Purples")
-        .format({
-            "AdjEM": "{:+.2f}",
-            "AdjO":  "{:.2f}",
-            "AdjD":  "{:.2f}",
-            "AdjT":  "{:.1f}",
-            "Luck":  "{:+.3f}",
-            "SOS":   "{:+.2f}",
-        })
+        display_df.style
+        .background_gradient(subset=["AdjEM"], cmap="RdYlGn",   gmap=filtered["AdjEM"].values)
+        .background_gradient(subset=["AdjO"],  cmap="Greens",   gmap=filtered["AdjO"].values)
+        .background_gradient(subset=["AdjD"],  cmap="Reds_r",   gmap=filtered["AdjD"].values)
+        .background_gradient(subset=["Luck"],  cmap="coolwarm", gmap=filtered["Luck"].values)
+        .background_gradient(subset=["SOS"],   cmap="Purples",  gmap=filtered["SOS"].values)
     )
 
     st.dataframe(styled, use_container_width=True, hide_index=True, height=700)
