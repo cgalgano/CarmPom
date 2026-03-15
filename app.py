@@ -91,7 +91,7 @@ FEATURE_EXPLAINERS = {
     "seed_diff": (
         "Tournament seed gap",
         "The committee's official opinion. A 1-seed vs a 16-seed gap is massive; "
-        "a 4 vs a 5 is basically a coin flip. Seeds matter, but they're just humans reading the same stats.",
+        "a 4 vs a 5 is basically a coin flip. Seeds matter, but they're just people reading the same stats.",
     ),
     "kenpom_rank_diff": (
         "KenPom ranking gap",
@@ -368,7 +368,7 @@ with rankings_tab:
         search = st.text_input("Search team", placeholder="e.g. Duke")
 
     with col_n:
-        top_n = st.selectbox("Show", [25, 50, 100, 364], index=1)
+        top_n = st.selectbox("Show", [25, 50, 100, 364], index=3)
 
     # Apply filters
     filtered = df.copy()
@@ -430,33 +430,114 @@ with rankings_tab:
         .background_gradient(subset=["SOS"],   cmap="RdYlGn",   gmap=filtered["SOS"].values)
     )
 
-    col_cfg = {
-        "Rank":   st.column_config.NumberColumn("Rk",     width="small"),
-        "Conf":   st.column_config.TextColumn("Conf",    width="small"),
-        "Record": st.column_config.TextColumn("Record",  width="small"),
-        "Team":   st.column_config.TextColumn("Team",    width="medium"),
-        "ESPN":   st.column_config.LinkColumn("Stats",   width="small", display_text="ESPN"),
-        "AdjEM":  st.column_config.TextColumn("AdjEM",   width="small"),
-        "AdjO":   st.column_config.TextColumn("AdjO",    width="small"),
-        "AdjD":   st.column_config.TextColumn("AdjD",    width="small"),
-        "AdjT":   st.column_config.TextColumn("AdjT",    width="small"),
-        "Luck":   st.column_config.TextColumn("Luck",    width="small"),
-        "SOS":    st.column_config.TextColumn("SOS",     width="small"),
-        "PPG":    st.column_config.TextColumn("PPG",    width="small"),
-        "OppPPG": st.column_config.TextColumn("OppPPG", width="small"),
-        "RebPG":  st.column_config.TextColumn("RebPG",  width="small"),
-        "AstPG":  st.column_config.TextColumn("AstPG",  width="small"),
-        "OrebPG": st.column_config.TextColumn("ORebPG", width="small"),
-        "TOPG":   st.column_config.TextColumn("TOPG",   width="small"),
-        "FG%":    st.column_config.TextColumn("FG%",    width="small"),
-        "3P%":    st.column_config.TextColumn("3P%",    width="small"),
-        "3PaPG":  st.column_config.TextColumn("3PaPG",  width="small"),
-        "3PmPG":  st.column_config.TextColumn("3PmPG",  width="small"),
-        "FT%":    st.column_config.TextColumn("FT%",    width="small"),
-        "FTmPG":  st.column_config.TextColumn("FTmPG",  width="small"),
-    }
+    import re
 
-    st.dataframe(styled, use_container_width=True, hide_index=True, height=700, column_config=col_cfg)
+    # Convert styled df to HTML. escape=False lets us inject anchor tags for ESPN links.
+    _table_html = styled.hide(axis="index").to_html(escape=False)
+
+    # Replace raw ESPN URLs in td cells with clickable anchor tags.
+    _table_html = re.sub(
+        r'(<td[^>]*>)(https://www\.espn\.com/[^<]+)(</td>)',
+        lambda m: (
+            m.group(1).rstrip('>') + ' style="background-color:#f4f6f8;padding:7px 14px">'
+            f'<a href="{m.group(2)}" target="_blank" '
+            'style="color:#1565C0;text-decoration:none;font-size:12px;font-weight:500">ESPN</a></td>'
+        ),
+        _table_html,
+    )
+
+    _sticky_css = """
+    <style>
+    .crp-wrap {
+        overflow-x: auto;
+        overflow-y: auto;
+        max-height: 700px;
+        border-radius: 6px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.09);
+        font-family: system-ui, -apple-system, sans-serif;
+    }
+    .crp-wrap table { border-collapse: collapse; white-space: nowrap; font-size: 13px; }
+    .crp-wrap thead th {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        background: #1e2d40 !important;
+        color: white !important;
+        font-weight: 600;
+        padding: 9px 14px;
+        font-size: 12px;
+        letter-spacing: .3px;
+        border-bottom: 2px solid #344d66;
+        cursor: pointer;
+        user-select: none;
+    }
+    .crp-wrap thead th:hover { background: #2a3f59 !important; }
+    .crp-wrap thead th[data-dir='asc']::after  { content: ' ▲'; font-size: 10px; opacity: .8; }
+    .crp-wrap thead th[data-dir='desc']::after { content: ' ▼'; font-size: 10px; opacity: .8; }
+    .crp-wrap td {
+        padding: 7px 14px;
+        border-bottom: 1px solid #e3e7ec;
+        border-right: 1px solid #e3e7ec;
+    }
+    /* Sticky Rank column */
+    .crp-wrap th:nth-child(1), .crp-wrap td:nth-child(1) {
+        position: sticky; left: 0; z-index: 2;
+        min-width: 36px; max-width: 44px;
+    }
+    /* Sticky Team column */
+    .crp-wrap th:nth-child(2), .crp-wrap td:nth-child(2) {
+        position: sticky; left: 50px; z-index: 2;
+        min-width: 160px;
+        border-right: 2px solid #b0bbc7 !important;
+    }
+    /* Corner cells (sticky top + left) need highest z-index */
+    .crp-wrap thead th:nth-child(1),
+    .crp-wrap thead th:nth-child(2) { z-index: 4; }
+    /* Conf column: wide enough for "Southwestern Athletic" etc. */
+    .crp-wrap th:nth-child(3), .crp-wrap td:nth-child(3) { min-width: 140px; }
+    .crp-wrap tbody tr:hover td { filter: brightness(0.93); }
+    </style>
+    <script>
+    (function() {
+      function cellVal(td) {
+        // Cells like "+24.53  1" or "82.4  3" — sort by the leading numeric token.
+        // Falls back to raw text for string columns (Team, Conf, etc.).
+        var t = td.innerText.trim();
+        var m = t.match(/^([+\-]?[\d.]+)/);
+        return m ? parseFloat(m[1]) : t.toLowerCase();
+      }
+      document.addEventListener('DOMContentLoaded', function() {
+        var table = document.querySelector('.crp-wrap table');
+        if (!table) return;
+        var ths = table.querySelectorAll('thead th');
+        ths.forEach(function(th, colIdx) {
+          th.addEventListener('click', function() {
+            var dir = th.getAttribute('data-dir') === 'asc' ? 'desc' : 'asc';
+            ths.forEach(function(h) { h.removeAttribute('data-dir'); });
+            th.setAttribute('data-dir', dir);
+            var tbody = table.querySelector('tbody');
+            var rows = Array.from(tbody.querySelectorAll('tr'));
+            rows.sort(function(a, b) {
+              var av = cellVal(a.cells[colIdx]);
+              var bv = cellVal(b.cells[colIdx]);
+              if (typeof av === 'number' && typeof bv === 'number') {
+                return dir === 'asc' ? av - bv : bv - av;
+              }
+              return dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+            });
+            rows.forEach(function(r) { tbody.appendChild(r); });
+          });
+        });
+      });
+    })();
+    </script>
+    """
+
+    st.components.v1.html(
+        f"{_sticky_css}<div class='crp-wrap'>{_table_html}</div>",
+        height=730,
+        scrolling=True,
+    )
 
 # ---------------------------------------------------------------------------
 # KenPom comparison tab
