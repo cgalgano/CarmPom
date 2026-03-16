@@ -2570,6 +2570,51 @@ with bracket_tab:
             st.session_state[_brk_key] = simulate_bracket(bracket, n_sims=25_000)
     _sim = st.session_state[_brk_key]
 
+    # ── Title Odds — top 16 teams' championship probability ───────────────
+    st.markdown("### 🏆 Title Odds")
+    st.caption("Championship probability from 25,000 Monte Carlo simulations. Based on CarmPom's adjusted efficiency ratings.")
+
+    _top16 = _sim.head(16).copy()
+    # Grab logo URLs from the rankings table
+    _title_rankings = load_rankings(2026)
+    _title_logo_lu = {
+        row["Team"]: str(row["logo_url"])
+        for _, row in _title_rankings.iterrows()
+        if pd.notna(row.get("logo_url")) and row.get("logo_url")
+    }
+
+    _title_cols = st.columns(4, gap="small")
+    for _ti, _trow in enumerate(_top16.itertuples()):
+        with _title_cols[_ti % 4]:
+            _t_logo = _title_logo_lu.get(_trow.Team, "")
+            _t_img = (
+                f"<img src='{_t_logo}' style='width:28px;height:28px;object-fit:contain;"
+                f"vertical-align:middle;margin-right:6px;border-radius:3px'>"
+            ) if _t_logo else ""
+            _champ_pct = _trow._asdict()["Champ%"]
+            _f4_pct = _trow._asdict()["F4%"]
+            _bar_w = max(_champ_pct * 4, 2)  # scale bar width (max ~80px for a 20% team)
+            _bar_color = "#1e7d32" if _champ_pct >= 10 else ("#1565c0" if _champ_pct >= 4 else "#78909c")
+            st.markdown(
+                f"<div style='border:1px solid #333;border-radius:8px;padding:8px 10px;"
+                f"margin-bottom:6px;font-family:system-ui,sans-serif'>"
+                f"<div style='display:flex;align-items:center;margin-bottom:4px'>"
+                f"{_t_img}"
+                f"<span style='font-size:11px;font-weight:600'>"
+                f"<span style='color:#888;margin-right:3px'>({_trow.Seed})</span>"
+                f"{_trow.Team}</span></div>"
+                f"<div style='display:flex;align-items:center;gap:6px'>"
+                f"<div style='background:#222;border-radius:3px;height:8px;flex:1;overflow:hidden'>"
+                f"<div style='width:{_bar_w}%;height:100%;background:{_bar_color};border-radius:3px'></div></div>"
+                f"<span style='font-size:16px;font-weight:800;color:{_bar_color};min-width:45px;text-align:right'>"
+                f"{_champ_pct:.1f}%</span></div>"
+                f"<div style='font-size:10px;color:#888;margin-top:2px'>F4: {_f4_pct:.1f}%</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+    st.divider()
+
     # Load full rankings for national rank columns and playstyle lookup
     _brk_full_r = load_rankings(2026)
     _n_teams = len(_brk_full_r)
