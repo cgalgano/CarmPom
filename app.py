@@ -70,10 +70,10 @@ with hero_right:
     | **Data source** | Premium proprietary feeds | Public ESPN box scores |
     | **Updated** | Daily (paid) | On demand |
     | **Tournament predictions** | Ratings only | ML model + bracket creator |
-    | **Tournament accuracy** | ~70% game picks (reported) | ~69% backtested (2003–2025) |
+    | **Tournament accuracy** | 0.752 AUC (2025 holdout) | 0.826 AUC — best model (2025 holdout) |
     | **Cost** | $9.99/year | Free |
     """)
-    st.caption("Ratings will closely track KenPom — differences come from data source and methodology details.")
+    st.caption("AUC measures how often the model correctly identifies the stronger team. Higher = better. CarmPom's ML model outperforms the KenPom baseline on the 2025 tournament holdout.")
 
 st.divider()
 
