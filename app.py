@@ -1234,8 +1234,15 @@ rankings_tab, team_tab, bracket_tab, pick_tab, about_tab = st.tabs(
 # ---------------------------------------------------------------------------
 
 with rankings_tab:
+    # Load tournament teams from bracket CSV for the filter
+    try:
+        _brkt_csv = pd.read_csv("data/bracket_2026.csv")
+        _tourn_teams: set[str] = set(_brkt_csv["team"].str.strip().tolist())
+    except Exception:
+        _tourn_teams = set()
+
     # Controls row
-    col_season, col_search, col_conf, col_n = st.columns([1, 2, 2, 1])
+    col_season, col_search, col_conf, col_n, col_tourn = st.columns([1, 2, 2, 1, 1.4])
 
     with col_season:
         season = st.selectbox("Season", [2026], index=0)
@@ -1252,13 +1259,20 @@ with rankings_tab:
     with col_n:
         top_n = st.selectbox("Show", [25, 50, 100, 364], index=3)
 
+    with col_tourn:
+        st.markdown("<div style='margin-top:4px'></div>", unsafe_allow_html=True)
+        tourn_only = st.checkbox("Tournament teams only", value=True)
+
     # Apply filters
     filtered = df.copy()
+    if tourn_only and _tourn_teams:
+        filtered = filtered[filtered["Team"].isin(_tourn_teams)]
     if selected_conf != "All conferences":
         filtered = filtered[filtered["Conf"] == selected_conf]
     if search:
         filtered = filtered[filtered["Team"].str.contains(search, case=False, na=False)]
-    filtered = filtered.head(top_n)
+    if not tourn_only:
+        filtered = filtered.head(top_n)
 
     # Merge per-game stats on team_id
     stats = load_per_game_stats(season)
@@ -1510,54 +1524,136 @@ def load_team_games(team_id: int, season: int) -> pd.DataFrame:
 
 
 def generate_playstyle_name(t: pd.Series, ts: pd.Series | None, n: int) -> tuple[str, str]:
-    """Return (playstyle_name, one-line tagline) based on stats."""
+    """Return (playstyle_name, one-line tagline) based on stats.
+
+    Priority order: rare elite combos first, then tempo+elite combos, then
+    single-dimension identity profiles, then mid-tier descriptors, then
+    weaker-team fallbacks. Avoids the generic 'Balanced Contender' label unless
+    the team is genuinely competent on both ends.
+    """
     adjt_nr  = int(t["AdjT_nr"])
     adjo_nr  = int(t["AdjO_nr"])
     adjd_nr  = int(t["AdjD_nr"])
-    fast     = adjt_nr <= 80
-    slow     = adjt_nr >= 270
+
+    fast      = adjt_nr <= 80
+    slow      = adjt_nr >= 270
     elite_off = adjo_nr <= 40
     elite_def = adjd_nr <= 40
+    good_off  = adjo_nr <= 110
+    good_def  = adjd_nr <= 110
+    avg_off   = adjo_nr <= 200
+    avg_def   = adjd_nr <= 200
+    off_lean  = adjo_nr < adjd_nr   # relatively better offense than defense
+    def_lean  = adjd_nr < adjo_nr   # relatively better defense than offense
 
     three_heavy = three_light = glass_eater = ball_safe = ft_heavy = pass_first = False
     if ts is not None:
         three_pa_nr = int(ts.get("3PaPG_nr",  n))
         oreb_nr     = int(ts.get("OrebPG_nr", n))
-        to_nr       = int(ts.get("TOPG_nr",  n))
-        ft_nr       = int(ts.get("FTmPG_nr", n))
-        ast_nr      = int(ts.get("AstPG_nr", n))
-        three_heavy = three_pa_nr <= 50
+        to_nr       = int(ts.get("TOPG_nr",   n))
+        ft_nr       = int(ts.get("FTmPG_nr",  n))
+        ast_nr      = int(ts.get("AstPG_nr",  n))
+        three_heavy = three_pa_nr <= 60
         three_light = three_pa_nr >= 280
-        glass_eater = oreb_nr     <= 40
-        ball_safe   = to_nr       <= 50
-        ft_heavy    = ft_nr       <= 50
-        pass_first  = ast_nr      <= 50
+        glass_eater = oreb_nr     <= 50
+        ball_safe   = to_nr       <= 60
+        ft_heavy    = ft_nr       <= 60
+        pass_first  = ast_nr      <= 60
 
-    if elite_def and slow:
-        return "⛩️ Defensive Fortress", "Built on suffocating defense and half-court execution"
-    if fast and three_heavy and elite_off:
-        return "🚀 Perimeter Blitz", "Fires threes at an elite clip and never lets up"
+    # ── Rare elite two-way combo (check before anything else) ────────────
+    if elite_off and elite_def:
+        return "👑 Two-Way Force", "Elite on both ends — among the most complete teams in the country"
+
+    # ── Fast-pace + elite profiles ───────────────────────────────────────
+    if fast and elite_off and three_heavy:
+        return "🚀 Perimeter Blitz", "Fires threes at an elite clip before defenses can even set"
+    if fast and elite_off and good_def:
+        return "⚡ Run & Gun", "Pushes the pace relentlessly and makes efficient decisions at every level"
     if fast and elite_off:
         return "⚡ Run & Gun", "Pushes before defenses can set and creates easy looks"
+    if fast and elite_def:
+        return "⚡ Frenetic Defenders", "Disrupts opponents with pace and relentless defensive pressure"
+    if fast and three_heavy and good_off:
+        return "🌠 Pace-and-Space", "Uses speed to open the floor then launches threes in rhythm"
+
+    # ── Slow-pace + elite profiles ───────────────────────────────────────
+    if slow and elite_def and three_light:
+        return "⛩️ Defensive Fortress", "Built on suffocating interior defense and paint-first execution"
     if slow and elite_def:
-        return "🐢 Grind-It-Out", "Slows every possession and suffocates opposing offenses"
-    if glass_eater and not three_heavy:
-        return "💪 Glass-Eating Machine", "Dominates the offensive boards and scores near the rim"
-    if three_heavy and ball_safe:
-        return "🎯 Sharpshooter System", "Disciplined ball movement and perimeter shooting"
-    if three_heavy:
-        return "🌎 Sniper Squad", "Lives behind the arc — win or lose by the three"
+        return "⛩️ Defensive Fortress", "Built on suffocating defense and half-court execution"
+    if slow and elite_off and three_light:
+        return "⚒️ Half-Court Juggernaut", "Grinds opponents into the paint and converts with brutal efficiency"
+    if slow and elite_off:
+        return "🎯 Methodical Maestro", "Patient half-court offense that dissects defenses possession by possession"
+    if slow and three_light and glass_eater:
+        return "⚒️ Post-Up Bully", "Crashes the offensive glass and punishes teams in the paint"
     if slow and three_light:
         return "⚒️ Post-Up Bully", "Methodical half-court team that attacks the paint"
-    if fast:
-        return "🏃 Up-Tempo Pusher", "Plays at a fast clip and looks to score in transition"
+    if slow and good_def:
+        return "🐢 Grind-It-Out", "Slows every possession and makes opponents earn everything"
+
+    # ── Single-dimension elite profiles ──────────────────────────────────
+    if elite_def and glass_eater:
+        return "🔒 Defensive Stalwart", "Suffocating defense backed by dominant rebounding — hard to crack"
+    if elite_def and fast:
+        return "⚡ Frenetic Defenders", "Disrupts opponents with pace and relentless defensive pressure"
     if elite_def:
-        return "🛡️ Lockdown Unit", "Defense-first identity that keeps opponents under wraps"
+        return "🛡️ Lockdown Unit", "Defense-first identity that keeps opponents well under their average"
+    if elite_off and three_heavy:
+        return "🔥 Offensive Firestorm", "High-octane scoring machine that ignites from behind the arc"
+    if elite_off and glass_eater:
+        return "🏀 Offensive Juggernaut", "Dominates inside and out — one of the country's most efficient offenses"
     if elite_off:
         return "🏀 Offensive Juggernaut", "One of the most efficient scoring teams in the country"
-    if pass_first and ball_safe:
-        return "🎭 Ball Movement Maestros", "Patient, pass-first offense with minimal turnovers"
-    return "⚖️ Balanced Contender", "Well-rounded program with no glaring identity or weakness"
+
+    # ── Per-game identity profiles (good but not elite) ───────────────────
+    if glass_eater and not three_heavy and good_off:
+        return "💪 Glass-Eating Machine", "Dominates the offensive boards and converts second chances at a high clip"
+    if glass_eater and not three_heavy:
+        return "💪 Glass-Eating Machine", "Dominates the offensive boards and scores near the rim"
+    if three_heavy and ball_safe and pass_first:
+        return "🎯 Sharpshooter System", "Disciplined ball movement that culminates in high-volume, high-quality threes"
+    if three_heavy and ball_safe and good_off:
+        return "🎯 Sharpshooter System", "Disciplined ball movement and perimeter shooting"
+    if three_heavy and good_off:
+        return "🌎 Fire-From-Deep", "Lives behind the arc — hot shooting nights make them a matchup nightmare"
+    if three_heavy:
+        return "🌎 Sniper Squad", "Lives and dies by the three — explosive but vulnerable on cold shooting nights"
+    if ft_heavy and glass_eater:
+        return "🏋️ Physical Inside Game", "Forces the issue in the paint, draws fouls, and cleans up every miss"
+    if pass_first and ball_safe and good_off:
+        return "🎭 Ball Movement Maestros", "Patient, deliberate offense that rarely makes mistakes"
+    if fast and good_off:
+        return "🏃 Up-Tempo Pusher", "Runs in transition at every opportunity and makes opponents uncomfortable"
+    if fast:
+        return "🏃 Up-Tempo Pusher", "Plays at a fast clip and looks to score before the defense can organize"
+    if good_off and good_def:
+        return "⚖️ Balanced Contender", "Capable on both ends with no glaring weakness to exploit"
+
+    # ── Mid-tier profiles — avoid 'Balanced Contender' for weaker teams ──
+    if good_off and def_lean:
+        return "⚔️ Offense-First Threat", "Scores efficiently enough to hang with better teams — defense is the question"
+    if good_off and off_lean:
+        return "📈 Opportunistic Scorer", "Finds ways to generate offense but needs strong shooting nights to advance"
+    if good_off:
+        return "📈 Opportunistic Scorer", "Capable offensively, though consistency will determine how far they go"
+    if good_def and off_lean:
+        return "🔐 Defense-First Scrapper", "Wins ugly by keeping games low-scoring and grinding out every possession"
+    if good_def:
+        return "🧱 Defensive Glue Team", "Limits opponents consistently but needs offensive execution to pull upsets"
+    if ball_safe and pass_first:
+        return "🧠 System-Oriented Squad", "Disciplined execution that avoids mistakes and takes what the defense gives"
+    if three_heavy:
+        return "🎲 High-Variance Shooter", "Lives by the arc — a hot night makes them dangerous, a cold one ends their tournament"
+    if glass_eater:
+        return "💥 Scrappy Rebounder", "Punches above its weight on the glass and keeps possessions alive"
+    if ft_heavy:
+        return "🏋️ Foul-Drawing Grinder", "Gets to the line consistently and hangs around in close, low-scoring affairs"
+    if off_lean:
+        return "⚔️ Offensive Identity", "Better at scoring than stopping — needs to outscore opponents to advance"
+    if def_lean:
+        return "🔐 Defensive Identity", "Holds opponents down but needs timely offensive execution to make noise"
+    return "🎯 Gritty Competitor", "Competitive program that makes opponents work — capable of an upset on the right night"
 
 
 def generate_team_writeup(t: pd.Series, ts: pd.Series | None, n: int) -> str:
