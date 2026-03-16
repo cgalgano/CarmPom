@@ -2010,7 +2010,7 @@ with team_tab:
         team_options = _all_teams["Team"].sort_values().tolist()
 
     # ── Logo grid selector ────────────────────────────────────────────────
-    # Clicking a logo card sets ?tp_team=<name> in the URL, triggering a rerun
+    # Clicking a logo card replaces the URL in-place (same tab, no navigation)
     import urllib.parse as _urlparse
 
     _qp_team = st.query_params.get("tp_team", "")
@@ -2035,7 +2035,7 @@ with team_tab:
     # Sort by seed then alpha so the grid reads like a bracket
     _sorted_tp = sorted(team_options, key=lambda t: (_tp_seed_lu.get(t, 99), t))
 
-    # Build the HTML grid — 2 rows of 32, grouped visually by seed line
+    # Build the HTML grid — onclick uses window.location.replace so it stays in the same tab
     _grid_html = (
         "<div style='display:flex;flex-wrap:wrap;gap:5px;padding:6px 0 14px 0'>"
     )
@@ -2055,14 +2055,14 @@ with team_tab:
         )
         _name_short = _tp_t if len(_tp_t) <= 12 else _tp_t[:11] + "…"
         _grid_html += (
-            f"<a href='?tp_team={_enc}' style='text-decoration:none'>"
-            f"<div style='border:{_border};border-radius:8px;padding:5px 4px 4px 4px;"
+            f"<div onclick=\"window.location.replace('?tp_team={_enc}')\" "
+            f"style='border:{_border};border-radius:8px;padding:5px 4px 4px 4px;"
             f"background:{_bg};cursor:pointer;text-align:center;width:58px'>"
             f"{_img}"
             f"<div style='font-size:8px;color:#ccc;margin-top:3px;line-height:1.2;"
             f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis'>{_name_short}</div>"
             f"<div style='font-size:8px;color:#29b6f6;font-weight:700'>#{_tp_s}</div>"
-            f"</div></a>"
+            f"</div>"
         )
     _grid_html += "</div>"
 
@@ -2081,7 +2081,12 @@ with team_tab:
         if _search_query.strip() else team_options
     ) or team_options
 
-    # Selectbox respects URL param selection; search overrides it
+    # Selectbox respects URL param selection; search overrides it.
+    # on_change syncs the query param so the grid highlight updates too.
+    def _tp_sync_qp() -> None:
+        """Update ?tp_team when the selectbox changes, keeping grid in sync."""
+        st.query_params["tp_team"] = st.session_state.get("tp_selectbox", "")
+
     if _search_query.strip():
         _default_idx = 0
     else:
@@ -2095,6 +2100,8 @@ with team_tab:
         _filtered_opts,
         index=min(_default_idx, len(_filtered_opts) - 1),
         label_visibility="collapsed",
+        key="tp_selectbox",
+        on_change=_tp_sync_qp,
     )
 
     _t    = _all_teams[_all_teams["Team"] == selected_team].iloc[0]
