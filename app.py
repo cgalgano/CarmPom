@@ -812,112 +812,200 @@ def generate_style_profile(t: pd.Series, n: int) -> str:
 
 
 def generate_clash_narrative(ta: pd.Series, tb: pd.Series, wp_a: float, n: int) -> str:
-    """2-3 sentence prose about how two teams' styles, schedules, and form will collide."""
+    """Analytical matchup narrative covering pace, efficiency matchups, 3PT tendencies,
+    ball-security, and schedule context. Returns a multi-sentence paragraph (4-5 angles).
+    """
     name_a, name_b = ta["Team"], tb["Team"]
+
+    # Adjusted efficiency ratings + ranks
+    adjt_a    = float(ta.get("AdjT", 68.0))
+    adjt_b    = float(tb.get("AdjT", 68.0))
     adjt_nr_a = int(ta.get("AdjT_nr", n // 2))
     adjt_nr_b = int(tb.get("AdjT_nr", n // 2))
+    adjo_a    = float(ta.get("AdjO", 100.0))
+    adjo_b    = float(tb.get("AdjO", 100.0))
     adjo_nr_a = int(ta.get("AdjO_nr", n // 2))
     adjo_nr_b = int(tb.get("AdjO_nr", n // 2))
+    adjd_a    = float(ta.get("AdjD", 100.0))
+    adjd_b    = float(tb.get("AdjD", 100.0))
     adjd_nr_a = int(ta.get("AdjD_nr", n // 2))
     adjd_nr_b = int(tb.get("AdjD_nr", n // 2))
-    em_a = float(ta.get("AdjEM", 0.0))
-    em_b = float(tb.get("AdjEM", 0.0))
+    em_a      = float(ta.get("AdjEM", 0.0))
+    em_b      = float(tb.get("AdjEM", 0.0))
+
+    # Schedule / luck / seeding
     sos_nr_a = int(ta.get("SOS_nr", n // 2))
     sos_nr_b = int(tb.get("SOS_nr", n // 2))
-    luck_a = float(ta.get("Luck", 0.0))
-    luck_b = float(tb.get("Luck", 0.0))
-    seed_a = int(ta.get("seed", 8))
-    seed_b = int(tb.get("seed", 9))
+    luck_a   = float(ta.get("Luck", 0.0))
+    luck_b   = float(tb.get("Luck", 0.0))
+    seed_a   = int(ta.get("seed", 8))
+    seed_b   = int(tb.get("seed", 9))
+
+    # Per-game stats (may be 0 if not yet loaded)
+    three_pct_a = float(ta.get("3P%", 0) or 0)
+    three_pct_b = float(tb.get("3P%", 0) or 0)
+    three_pa_a  = float(ta.get("3PaPG", 0) or 0)
+    three_pa_b  = float(tb.get("3PaPG", 0) or 0)
+    opp3pa_a    = float(ta.get("Opp3PaPG", 0) or 0)
+    opp3pa_b    = float(tb.get("Opp3PaPG", 0) or 0)
+    topg_a      = float(ta.get("TOPG", 0) or 0)
+    topg_b      = float(tb.get("TOPG", 0) or 0)
+    stl_a       = float(ta.get("StlPG", 0) or 0)
+    stl_b       = float(tb.get("StlPG", 0) or 0)
+    blk_a       = float(ta.get("BlkPG", 0) or 0)
+    blk_b       = float(tb.get("BlkPG", 0) or 0)
 
     parts: list[str] = []
 
-    # 1. Pace tension
+    # ── 1. Pace battle ──────────────────────────────────────────────────────
     tempo_gap = abs(adjt_nr_a - adjt_nr_b)
     if tempo_gap >= 120:
-        faster = name_a if adjt_nr_a < adjt_nr_b else name_b
-        slower = name_b if adjt_nr_a < adjt_nr_b else name_a
+        faster   = name_a if adjt_nr_a < adjt_nr_b else name_b
+        slower   = name_b if adjt_nr_a < adjt_nr_b else name_a
+        fast_t   = adjt_a if adjt_nr_a < adjt_nr_b else adjt_b
+        slow_t   = adjt_b if adjt_nr_a < adjt_nr_b else adjt_a
+        fast_nr  = min(adjt_nr_a, adjt_nr_b)
+        slow_nr  = max(adjt_nr_a, adjt_nr_b)
         parts.append(
-            f"**Pace is the central battle** — {faster} wants to get out and run while {slower} thrives "
-            "in a half-court grind. Whoever controls tempo in the opening possessions sets the tone for everything that follows."
+            f"**Pace is the central battle**: {faster} ({fast_t:.1f} adj. poss/40 min, #{fast_nr} nationally) "
+            f"wants to push into the open floor while {slower} ({slow_t:.1f}, #{slow_nr}) thrives in half-court "
+            "execution — whoever dictates tempo in the first five minutes sets the game's entire character."
         )
     elif tempo_gap >= 50:
         faster = name_a if adjt_nr_a < adjt_nr_b else name_b
         slower = name_b if adjt_nr_a < adjt_nr_b else name_a
         parts.append(
-            f"There's a meaningful pace differential: {faster} prefers to push while {slower} likes to slow things down — "
-            "expect both teams jostling for tempo control from the opening tip."
+            f"There's a genuine pace differential — {faster} prefers to push early while {slower} likes to "
+            "methodically work the shot clock. Expect tactical battles over transition attempts and "
+            "early-clock possessions that could define which team plays its preferred game."
         )
     else:
         parts.append(
-            "Both teams operate at a similar tempo, so this will come down to half-court execution — "
-            "shot quality, ball security, and who can impose their offensive system."
+            "Both teams operate at a similar tempo, so this becomes a half-court chess match: "
+            "shot quality, ball security, and whose offensive system is more effective at breaking "
+            "down the other's defense will ultimately separate them."
         )
 
-    # 2. Key offensive vs. defensive matchup
-    if adjo_nr_a <= 60 and adjd_nr_b >= 200:
+    # ── 2. Efficiency + key matchup angle ───────────────────────────────────
+    em_gap   = abs(em_a - em_b)
+    fav_name = name_a if em_a >= em_b else name_b
+    dog_name = name_b if em_a >= em_b else name_a
+    fav_adjo_nr = adjo_nr_a if em_a >= em_b else adjo_nr_b
+    fav_adjd_nr = adjd_nr_a if em_a >= em_b else adjd_nr_b
+    dog_adjo_nr = adjo_nr_b if em_a >= em_b else adjo_nr_a
+    dog_adjd_nr = adjd_nr_b if em_a >= em_b else adjd_nr_a
+    fav_adjo    = adjo_a if em_a >= em_b else adjo_b
+    fav_adjd    = adjd_a if em_a >= em_b else adjd_b
+    dog_adjo    = adjo_b if em_a >= em_b else adjo_a
+    dog_adjd    = adjd_b if em_a >= em_b else adjd_a
+
+    if em_gap <= 2.5:
         parts.append(
-            f"{name_a}'s efficient offense (#{adjo_nr_a}) runs into one of the weaker defenses in the field (#{adjd_nr_b}) — "
-            "the favorite should find comfortable looks throughout and won't need a perfect game to win."
+            f"The efficiency numbers are almost identical ({em_a:+.1f} vs {em_b:+.1f} AdjEM) — "
+            "both teams bring comparable offense and defense, which shifts the margin entirely to "
+            "individual performances, in-game adjustments, and who makes more of their high-leverage possessions late."
         )
-    elif adjo_nr_b <= 60 and adjd_nr_a >= 200:
+    elif adjo_nr_a <= 50 and adjd_nr_b >= 180:
         parts.append(
-            f"{name_b}'s offense (#{adjo_nr_b}) against {name_a}'s defense (#{adjd_nr_a}) is a genuine mismatch that "
-            "could fuel an upset — if the underdog gets rolling early, this game can flip quickly."
+            f"{name_a}'s offense (#{adjo_nr_a}, {adjo_a:.1f} adj. pts/100) is a serious problem for "
+            f"{name_b}'s defense (#{adjd_nr_b}, {adjd_b:.1f} AdjD) — if {name_a} finds its rhythm early this "
+            "game could open up fast and never really be in doubt."
         )
-    elif adjd_nr_a <= 40 and adjo_nr_b >= 180:
+    elif adjo_nr_b <= 50 and adjd_nr_a >= 180:
         parts.append(
-            f"{name_a}'s defense (#{adjd_nr_a}) matches up well against {name_b}'s offense (#{adjo_nr_b}), "
-            "which could keep the game low-scoring and well within the favorite's comfort zone."
+            f"{name_b}'s attack (#{adjo_nr_b}, {adjo_b:.1f} pts/100) against {name_a}'s defense (#{adjd_nr_a}) "
+            "is the clearest path to an upset — that offensive efficiency hasn't faced many defenses this porous, "
+            "and an early lead could force a complete style shift."
         )
-    elif adjd_nr_b <= 40 and adjo_nr_a >= 180:
+    elif fav_adjd_nr <= 40 and dog_adjo_nr >= 180:
         parts.append(
-            f"{name_b}'s defense (#{adjd_nr_b}) is the key stress test for {name_a}'s offense (#{adjo_nr_a}) — "
-            "can the favorite generate quality looks against a unit that has been shutting teams down all season?"
+            f"The defining structural edge is {fav_name}'s defense (#{fav_adjd_nr}, {fav_adjd:.1f} AdjD), "
+            f"which systematically limits what {dog_name}'s offense (#{dog_adjo_nr}) does. "
+            "Expect a grind where every made shot has to be earned and the margin stays narrow until it suddenly doesn't."
+        )
+    elif dog_adjd_nr <= 40 and fav_adjo_nr >= 180:
+        parts.append(
+            f"{dog_name}'s defense (#{dog_adjd_nr}, {dog_adjd:.1f} AdjD) is the great equalizer — "
+            f"it has the capability to clamp down on {fav_name}'s offense (#{fav_adjo_nr}, {fav_adjo:.1f} pts/100) "
+            "and keep the underdog in a game where overall efficiency says they shouldn't compete."
         )
     else:
-        em_gap = abs(em_a - em_b)
-        if em_gap <= 3.0:
+        if em_gap <= 8.0:
             parts.append(
-                f"The efficiency gap is razor-thin ({em_a:+.1f} vs {em_b:+.1f}) — both teams are nearly identical in overall quality. "
-                "A single hot-shooting stretch, a turnover run, or one player stepping up can decide the whole thing."
-            )
-        elif em_gap <= 8.0:
-            fav = name_a if em_a > em_b else name_b
-            dog = name_b if em_a > em_b else name_a
-            parts.append(
-                f"{fav} holds a real efficiency edge ({em_gap:.1f} pts/100 AdjEM), but {dog} is capable enough "
-                "that a strong game plan and a few favorable bounces could absolutely swing this."
+                f"{fav_name} holds a {em_gap:.1f} pt/100 AdjEM edge — meaningful over a season but absolutely "
+                f"closeable in 40 minutes. {dog_name}'s best path runs through limiting {fav_name}'s offense "
+                f"(#{fav_adjo_nr}, {fav_adjo:.1f} pts/100) while converting its own half-court sets at a higher clip than normal."
             )
         else:
-            fav = name_a if em_a > em_b else name_b
             parts.append(
-                f"The efficiency gap ({em_gap:.1f} pts/100) heavily favors {fav} — the underdog's best path is controlling "
-                "pace, protecting the ball, and staying close enough that a hot second half becomes possible."
+                f"The efficiency gap is substantial ({em_gap:.1f} pts/100 AdjEM favoring {fav_name}) — "
+                f"{dog_name} would need to compress the game, protect the ball, and get at least neutral "
+                "shooting variance just to stay within range into the second half."
             )
 
-    # 3. Schedule / luck context — pick the most interesting angle
+    # ── 3. Three-point style (if per-game data available) ────────────────────
+    if three_pa_a > 0 and three_pa_b > 0:
+        three_gap = abs(three_pa_a - three_pa_b)
+        pct_gap   = abs(three_pct_a - three_pct_b)
+        if three_gap >= 3:
+            more_3    = name_a if three_pa_a > three_pa_b else name_b
+            less_3    = name_b if three_pa_a > three_pa_b else name_a
+            more_3pa  = max(three_pa_a, three_pa_b)
+            more_3pct = three_pct_a if three_pa_a > three_pa_b else three_pct_b
+            opp_3pa   = opp3pa_b if three_pa_a > three_pa_b else opp3pa_a
+            parts.append(
+                f"{more_3}'s offense is built around three-point volume ({more_3pa:.1f} attempts/game at {more_3pct:.1f}%) — "
+                f"against {less_3}, who allows {opp_3pa:.1f} three-point attempts per game, the arc "
+                "is an exploitable gap if those shots start dropping."
+            )
+        elif pct_gap >= 3.5:
+            better_shooter = name_a if three_pct_a > three_pct_b else name_b
+            b_pct = max(three_pct_a, three_pct_b)
+            w_pct = min(three_pct_a, three_pct_b)
+            parts.append(
+                f"Three-point accuracy is a secondary edge: {better_shooter} shoots {b_pct:.1f}% from deep "
+                f"vs the other team's {w_pct:.1f}% — in a close game that gap compounds quickly over 20+ attempts."
+            )
+
+    # ── 4. Ball security vs. defensive disruption ────────────────────────────
+    if topg_a > 0 and topg_b > 0:
+        to_gap = abs(topg_a - topg_b)
+        if to_gap >= 1.5:
+            sloppy    = name_a if topg_a > topg_b else name_b
+            careful   = name_b if topg_a > topg_b else name_a
+            sloppy_to = max(topg_a, topg_b)
+            press_stl = stl_b if topg_a > topg_b else stl_a
+            parts.append(
+                f"Ball security could be decisive: {sloppy} turns it over {sloppy_to:.1f} times per game, "
+                f"and {careful} averages {press_stl:.1f} steals — live-ball turnovers are the fastest way "
+                "to swing a momentum run in either team's direction."
+            )
+
+    # ── 5. Schedule / luck context ───────────────────────────────────────────
     sos_gap = abs(sos_nr_a - sos_nr_b)
     if sos_gap >= 120:
         harder = name_a if sos_nr_a < sos_nr_b else name_b
         easier = name_b if sos_nr_a < sos_nr_b else name_a
-        hr = min(sos_nr_a, sos_nr_b)
-        er = max(sos_nr_a, sos_nr_b)
+        hr     = min(sos_nr_a, sos_nr_b)
+        er     = max(sos_nr_a, sos_nr_b)
         parts.append(
-            f"Schedule context adds a wrinkle: {harder}'s numbers were built against a top-{hr} strength of schedule, "
-            f"while {easier} compiled theirs against softer competition (#{er} SOS) — tournament basketball is a different animal."
+            f"Schedule context matters: {harder}'s numbers were forged against a #{hr} SOS gauntlet while "
+            f"{easier} built theirs in softer conditions (#{er} SOS) — the ratings adjust for this, but "
+            "tournament experience under pressure carries its own kind of value."
         )
     elif luck_b < -0.04 and seed_b > seed_a:
         parts.append(
-            f"One wildcard: {name_b} has been genuinely unlucky in close games all season — their record undersells "
-            "how competitive they've been, and a neutral-court tournament game is exactly when that tends to even out."
+            f"One overlooked angle: {name_b} has been genuinely unlucky in close games all season — "
+            "their record undersells how well they've competed, and a neutral floor is exactly when "
+            "that bad-luck tax tends to even out."
         )
     elif luck_a > 0.05 and seed_a < seed_b:
         parts.append(
-            f"One caveat for {name_a}: they've been fortunate in clutch situations throughout the year, "
-            "meaning their record is a touch rosier than their underlying efficiency alone would suggest."
+            f"One caveat: {name_a} has been fortune-favored in tight situations this year, meaning "
+            "their record modestly overstates what the underlying efficiency would project."
         )
 
-    return " ".join(parts[:3])
+    return " ".join(parts[:4])
 
 
 # ---------------------------------------------------------------------------
@@ -1123,13 +1211,6 @@ def _generate_single_game_bullets(
                 "📊 **Betting lines**: Run `uv run python pipeline/fetch_odds.py` to pull live ESPN odds, "
                 "then refresh the page — market vs model comparison will appear here automatically."
             )
-
-    # ── Possession randomness ─────────────────────────────────────────────
-    bullets.append(
-        f"🎯 **The one-game truth**: March Madness upsets happen because single games are decided by ~{int(avg_tempo)} possessions. "
-        "That means 5–8 genuinely 50/50 moments (tip-offs, charge/block calls, scramble rebounds, late-clock shots) "
-        "can completely reverse a 10-point efficiency gap. The stats set the stage — randomness writes the ending."
-    )
 
     return bullets
 # ---------------------------------------------------------------------------
@@ -2731,11 +2812,11 @@ with bracket_tab:
 
         # ── Matchup Narrative ──────────────────────────────────────────────
         st.markdown("<div style='margin-top:18px'></div>", unsafe_allow_html=True)
-        st.markdown("##### ⚔️ How They Match Up")
+        st.markdown("#### ⚔️ How They Match Up")
         _clash = generate_clash_narrative(_ta_full, _tb_full, wp_a, n)
         st.markdown(
-            f"<div style='background:#f8f9fa;border-left:3px solid #1e2d40;border-radius:0 8px 8px 0;"
-            f"padding:12px 16px;font-size:13px;color:#333;line-height:1.6'>{_clash}</div>",
+            f"<div style='background:#eef2f7;border-left:4px solid #1e2d40;border-radius:0 8px 8px 0;"
+            f"padding:14px 18px;font-size:14px;color:#1a1a2e;line-height:1.75;font-weight:400'>{_clash}</div>",
             unsafe_allow_html=True,
         )
 
