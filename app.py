@@ -2246,7 +2246,8 @@ with bracket_tab:
                 tname = tdata["Team"]
                 _tr = _r_lookup.get(tname)
                 if _tr:
-                    _tr_s = pd.Series(_tr)
+                    # _r_lookup is keyed by Team name (set_index), so "Team" is absent — re-add it
+                    _tr_s = pd.Series({**_tr, "Team": tname})
                     _sname, _stag = generate_playstyle_name(_tr_s, None, n)
                     # Playstyle badge (team-color coded)
                     st.markdown(
