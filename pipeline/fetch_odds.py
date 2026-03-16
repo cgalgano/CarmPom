@@ -1,233 +1,278 @@
 """
 pipeline/fetch_odds.py
 ----------------------
-Fetches live NCAA tournament moneyline + spread odds from The Odds API and
-caches the consensus line to data/odds_cache.json.
+Fetches live NCAA tournament moneyline + spread odds from ESPN's free public
+scoreboard API and caches them to data/odds_cache.json.
 
-The free tier of The Odds API gives 500 credits/month — one call for h2h+spreads
-costs 2 credits, so you can refresh ~250 times/month without a bill.
+No API key or account required.
 
 Usage:
     uv run python pipeline/fetch_odds.py
 
-Add your free API key to .streamlit/secrets.toml:
-    ODDS_API_KEY = "your_key_here"
-
-Or set it as an environment variable: ODDS_API_KEY=your_key
+Run once a day (or before each session) to refresh lines.
 """
 
+import csv
 import json
-import os
-import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from difflib import get_close_matches
 from pathlib import Path
-from typing import Any
 
 import httpx
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE_PATH = ROOT / "data" / "odds_cache.json"
-SPORT = "basketball_ncaab"
-ODDS_URL = f"https://api.the-odds-api.com/v4/sports/{SPORT}/odds"
+BRACKET_CSV = ROOT / "data" / "bracket_2026.csv"
+
+_ESPN_BASE = (
+    "https://site.api.espn.com/apis/site/v2/sports/basketball"
+    "/mens-college-basketball/scoreboard"
+)
+_HEADERS = {"User-Agent": "Mozilla/5.0"}
+
+# NCAA tournament group ID in ESPN's system
+_NCAAT_GROUP = "50"
+
+# Tournament window: First Four through Championship
+_TOURNEY_START = date(2026, 3, 17)
+_TOURNEY_END   = date(2026, 4, 8)
 
 
-def _get_api_key() -> str:
-    """Resolve API key from env, .env file, or .streamlit/secrets.toml."""
-    # 1. Environment variable
-    key = os.environ.get("ODDS_API_KEY", "").strip()
-    if key:
-        return key
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-    # 2. .streamlit/secrets.toml (parse manually to avoid streamlit import)
-    secrets_path = ROOT / ".streamlit" / "secrets.toml"
-    if secrets_path.exists():
-        for line in secrets_path.read_text(encoding="utf-8").splitlines():
-            if line.strip().startswith("ODDS_API_KEY"):
-                _, _, val = line.partition("=")
-                key = val.strip().strip('"').strip("'")
-                if key:
-                    return key
-
-    return ""
+def _parse_ml(ml_str: str | None) -> float | None:
+    """Convert ESPN American moneyline string to float. 'EVEN' → +100."""
+    if not ml_str:
+        return None
+    s = str(ml_str).strip()
+    if s.upper() in ("EVEN", "PK"):
+        return 100.0
+    try:
+        return float(s.replace("+", ""))
+    except ValueError:
+        return None
 
 
-def american_to_prob(ml: float) -> float:
-    """Convert American moneyline to implied decimal probability (no vig removal)."""
+def _impl_prob(ml: float) -> float:
+    """Raw (with-vig) implied probability from American moneyline."""
     if ml < 0:
         return abs(ml) / (abs(ml) + 100)
-    else:
-        return 100 / (ml + 100)
+    return 100.0 / (ml + 100)
 
 
-def remove_vig(prob_a: float, prob_b: float) -> tuple[float, float]:
-    """Strip bookmaker vig from two implied probabilities."""
-    total = prob_a + prob_b
-    return prob_a / total, prob_b / total
+def _remove_vig(p_a: float, p_b: float) -> tuple[float, float]:
+    """Normalise two implied probabilities to sum to 1.0."""
+    total = p_a + p_b
+    if total <= 0:
+        return 0.5, 0.5
+    return p_a / total, p_b / total
 
 
-def fetch_odds(api_key: str) -> list[dict]:
-    """Call The Odds API and return raw JSON events list."""
-    params = {
-        "apiKey": api_key,
-        "regions": "us",
-        "markets": "h2h,spreads",
-        "oddsFormat": "american",
-    }
-    resp = httpx.get(ODDS_URL, params=params, timeout=15.0)
-    remaining = resp.headers.get("x-requests-remaining", "?")
-    print(f"  Odds API credits remaining: {remaining}")
+# ---------------------------------------------------------------------------
+# Fetching
+# ---------------------------------------------------------------------------
+
+def fetch_day(day: date) -> list[dict]:
+    """Fetch ESPN scoreboard for one calendar day. Returns raw events list."""
+    params = {"groups": _NCAAT_GROUP, "dates": day.strftime("%Y%m%d")}
+    resp = httpx.get(_ESPN_BASE, params=params, headers=_HEADERS, timeout=15.0)
     resp.raise_for_status()
-    return resp.json()
+    return resp.json().get("events", [])
 
 
-def build_consensus_line(outcomes: list[dict]) -> dict[str, Any]:
-    """Average probabilities / spreads across bookmakers for one market."""
-    # outcomes = list of {"team": str, "ml": float, "spread": float|None}
-    # Group by team name
-    from collections import defaultdict
-
-    ml_by_team: dict[str, list[float]] = defaultdict(list)
-    spread_by_team: dict[str, list[float]] = defaultdict(list)
-    for o in outcomes:
-        ml_by_team[o["team"]].append(o["ml"])
-        if o.get("spread") is not None:
-            spread_by_team[o["team"]].append(o["spread"])
-
-    result: dict[str, dict] = {}
-    teams = list(ml_by_team.keys())
-    if len(teams) != 2:
-        return {}
-
-    for team in teams:
-        avg_ml = sum(ml_by_team[team]) / len(ml_by_team[team])
-        avg_spread = (
-            sum(spread_by_team[team]) / len(spread_by_team[team])
-            if spread_by_team[team] else None
-        )
-        result[team] = {"ml": round(avg_ml, 1), "spread": avg_spread}
-
-    # Remove vig from the two moneylines
-    probs_raw = [american_to_prob(result[t]["ml"]) for t in teams]
-    p0, p1 = remove_vig(probs_raw[0], probs_raw[1])
-    result[teams[0]]["impl_prob"] = round(p0, 4)
-    result[teams[1]]["impl_prob"] = round(p1, 4)
-
-    return result
+def fetch_all_tournament_events() -> list[dict]:
+    """Scrape ESPN scoreboard for every day in the tournament window."""
+    all_events: list[dict] = []
+    day = _TOURNEY_START
+    while day <= _TOURNEY_END:
+        try:
+            events = fetch_day(day)
+            if events:
+                print(f"  {day}  →  {len(events)} events")
+            all_events.extend(events)
+        except Exception as exc:
+            print(f"  {day}  →  error: {exc}")
+        day += timedelta(days=1)
+    return all_events
 
 
-def normalize_events(events: list[dict]) -> dict:
+# ---------------------------------------------------------------------------
+# Parsing
+# ---------------------------------------------------------------------------
+
+def _parse_event(ev: dict) -> list[tuple[str, str, dict]]:
     """
-    Parse Odds API events into a flat lookup:
-        lu[team_a_name][team_b_name] = {
-            "ml": float,   "spread": float|None,
-            "impl_prob": float,  "kickoff": str, "book_count": int
-        }
-    Both directions (a→b and b→a) are stored.
+    Parse one ESPN event into a list of (team_a, team_b, line_dict) tuples.
+    Returns both directions (a→b and b→a) so the lookup works either way.
+
+    The line dict contains: ml, spread, impl_prob, kickoff, book_count.
+    """
+    comp = ev.get("competitions", [{}])[0]
+    odds_list: list[dict] = comp.get("odds", [])
+    if not odds_list:
+        return []
+
+    # Use the highest-priority bookmaker (odds_list is sorted by provider.priority)
+    odds = odds_list[0]
+
+    # Identify away/home team names
+    away_name = ""
+    home_name = ""
+    for c in comp.get("competitors", []):
+        if c.get("homeAway") == "away":
+            away_name = c.get("team", {}).get("displayName", "")
+        elif c.get("homeAway") == "home":
+            home_name = c.get("team", {}).get("displayName", "")
+
+    if not away_name or not home_name or "TBD" in (away_name, home_name):
+        return []
+
+    # Who is the favourite?  awayTeamOdds.favorite: bool
+    away_odds_obj = odds.get("awayTeamOdds", {})
+    home_odds_obj = odds.get("homeTeamOdds", {})
+    away_is_fav = bool(away_odds_obj.get("favorite"))
+
+    # Spread (absolute value from ESPN, sign derived from favourite flag)
+    spread_abs: float | None = odds.get("spread")  # e.g. 2.5
+    if spread_abs is not None:
+        away_spread = -spread_abs if away_is_fav else spread_abs
+        home_spread = -spread_abs if not away_is_fav else spread_abs
+    else:
+        away_spread = home_spread = None
+
+    # Moneyline strings → floats
+    ml_obj = odds.get("moneyline", {})
+    away_ml = _parse_ml(ml_obj.get("away", {}).get("close", {}).get("odds"))
+    home_ml = _parse_ml(ml_obj.get("home", {}).get("close", {}).get("odds"))
+
+    # Fallback: synthesise ML from spread if moneyline parsing failed
+    if away_ml is None or home_ml is None:
+        # rough approximation: -110 for both sides of a short spread
+        away_ml = away_ml or (-110.0 if away_is_fav else 100.0)
+        home_ml = home_ml or (-110.0 if not away_is_fav else 100.0)
+
+    # No-vig implied probabilities
+    p_away, p_home = _remove_vig(_impl_prob(away_ml), _impl_prob(home_ml))
+
+    kickoff = comp.get("date", ev.get("date", ""))
+    book_count = len(odds_list)
+
+    away_line = {
+        "ml": round(away_ml, 1),
+        "spread": away_spread,
+        "impl_prob": round(p_away, 4),
+        "kickoff": kickoff,
+        "book_count": book_count,
+    }
+    home_line = {
+        "ml": round(home_ml, 1),
+        "spread": home_spread,
+        "impl_prob": round(p_home, 4),
+        "kickoff": kickoff,
+        "book_count": book_count,
+    }
+
+    return [
+        (away_name, home_name, away_line),
+        (home_name, away_name, home_line),
+    ]
+
+
+def build_lookup(events: list[dict]) -> dict:
+    """Build nested odds lookup from raw ESPN events.
+
+    Returns lu[team_a][team_b] = {ml, spread, impl_prob, kickoff, book_count}.
     """
     lu: dict = {}
-
     for ev in events:
-        home = ev.get("home_team", "")
-        away = ev.get("away_team", "")
-        commence = ev.get("commence_time", "")
-
-        # Collect all market outcomes across bookmakers
-        h2h_outcomes: list[dict] = []
-        spread_outcomes: list[dict] = []
-
-        for bk in ev.get("bookmakers", []):
-            for mkt in bk.get("markets", []):
-                if mkt["key"] == "h2h":
-                    for o in mkt["outcomes"]:
-                        h2h_outcomes.append({"team": o["name"], "ml": o["price"]})
-                elif mkt["key"] == "spreads":
-                    for o in mkt["outcomes"]:
-                        spread_outcomes.append({"team": o["name"], "ml": o.get("price", -110), "spread": o.get("point")})
-
-        if not h2h_outcomes:
-            continue
-
-        consensus = build_consensus_line(h2h_outcomes)
-        spread_consensus = build_consensus_line(spread_outcomes) if spread_outcomes else {}
-
-        teams = list(consensus.keys())
-        if len(teams) != 2:
-            continue
-
-        book_count = len(ev.get("bookmakers", []))
-
-        for i, ta in enumerate(teams):
-            tb = teams[1 - i]
-            line = {
-                "ml": consensus[ta]["ml"],
-                "spread": spread_consensus.get(ta, {}).get("spread"),
-                "impl_prob": consensus[ta]["impl_prob"],
-                "kickoff": commence,
-                "book_count": book_count,
-            }
+        for ta, tb, line in _parse_event(ev):
             lu.setdefault(ta, {})[tb] = line
-
     return lu
 
 
-def fuzzy_match_teams(
-    odds_lu: dict, db_names: list[str]
-) -> dict:
+# ---------------------------------------------------------------------------
+# Fuzzy matching to bracket/DB names
+# ---------------------------------------------------------------------------
+
+def _load_bracket_names() -> list[str]:
+    """Return team names from the bracket CSV for fuzzy re-keying."""
+    names: list[str] = []
+    try:
+        with open(BRACKET_CSV, newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                t = row.get("team", "").strip()
+                if t and t.lower() not in ("tbd", ""):
+                    names.append(t)
+    except FileNotFoundError:
+        pass
+    return names
+
+
+def fuzzy_match_teams(lu: dict, bracket_names: list[str]) -> dict:
+    """Re-key the lookup to match bracket team name spellings.
+
+    ESPN uses full school names ("Duke Blue Devils") that often already match
+    the bracket CSV.  Fuzzy matching ≥0.55 handles edge cases like
+    'Saint John's' vs 'St. John's'.
     """
-    Re-key the odds lookup using DB team names instead of Odds API display names.
-    Uses difflib close matches (0.55 threshold) to bridge naming differences.
-    e.g. "Saint John's Red Storm" → "St. John's Red Storm"
-    """
-    all_odds_names = list(odds_lu.keys())
-    matched_lu: dict = {}
+    if not bracket_names:
+        return lu
 
-    for odds_name, opponents in odds_lu.items():
-        # Find the DB name closest to this odds name
-        hits = get_close_matches(odds_name, db_names, n=1, cutoff=0.55)
-        db_name = hits[0] if hits else odds_name
+    matched: dict = {}
+    for espn_name, opponents in lu.items():
+        hits = get_close_matches(espn_name, bracket_names, n=1, cutoff=0.55)
+        db_name = hits[0] if hits else espn_name
 
-        matched_opponents: dict = {}
-        for opp_odds_name, line in opponents.items():
-            opp_hits = get_close_matches(opp_odds_name, db_names, n=1, cutoff=0.55)
-            opp_db_name = opp_hits[0] if opp_hits else opp_odds_name
-            matched_opponents[opp_db_name] = line
+        matched_opp: dict = {}
+        for opp_espn, line in opponents.items():
+            opp_hits = get_close_matches(opp_espn, bracket_names, n=1, cutoff=0.55)
+            opp_db = opp_hits[0] if opp_hits else opp_espn
+            matched_opp[opp_db] = line
 
-        matched_lu[db_name] = matched_opponents
+        matched.setdefault(db_name, {}).update(matched_opp)
 
-    return matched_lu
+    return matched
 
+
+# ---------------------------------------------------------------------------
+# Public interface
+# ---------------------------------------------------------------------------
 
 def run(db_team_names: list[str] | None = None) -> dict:
-    """Fetch, normalize, fuzzy-match, and cache odds. Returns the lookup dict."""
-    key = _get_api_key()
-    if not key:
-        print(
-            "ERROR: No ODDS_API_KEY found.\n"
-            "  Add it to .streamlit/secrets.toml or set it as an environment variable.\n"
-            "  Get a free key (500 credits/month, no credit card) at https://the-odds-api.com"
-        )
-        sys.exit(1)
+    """Fetch all tournament odds from ESPN and save cache. Returns lookup dict."""
+    print("Fetching NCAA tournament odds from ESPN scoreboard API…")
+    events = fetch_all_tournament_events()
+    print(f"  {len(events)} total events fetched across tournament window")
 
-    print(f"Fetching NCAA tournament odds from The Odds API…")
-    events = fetch_odds(key)
-    print(f"  {len(events)} events returned.")
+    lu = build_lookup(events)
+    print(f"  {len(lu)} teams with betting lines")
 
-    lu = normalize_events(events)
-    print(f"  {len(lu)} teams parsed from odds response.")
+    bracket_names = db_team_names or _load_bracket_names()
+    if bracket_names:
+        lu = fuzzy_match_teams(lu, bracket_names)
+        print(f"  Fuzzy-matched to {len(bracket_names)} bracket team names")
 
-    if db_team_names:
-        lu = fuzzy_match_teams(lu, db_team_names)
-        print(f"  Fuzzy-matched to DB team names.")
+    # Report coverage
+    covered = sum(1 for t in (bracket_names or []) if t in lu)
+    if bracket_names:
+        print(f"  Bracket coverage: {covered}/{len(bracket_names)} teams have lines")
+
+    for ta, opp in sorted(lu.items(), key=lambda x: x[0]):
+        for tb, line in opp.items():
+            spread = f"{line['spread']:+.1f}" if line.get("spread") is not None else "N/A"
+            print(f"    {ta}  vs  {tb}  |  ML {line['ml']:+.0f}  spread {spread}  impl {line['impl_prob']:.1%}")
 
     payload = {
         "fetched_at": datetime.now(timezone.utc).isoformat(),
-        "sport": SPORT,
+        "source": "espn-scoreboard",
+        "sport": "basketball_ncaab",
         "odds": lu,
     }
     CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
     CACHE_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    print(f"  Saved → {CACHE_PATH}")
+    print(f"\nSaved → {CACHE_PATH}")
     return lu
 
 
@@ -243,7 +288,7 @@ def load_odds_cache() -> dict:
 
 
 def load_odds_meta() -> dict:
-    """Return metadata (fetched_at, book_count) from the cache file."""
+    """Return metadata dict (includes fetched_at, source)."""
     if not CACHE_PATH.exists():
         return {}
     try:
@@ -253,14 +298,12 @@ def load_odds_meta() -> dict:
 
 
 if __name__ == "__main__":
-    # Optionally load DB names for better fuzzy matching
+    # Optionally load bracket/DB names for better fuzzy matching
     try:
         import sys as _sys
-
         _sys.path.insert(0, str(ROOT))
         from db.database import SessionLocal
         from db.models import Team
-
         with SessionLocal() as _sess:
             _db_names = [r[0] for r in _sess.query(Team.name).all()]
     except Exception:

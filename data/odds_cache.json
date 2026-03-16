@@ -1,0 +1,583 @@
+{
+  "fetched_at": "2026-03-16T01:29:55.572100+00:00",
+  "source": "espn-scoreboard",
+  "sport": "basketball_ncaab",
+  "odds": {
+    "UMBC Retrievers": {
+      "Howard Bison": {
+        "ml": -148.0,
+        "spread": -2.5,
+        "impl_prob": 0.5721,
+        "kickoff": "2026-03-17T22:40Z",
+        "book_count": 1
+      }
+    },
+    "Howard Bison": {
+      "UMBC Retrievers": {
+        "ml": 124.0,
+        "spread": 2.5,
+        "impl_prob": 0.4279,
+        "kickoff": "2026-03-17T22:40Z",
+        "book_count": 1
+      }
+    },
+    "Texas Longhorns": {
+      "NC State Wolfpack": {
+        "ml": -115.0,
+        "spread": -1.5,
+        "impl_prob": 0.5108,
+        "kickoff": "2026-03-18T01:15Z",
+        "book_count": 1
+      }
+    },
+    "NC State Wolfpack": {
+      "Texas Longhorns": {
+        "ml": -105.0,
+        "spread": 1.5,
+        "impl_prob": 0.4892,
+        "kickoff": "2026-03-18T01:15Z",
+        "book_count": 1
+      }
+    },
+    "Prairie View A&M Panthers": {
+      "Lehigh Mountain Hawks": {
+        "ml": 130.0,
+        "spread": -2.5,
+        "impl_prob": 0.417,
+        "kickoff": "2026-03-18T22:40Z",
+        "book_count": 1
+      }
+    },
+    "Lehigh Mountain Hawks": {
+      "Prairie View A&M Panthers": {
+        "ml": -155.0,
+        "spread": 2.5,
+        "impl_prob": 0.583,
+        "kickoff": "2026-03-18T22:40Z",
+        "book_count": 1
+      }
+    },
+    "Miami (OH) RedHawks": {
+      "SMU Mustangs": {
+        "ml": 270.0,
+        "spread": -8.5,
+        "impl_prob": 0.2591,
+        "kickoff": "2026-03-19T01:15Z",
+        "book_count": 1
+      }
+    },
+    "SMU Mustangs": {
+      "Miami (OH) RedHawks": {
+        "ml": -340.0,
+        "spread": 8.5,
+        "impl_prob": 0.7409,
+        "kickoff": "2026-03-19T01:15Z",
+        "book_count": 1
+      }
+    },
+    "TCU Horned Frogs": {
+      "Ohio State Buckeyes": {
+        "ml": 124.0,
+        "spread": -2.5,
+        "impl_prob": 0.4279,
+        "kickoff": "2026-03-19T16:15Z",
+        "book_count": 1
+      }
+    },
+    "Ohio State Buckeyes": {
+      "TCU Horned Frogs": {
+        "ml": -148.0,
+        "spread": 2.5,
+        "impl_prob": 0.5721,
+        "kickoff": "2026-03-19T16:15Z",
+        "book_count": 1
+      }
+    },
+    "Troy Trojans": {
+      "Nebraska Cornhuskers": {
+        "ml": 700.0,
+        "spread": -13.5,
+        "impl_prob": 0.12,
+        "kickoff": "2026-03-19T16:40Z",
+        "book_count": 1
+      }
+    },
+    "Nebraska Cornhuskers": {
+      "Troy Trojans": {
+        "ml": -1100.0,
+        "spread": 13.5,
+        "impl_prob": 0.88,
+        "kickoff": "2026-03-19T16:40Z",
+        "book_count": 1
+      }
+    },
+    "South Florida Bulls": {
+      "Louisville Cardinals": {
+        "ml": 205.0,
+        "spread": -5.5,
+        "impl_prob": 0.3146,
+        "kickoff": "2026-03-19T17:30Z",
+        "book_count": 1
+      }
+    },
+    "Louisville Cardinals": {
+      "South Florida Bulls": {
+        "ml": -250.0,
+        "spread": 5.5,
+        "impl_prob": 0.6854,
+        "kickoff": "2026-03-19T17:30Z",
+        "book_count": 1
+      }
+    },
+    "High Point Panthers": {
+      "Wisconsin Badgers": {
+        "ml": 410.0,
+        "spread": -9.5,
+        "impl_prob": 0.1881,
+        "kickoff": "2026-03-19T17:50Z",
+        "book_count": 1
+      }
+    },
+    "Wisconsin Badgers": {
+      "High Point Panthers": {
+        "ml": -550.0,
+        "spread": 9.5,
+        "impl_prob": 0.8119,
+        "kickoff": "2026-03-19T17:50Z",
+        "book_count": 1
+      }
+    },
+    "Siena Saints": {
+      "Duke Blue Devils": {
+        "ml": 3500.0,
+        "spread": -29.5,
+        "impl_prob": 0.0272,
+        "kickoff": "2026-03-19T18:50Z",
+        "book_count": 1
+      }
+    },
+    "Duke Blue Devils": {
+      "Siena Saints": {
+        "ml": -20000.0,
+        "spread": 29.5,
+        "impl_prob": 0.9728,
+        "kickoff": "2026-03-19T18:50Z",
+        "book_count": 1
+      }
+    },
+    "McNeese Cowboys": {
+      "Vanderbilt Commodores": {
+        "ml": 500.0,
+        "spread": -11.5,
+        "impl_prob": 0.16,
+        "kickoff": "2026-03-19T19:15Z",
+        "book_count": 1
+      }
+    },
+    "Vanderbilt Commodores": {
+      "McNeese Cowboys": {
+        "ml": -700.0,
+        "spread": 11.5,
+        "impl_prob": 0.84,
+        "kickoff": "2026-03-19T19:15Z",
+        "book_count": 1
+      }
+    },
+    "North Dakota State Bison": {
+      "Michigan State Spartans": {
+        "ml": 950.0,
+        "spread": -16.5,
+        "impl_prob": 0.0917,
+        "kickoff": "2026-03-19T20:05Z",
+        "book_count": 1
+      }
+    },
+    "Michigan State Spartans": {
+      "North Dakota State Bison": {
+        "ml": -1650.0,
+        "spread": 16.5,
+        "impl_prob": 0.9083,
+        "kickoff": "2026-03-19T20:05Z",
+        "book_count": 1
+      }
+    },
+    "Hawai'i Rainbow Warriors": {
+      "Arkansas Razorbacks": {
+        "ml": 900.0,
+        "spread": -15.5,
+        "impl_prob": 0.096,
+        "kickoff": "2026-03-19T20:25Z",
+        "book_count": 1
+      }
+    },
+    "Arkansas Razorbacks": {
+      "Hawai'i Rainbow Warriors": {
+        "ml": -1600.0,
+        "spread": 15.5,
+        "impl_prob": 0.904,
+        "kickoff": "2026-03-19T20:25Z",
+        "book_count": 1
+      }
+    },
+    "VCU Rams": {
+      "North Carolina Tar Heels": {
+        "ml": 136.0,
+        "spread": -2.5,
+        "impl_prob": 0.4066,
+        "kickoff": "2026-03-19T22:50Z",
+        "book_count": 1
+      }
+    },
+    "North Carolina Tar Heels": {
+      "VCU Rams": {
+        "ml": -162.0,
+        "spread": 2.5,
+        "impl_prob": 0.5934,
+        "kickoff": "2026-03-19T22:50Z",
+        "book_count": 1
+      }
+    },
+    "Texas A&M Aggies": {
+      "Saint Mary's Gaels": {
+        "ml": 114.0,
+        "spread": -2.5,
+        "impl_prob": 0.4486,
+        "kickoff": "2026-03-19T23:35Z",
+        "book_count": 1
+      }
+    },
+    "Saint Mary's Gaels": {
+      "Texas A&M Aggies": {
+        "ml": -135.0,
+        "spread": 2.5,
+        "impl_prob": 0.5514,
+        "kickoff": "2026-03-19T23:35Z",
+        "book_count": 1
+      }
+    },
+    "Pennsylvania Quakers": {
+      "Illinois Fighting Illini": {
+        "ml": 3000.0,
+        "spread": -24.5,
+        "impl_prob": 0.0316,
+        "kickoff": "2026-03-20T01:25Z",
+        "book_count": 1
+      }
+    },
+    "Illinois Fighting Illini": {
+      "Pennsylvania Quakers": {
+        "ml": -10000.0,
+        "spread": 24.5,
+        "impl_prob": 0.9684,
+        "kickoff": "2026-03-20T01:25Z",
+        "book_count": 1
+      }
+    },
+    "Saint Louis Billikens": {
+      "Georgia Bulldogs": {
+        "ml": 120.0,
+        "spread": -2.5,
+        "impl_prob": 0.4365,
+        "kickoff": "2026-03-20T01:45Z",
+        "book_count": 1
+      }
+    },
+    "Georgia Bulldogs": {
+      "Saint Louis Billikens": {
+        "ml": -142.0,
+        "spread": 2.5,
+        "impl_prob": 0.5635,
+        "kickoff": "2026-03-20T01:45Z",
+        "book_count": 1
+      }
+    },
+    "Kennesaw State Owls": {
+      "Gonzaga Bulldogs": {
+        "ml": 1800.0,
+        "spread": -19.5,
+        "impl_prob": 0.0509,
+        "kickoff": "2026-03-20T02:00Z",
+        "book_count": 1
+      }
+    },
+    "Gonzaga Bulldogs": {
+      "Kennesaw State Owls": {
+        "ml": -5000.0,
+        "spread": 19.5,
+        "impl_prob": 0.9491,
+        "kickoff": "2026-03-20T02:00Z",
+        "book_count": 1
+      }
+    },
+    "Idaho Vandals": {
+      "Houston Cougars": {
+        "ml": 3000.0,
+        "spread": -24.5,
+        "impl_prob": 0.0316,
+        "kickoff": "2026-03-20T02:10Z",
+        "book_count": 1
+      }
+    },
+    "Houston Cougars": {
+      "Idaho Vandals": {
+        "ml": -10000.0,
+        "spread": 24.5,
+        "impl_prob": 0.9684,
+        "kickoff": "2026-03-20T02:10Z",
+        "book_count": 1
+      }
+    },
+    "Santa Clara Broncos": {
+      "Kentucky Wildcats": {
+        "ml": 136.0,
+        "spread": -4.5,
+        "impl_prob": 0.4066,
+        "kickoff": "2026-03-20T16:15Z",
+        "book_count": 1
+      }
+    },
+    "Kentucky Wildcats": {
+      "Santa Clara Broncos": {
+        "ml": -162.0,
+        "spread": 4.5,
+        "impl_prob": 0.5934,
+        "kickoff": "2026-03-20T16:15Z",
+        "book_count": 1
+      }
+    },
+    "Akron Zips": {
+      "Texas Tech Red Raiders": {
+        "ml": 270.0,
+        "spread": -7.5,
+        "impl_prob": 0.2591,
+        "kickoff": "2026-03-20T16:40Z",
+        "book_count": 1
+      }
+    },
+    "Texas Tech Red Raiders": {
+      "Akron Zips": {
+        "ml": -340.0,
+        "spread": 7.5,
+        "impl_prob": 0.7409,
+        "kickoff": "2026-03-20T16:40Z",
+        "book_count": 1
+      }
+    },
+    "Long Island University Sharks": {
+      "Arizona Wildcats": {
+        "ml": 3500.0,
+        "spread": -31.5,
+        "impl_prob": 0.0272,
+        "kickoff": "2026-03-20T17:35Z",
+        "book_count": 1
+      }
+    },
+    "Arizona Wildcats": {
+      "Long Island University Sharks": {
+        "ml": -20000.0,
+        "spread": 31.5,
+        "impl_prob": 0.9728,
+        "kickoff": "2026-03-20T17:35Z",
+        "book_count": 1
+      }
+    },
+    "Wright State Raiders": {
+      "Virginia Cavaliers": {
+        "ml": 1500.0,
+        "spread": -18.5,
+        "impl_prob": 0.0604,
+        "kickoff": "2026-03-20T17:50Z",
+        "book_count": 1
+      }
+    },
+    "Virginia Cavaliers": {
+      "Wright State Raiders": {
+        "ml": -3600.0,
+        "spread": 18.5,
+        "impl_prob": 0.9396,
+        "kickoff": "2026-03-20T17:50Z",
+        "book_count": 1
+      }
+    },
+    "Tennessee State Tigers": {
+      "Iowa State Cyclones": {
+        "ml": 2200.0,
+        "spread": -25.5,
+        "impl_prob": 0.0422,
+        "kickoff": "2026-03-20T18:50Z",
+        "book_count": 1
+      }
+    },
+    "Iowa State Cyclones": {
+      "Tennessee State Tigers": {
+        "ml": -8000.0,
+        "spread": 25.5,
+        "impl_prob": 0.9578,
+        "kickoff": "2026-03-20T18:50Z",
+        "book_count": 1
+      }
+    },
+    "Hofstra Pride": {
+      "Alabama Crimson Tide": {
+        "ml": 600.0,
+        "spread": -13.5,
+        "impl_prob": 0.137,
+        "kickoff": "2026-03-20T19:15Z",
+        "book_count": 1
+      }
+    },
+    "Alabama Crimson Tide": {
+      "Hofstra Pride": {
+        "ml": -900.0,
+        "spread": 13.5,
+        "impl_prob": 0.863,
+        "kickoff": "2026-03-20T19:15Z",
+        "book_count": 1
+      }
+    },
+    "Utah State Aggies": {
+      "Villanova Wildcats": {
+        "ml": -142.0,
+        "spread": -2.5,
+        "impl_prob": 0.5635,
+        "kickoff": "2026-03-20T20:10Z",
+        "book_count": 1
+      }
+    },
+    "Villanova Wildcats": {
+      "Utah State Aggies": {
+        "ml": 120.0,
+        "spread": 2.5,
+        "impl_prob": 0.4365,
+        "kickoff": "2026-03-20T20:10Z",
+        "book_count": 1
+      }
+    },
+    "Iowa Hawkeyes": {
+      "Clemson Tigers": {
+        "ml": -142.0,
+        "spread": -2.5,
+        "impl_prob": 0.5635,
+        "kickoff": "2026-03-20T22:50Z",
+        "book_count": 1
+      }
+    },
+    "Clemson Tigers": {
+      "Iowa Hawkeyes": {
+        "ml": 120.0,
+        "spread": 2.5,
+        "impl_prob": 0.4365,
+        "kickoff": "2026-03-20T22:50Z",
+        "book_count": 1
+      }
+    },
+    "Northern Iowa Panthers": {
+      "St. John's Red Storm": {
+        "ml": 410.0,
+        "spread": -11.5,
+        "impl_prob": 0.1881,
+        "kickoff": "2026-03-20T23:10Z",
+        "book_count": 1
+      }
+    },
+    "St. John's Red Storm": {
+      "Northern Iowa Panthers": {
+        "ml": -550.0,
+        "spread": 11.5,
+        "impl_prob": 0.8119,
+        "kickoff": "2026-03-20T23:10Z",
+        "book_count": 1
+      }
+    },
+    "UCF Knights": {
+      "UCLA Bruins": {
+        "ml": 185.0,
+        "spread": -6.5,
+        "impl_prob": 0.3364,
+        "kickoff": "2026-03-20T23:25Z",
+        "book_count": 1
+      }
+    },
+    "UCLA Bruins": {
+      "UCF Knights": {
+        "ml": -225.0,
+        "spread": 6.5,
+        "impl_prob": 0.6636,
+        "kickoff": "2026-03-20T23:25Z",
+        "book_count": 1
+      }
+    },
+    "Queens University Royals": {
+      "Purdue Boilermakers": {
+        "ml": 3000.0,
+        "spread": -24.5,
+        "impl_prob": 0.0316,
+        "kickoff": "2026-03-20T23:35Z",
+        "book_count": 1
+      }
+    },
+    "Purdue Boilermakers": {
+      "Queens University Royals": {
+        "ml": -10000.0,
+        "spread": 24.5,
+        "impl_prob": 0.9684,
+        "kickoff": "2026-03-20T23:35Z",
+        "book_count": 1
+      }
+    },
+    "California Baptist Lancers": {
+      "Kansas Jayhawks": {
+        "ml": 700.0,
+        "spread": -14.5,
+        "impl_prob": 0.12,
+        "kickoff": "2026-03-21T01:45Z",
+        "book_count": 1
+      }
+    },
+    "Kansas Jayhawks": {
+      "California Baptist Lancers": {
+        "ml": -1100.0,
+        "spread": 14.5,
+        "impl_prob": 0.88,
+        "kickoff": "2026-03-21T01:45Z",
+        "book_count": 1
+      }
+    },
+    "Furman Paladins": {
+      "UConn Huskies": {
+        "ml": 2200.0,
+        "spread": -20.5,
+        "impl_prob": 0.0422,
+        "kickoff": "2026-03-21T02:00Z",
+        "book_count": 1
+      }
+    },
+    "UConn Huskies": {
+      "Furman Paladins": {
+        "ml": -8000.0,
+        "spread": 20.5,
+        "impl_prob": 0.9578,
+        "kickoff": "2026-03-21T02:00Z",
+        "book_count": 1
+      }
+    },
+    "Missouri Tigers": {
+      "Miami Hurricanes": {
+        "ml": 114.0,
+        "spread": -2.5,
+        "impl_prob": 0.4486,
+        "kickoff": "2026-03-21T02:10Z",
+        "book_count": 1
+      }
+    },
+    "Miami Hurricanes": {
+      "Missouri Tigers": {
+        "ml": -135.0,
+        "spread": 2.5,
+        "impl_prob": 0.5514,
+        "kickoff": "2026-03-21T02:10Z",
+        "book_count": 1
+      }
+    }
+  }
+}

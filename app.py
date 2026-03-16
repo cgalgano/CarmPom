@@ -1044,8 +1044,8 @@ def _generate_single_game_bullets(
             )
     else:
         bullets.append(
-            "📊 **Betting lines**: Run `uv run python pipeline/fetch_odds.py` to load live tournament lines, "
-            "then restart the app — market vs model comparison will appear here automatically."
+            "📊 **Betting lines**: Run `uv run python pipeline/fetch_odds.py` to pull live ESPN odds, "
+            "then refresh the page — market vs model comparison will appear here automatically."
         )
 
     # ── Possession randomness ─────────────────────────────────────────────
@@ -2385,8 +2385,8 @@ with bracket_tab:
                     st.caption(f"Odds last fetched: {_fetched_at} UTC  ·  Refresh: `uv run python pipeline/fetch_odds.py`")
             else:
                 st.info(
-                    "No odds data in cache. Add your free Odds API key to `.streamlit/secrets.toml` "
-                    "and run `uv run python pipeline/fetch_odds.py` to pull live tournament lines.",
+                    "No odds data in cache. Run `uv run python pipeline/fetch_odds.py` "
+                    "to pull live ESPN tournament lines (no API key needed), then refresh.",
                     icon="ℹ️",
                 )
 
