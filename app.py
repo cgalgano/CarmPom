@@ -2398,6 +2398,48 @@ with scatter_tab:
     )
     _sc_merged["seed"] = pd.to_numeric(_sc_merged["seed"], errors="coerce")
 
+    # ── Filters ───────────────────────────────────────────────────────────────
+    _filt_col1, _filt_col2, _filt_col3 = st.columns([2, 2, 3], gap="small")
+
+    # Conference filter
+    _conf_options = sorted(_sc_merged["conference"].dropna().unique().tolist()) if "conference" in _sc_merged.columns else []
+    with _filt_col1:
+        _sel_confs = st.multiselect(
+            "Conference",
+            options=_conf_options,
+            placeholder="All conferences",
+            key="sc_conf_filter",
+        )
+
+    # Seed filter
+    _seed_options = sorted([int(s) for s in _sc_merged["seed"].dropna().unique()])
+    with _filt_col2:
+        _sel_seeds = st.multiselect(
+            "Seed",
+            options=_seed_options,
+            placeholder="All seeds",
+            key="sc_seed_filter",
+        )
+
+    # Team multiselect
+    _team_options_sc = sorted(_sc_merged["Team"].dropna().unique().tolist())
+    with _filt_col3:
+        _sel_teams = st.multiselect(
+            "Teams",
+            options=_team_options_sc,
+            placeholder="All tournament teams",
+            key="sc_team_filter",
+        )
+
+    # Apply filters
+    _sc_plot = _sc_merged.copy()
+    if _sel_confs:
+        _sc_plot = _sc_plot[_sc_plot["conference"].isin(_sel_confs)]
+    if _sel_seeds:
+        _sc_plot = _sc_plot[_sc_plot["seed"].isin(_sel_seeds)]
+    if _sel_teams:
+        _sc_plot = _sc_plot[_sc_plot["Team"].isin(_sel_teams)]
+
     import altair as _alt
 
     def _scatter_chart(
@@ -2488,10 +2530,10 @@ with scatter_tab:
     with _sc_col1:
         # Chart 1: Efficiency Landscape (AdjO vs AdjD)
         st.markdown("**⚡ Efficiency Landscape**")
-        if not _sc_merged.empty and "AdjO" in _sc_merged.columns:
+        if not _sc_plot.empty and "AdjO" in _sc_plot.columns:
             st.altair_chart(
                 _scatter_chart(
-                    _sc_merged, "AdjO", "AdjD",
+                    _sc_plot, "AdjO", "AdjD",
                     "Adjusted Offense (pts/100 possessions)",
                     "Adjusted Defense (pts/100 possessions)",
                     invert_y=True,
@@ -2514,10 +2556,10 @@ with scatter_tab:
     with _sc_col2:
         # Chart 2: Ball Security vs FT Drawing
         st.markdown("**🔒 Ball Security vs Free-Throw Drawing**")
-        if not _sc_merged.empty and "TOPG" in _sc_merged.columns and "FTmPG" in _sc_merged.columns:
+        if not _sc_plot.empty and "TOPG" in _sc_plot.columns and "FTmPG" in _sc_plot.columns:
             st.altair_chart(
                 _scatter_chart(
-                    _sc_merged, "TOPG", "FTmPG",
+                    _sc_plot, "TOPG", "FTmPG",
                     "Turnovers per Game (fewer = better →)",
                     "Free Throws Made per Game",
                     invert_x=True,
@@ -2541,10 +2583,10 @@ with scatter_tab:
     with _sc_col3:
         # Chart 3: 3PT Defense landscape
         st.markdown("**3PT Defense Landscape**")
-        if not _sc_merged.empty and "Opp3PaPG" in _sc_merged.columns and "Opp3P%" in _sc_merged.columns:
+        if not _sc_plot.empty and "Opp3PaPG" in _sc_plot.columns and "Opp3P%" in _sc_plot.columns:
             st.altair_chart(
                 _scatter_chart(
-                    _sc_merged, "Opp3PaPG", "Opp3P%",
+                    _sc_plot, "Opp3PaPG", "Opp3P%",
                     "Opp 3PT Attempts Allowed per Game",
                     "Opp 3PT % Allowed",
                     invert_x=True,
@@ -2568,10 +2610,10 @@ with scatter_tab:
     with _sc_col4:
         # Chart 4: 3PT Offense — volume vs accuracy
         st.markdown("**🎯 3PT Offense — Volume vs Accuracy**")
-        if not _sc_merged.empty and "3PaPG" in _sc_merged.columns and "3P%" in _sc_merged.columns:
+        if not _sc_plot.empty and "3PaPG" in _sc_plot.columns and "3P%" in _sc_plot.columns:
             st.altair_chart(
                 _scatter_chart(
-                    _sc_merged, "3PaPG", "3P%",
+                    _sc_plot, "3PaPG", "3P%",
                     "3PT Attempts per Game",
                     "3PT % Made",
                     x_ref=float(_sc_merged["3PaPG"].median()),
