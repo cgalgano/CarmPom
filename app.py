@@ -2584,15 +2584,15 @@ with bracket_tab:
     }
 
     _title_cols = st.columns(4, gap="small")
-    for _ti, _trow in enumerate(_top16.itertuples()):
+    for _ti, (_, _trow) in enumerate(_top16.iterrows()):
         with _title_cols[_ti % 4]:
-            _t_logo = _title_logo_lu.get(_trow.Team, "")
+            _t_logo = _title_logo_lu.get(_trow["Team"], "")
             _t_img = (
                 f"<img src='{_t_logo}' style='width:28px;height:28px;object-fit:contain;"
                 f"vertical-align:middle;margin-right:6px;border-radius:3px'>"
             ) if _t_logo else ""
-            _champ_pct = _trow._asdict()["Champ%"]
-            _f4_pct = _trow._asdict()["F4%"]
+            _champ_pct = float(_trow["Champ%"])
+            _f4_pct = float(_trow["F4%"])
             _bar_w = max(_champ_pct * 4, 2)  # scale bar width (max ~80px for a 20% team)
             _bar_color = "#1e7d32" if _champ_pct >= 10 else ("#1565c0" if _champ_pct >= 4 else "#78909c")
             st.markdown(
@@ -2601,8 +2601,8 @@ with bracket_tab:
                 f"<div style='display:flex;align-items:center;margin-bottom:4px'>"
                 f"{_t_img}"
                 f"<span style='font-size:11px;font-weight:600'>"
-                f"<span style='color:#888;margin-right:3px'>({_trow.Seed})</span>"
-                f"{_trow.Team}</span></div>"
+                f"<span style='color:#888;margin-right:3px'>({int(_trow['Seed'])})</span>"
+                f"{_trow['Team']}</span></div>"
                 f"<div style='display:flex;align-items:center;gap:6px'>"
                 f"<div style='background:#222;border-radius:3px;height:8px;flex:1;overflow:hidden'>"
                 f"<div style='width:{_bar_w}%;height:100%;background:{_bar_color};border-radius:3px'></div></div>"
