@@ -2043,8 +2043,8 @@ with team_tab:
 
     st.caption("Click a logo to view that team's profile:")
 
-    # Render grid: 8 columns × N rows. Each cell = logo img + small button.
-    _N_COLS = 8
+    # Render grid: 10 columns × N rows. Each cell = small logo + name button.
+    _N_COLS = 10
     for _row_start in range(0, len(_sorted_tp), _N_COLS):
         _row_teams = _sorted_tp[_row_start : _row_start + _N_COLS]
         _row_cols  = st.columns(_N_COLS)
@@ -2053,21 +2053,19 @@ with team_tab:
                 _tp_logo = _tp_logo_lu.get(_tp_t, "")
                 _tp_s    = _tp_seed_lu.get(_tp_t, "")
                 _is_sel  = _tp_t == _grid_selected
-                # Logo image
                 _border_style = "2px solid #29b6f6" if _is_sel else "1px solid transparent"
                 if _tp_logo:
                     st.markdown(
                         f"<div style='text-align:center;border:{_border_style};"
-                        f"border-radius:6px;padding:2px;background:"
+                        f"border-radius:5px;padding:1px;background:"
                         f"{'rgba(41,182,246,0.12)' if _is_sel else 'transparent'}'>"
-                        f"<img src='{_tp_logo}' style='width:38px;height:38px;object-fit:contain'>"
+                        f"<img src='{_tp_logo}' style='width:28px;height:28px;object-fit:contain'>"
                         f"</div>",
                         unsafe_allow_html=True,
                     )
-                # Button (seed + abbrev name as label, primary when selected)
-                _short = _tp_t[:6] if len(_tp_t) > 6 else _tp_t
+                _short = _tp_t[:8] if len(_tp_t) > 8 else _tp_t
                 if st.button(
-                    f"#{_tp_s} {_short}",
+                    _short,
                     key=f"tp_btn_{_tp_t}",
                     type="primary" if _is_sel else "secondary",
                     use_container_width=True,
