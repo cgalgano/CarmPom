@@ -281,8 +281,9 @@ def load_per_game_stats(season: int) -> pd.DataFrame:
     ])
 
     # Self-join on game_id to get the opponent's pts and 3PT stats for each game.
-    opp = bs[["game_id", "team_id", "pts", "fg3a", "fg3m"]].rename(
-        columns={"team_id": "opp_id", "pts": "opp_pts", "fg3a": "opp_fg3a", "fg3m": "opp_fg3m"}
+    opp = bs[["game_id", "team_id", "pts", "fgm", "fga", "fg3a", "fg3m"]].rename(
+        columns={"team_id": "opp_id", "pts": "opp_pts", "fgm": "opp_fgm", "fga": "opp_fga",
+                 "fg3a": "opp_fg3a", "fg3m": "opp_fg3m"}
     )
     bs = bs.merge(opp, on="game_id", how="left")
     bs = bs[bs["team_id"] != bs["opp_id"]]  # drop the self-row from the join
@@ -302,6 +303,8 @@ def load_per_game_stats(season: int) -> pd.DataFrame:
         dreb=("dreb", "sum"),
         ast=("ast", "sum"),
         tov=("tov", "sum"),
+        opp_fgm=("opp_fgm", "sum"),
+        opp_fga=("opp_fga", "sum"),
         opp_fg3a=("opp_fg3a", "sum"),
         opp_fg3m=("opp_fg3m", "sum"),
         stl=("stl", "sum"),
@@ -325,6 +328,10 @@ def load_per_game_stats(season: int) -> pd.DataFrame:
     s["Opp3PaPG"] = (agg["opp_fg3a"] / g).round(1)
     # Guard against divide-by-zero if opp never attempted a 3 (shouldn't happen)
     s["Opp3P%"]   = (agg["opp_fg3m"] / agg["opp_fg3a"] * 100).where(agg["opp_fg3a"] > 0, other=0.0).round(1)
+    # Opponent 2PT FG% — proxy for interior defense (mid-range + at-rim combined)
+    _opp_fg2a = agg["opp_fga"] - agg["opp_fg3a"]
+    _opp_fg2m = agg["opp_fgm"] - agg["opp_fg3m"]
+    s["Opp2P%"]   = (_opp_fg2m / _opp_fg2a * 100).where(_opp_fg2a > 0, other=0.0).round(1)
     s["StlPG"]    = (agg["stl"] / g).round(2)
     s["BlkPG"]    = (agg["blk"] / g).round(2)
 
@@ -343,6 +350,8 @@ def load_per_game_stats(season: int) -> pd.DataFrame:
         "3PaPG": False, "3PmPG": False, "FT%": False, "FTmPG": False,
         # 3PT defense: lower attempts/% allowed = better → ascending rank
         "Opp3PaPG": True, "Opp3P%": True,
+        # Interior defense: lower opp 2PT FG% = better → ascending rank
+        "Opp2P%": True,
         # Disruption stats: more steals/blocks = better → descending rank
         "StlPG": False, "BlkPG": False,
     }
@@ -2040,13 +2049,13 @@ with team_tab:
             _ast_pct   = _pct(_ts["AstPG_nr"])
             _dreb_pct  = round((1 - (_ts["RebPG_nr"] - 1) / _n) * 100)
             _stl_pct   = _pct(_ts["StlPG_nr"]) if "StlPG_nr" in _ts.index else 50
-            _blk_pct   = _pct(_ts["BlkPG_nr"]) if "BlkPG_nr" in _ts.index else 50
+            _opp2p_pct = _pct(_ts["Opp2P%_nr"]) if "Opp2P%_nr" in _ts.index else 50
         else:
-            _adjt_pct = _3pa_pct = _3pct_pct = _oreb_pct = _to_pct = _ftm_pct = _ast_pct = _dreb_pct = _stl_pct = _blk_pct = 50
+            _adjt_pct = _3pa_pct = _3pct_pct = _oreb_pct = _to_pct = _ftm_pct = _ast_pct = _dreb_pct = _stl_pct = _opp2p_pct = 50
 
         _radar_vals = [_adjt_pct, _3pa_pct, _3pct_pct, _oreb_pct,
                        _to_pct,  _ftm_pct,  _ast_pct,  _dreb_pct,
-                       _stl_pct, _blk_pct]
+                       _stl_pct, _opp2p_pct]
 
         N_spokes = len(_radar_labels)
         angles   = [n_i / N_spokes * 2 * 3.14159 for n_i in range(N_spokes)]
@@ -2069,7 +2078,7 @@ with team_tab:
         plt.tight_layout()
         st.pyplot(fig_r, use_container_width=True)
         plt.close(fig_r)
-        st.caption("Each spoke = national percentile for that playstyle dimension. Ball Security = inverted turnover rate · Forced TOs = steals/game · Paint Def. = blocks/game.")
+        st.caption("Each spoke = national percentile for that playstyle dimension. Ball Security = inverted turnover rate · Forced TOs = steals/game · Paint Def. = opp 2PT FG% (lower allowed = better).")
 
     st.divider()
 
@@ -2164,10 +2173,11 @@ with team_tab:
             ("3PaPG",    "3PA per game",                False),
             ("3PmPG",    "3PM per game",                False),
             ("FTmPG",    "FTM per game",                False),
-            ("Opp3PaPG", "Opp 3PT attempts/game",       True),
-            ("Opp3P%",   "Opp three-point %",           True),
-            ("StlPG",    "Steals per game (forced TOs)", False),
-            ("BlkPG",    "Blocks per game (paint def.)", False),
+            ("Opp3PaPG", "Opp 3PT attempts/game",         True),
+            ("Opp3P%",   "Opp three-point %",             True),
+            ("Opp2P%",   "Opp 2PT FG% (interior def.)",   True),
+            ("StlPG",    "Steals per game (forced TOs)",  False),
+            ("BlkPG",    "Blocks per game",               False),
         ]
         stat_rows = []
         for col, label, _ in _STAT_DISPLAY:
@@ -2707,10 +2717,10 @@ with bracket_tab:
                         _ftm_pct   = round((1 - (float(_ts_s["FTmPG_nr"])- 1) / _n_pg) * 100, 1)
                         _ast_pct   = round((1 - (float(_ts_s["AstPG_nr"])- 1) / _n_pg) * 100, 1)
                         _dreb_pct  = round((1 - (float(_ts_s["RebPG_nr"])- 1) / _n_pg) * 100, 1)
-                        _stl_pct_m = round((1 - (float(_ts_s["StlPG_nr"])- 1) / _n_pg) * 100, 1) if "StlPG_nr" in _ts_s.index else 50
-                        _blk_pct_m = round((1 - (float(_ts_s["BlkPG_nr"])- 1) / _n_pg) * 100, 1) if "BlkPG_nr" in _ts_s.index else 50
+                        _stl_pct_m  = round((1 - (float(_ts_s["StlPG_nr"])  - 1) / _n_pg) * 100, 1) if "StlPG_nr"  in _ts_s.index else 50
+                        _opp2p_pct_m = round((1 - (float(_ts_s["Opp2P%_nr"]) - 1) / _n_pg) * 100, 1) if "Opp2P%_nr" in _ts_s.index else 50
                     else:
-                        _adjt_pct = _3pa_pct = _3pct_pct = _oreb_pct = _to_pct = _ftm_pct = _ast_pct = _dreb_pct = _stl_pct_m = _blk_pct_m = 50
+                        _adjt_pct = _3pa_pct = _3pct_pct = _oreb_pct = _to_pct = _ftm_pct = _ast_pct = _dreb_pct = _stl_pct_m = _opp2p_pct_m = 50
 
                     _rlabels = [
                         "Pace", "3PT Volume", "3PT Accuracy", "Off. Rebounding",
@@ -2719,7 +2729,7 @@ with bracket_tab:
                     ]
                     _rv      = [_adjt_pct, _3pa_pct, _3pct_pct, _oreb_pct,
                                 _to_pct,  _ftm_pct,  _ast_pct,  _dreb_pct,
-                                _stl_pct_m, _blk_pct_m]
+                                _stl_pct_m, _opp2p_pct_m]
                     _N_sp    = len(_rlabels)
                     _m_ang   = [i / _N_sp * 2 * 3.14159 for i in range(_N_sp)] + [0]
                     _m_vals  = _rv + _rv[:1]
@@ -2740,7 +2750,7 @@ with bracket_tab:
                     plt.tight_layout()
                     st.pyplot(_fig_m, use_container_width=True)
                     plt.close(_fig_m)
-                    st.caption("Each spoke = national percentile for that playstyle dimension. Ball Security = inverted turnover rate · Forced TOs = steals/game · Paint Def. = blocks/game.")
+                    st.caption("Each spoke = national percentile for that playstyle dimension. Ball Security = inverted turnover rate · Forced TOs = steals/game · Paint Def. = opp 2PT FG% (lower allowed = better).")
 
         # ── Matchup Narrative ──────────────────────────────────────────────
         st.markdown("<div style='margin-top:18px'></div>", unsafe_allow_html=True)
