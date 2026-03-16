@@ -2565,6 +2565,12 @@ with bracket_tab:
                             f"</div>",
                             unsafe_allow_html=True,
                         )
+                st.warning(
+                    "⚠️ **Injury information can change rapidly.** Player availability, status designations, "
+                    "and practice participation shift daily — especially in the days leading up to a tournament game. "
+                    "Always verify with the latest team news before making decisions based on this data.",
+                    icon=None,
+                )
                 st.caption("Source: ESPN team news. Refresh via `uv run python pipeline/fetch_injuries.py`.")
         else:
             with st.expander("🚑 Injury Intel", expanded=False):
