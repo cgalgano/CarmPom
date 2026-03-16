@@ -3308,7 +3308,12 @@ with bracket_tab:
             unsafe_allow_html=True,
         )
 
-        # ── Metrics strip ─────────────────────────────────────────────────
+        st.info(
+            "**Tip:** Click **🔍 Analyze** on any matchup card to get a full data-driven breakdown "
+            "of that game — win probability, efficiency comparison, playstyle tendencies, and market odds. "
+            "The analysis panel appears at the bottom of the page.",
+            icon=None,
+        )
         _m1, _m2, _m3, _m4 = st.columns(4)
 
         # Progress bar visual
