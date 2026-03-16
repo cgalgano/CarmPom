@@ -2304,6 +2304,14 @@ with scatter_tab:
         "Visual breakdowns across key dimensions — each logo is a tournament team. "
         "Hover for details."
     )
+    st.info(
+        "📍 **How to read these charts:** "
+        "**Top-right = elite** on both axes shown — the best teams. "
+        "**Bottom-left = weakest** on both axes. "
+        "The dashed white lines mark the tournament median — anything above/right of both lines "
+        "is above average on both dimensions. Each chart's caption explains which direction is better.",
+        icon=None,
+    )
 
     _sc_ratings = load_rankings(2026)
     _sc_pg = load_per_game_stats(2026)
