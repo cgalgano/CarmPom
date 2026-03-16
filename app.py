@@ -2079,7 +2079,7 @@ with team_tab:
     with h4:
         st.metric("AdjD", f"{_t['AdjD']:.1f}", delta=f"#{int(_t['AdjD_nr'])} def.", delta_color="off")
     if espn_url:
-        st.markdown(f"[View on ESPN ↗]({espn_url})")
+        st.markdown(f"**ESPN Player Stats Page:** [View on ESPN ↗]({espn_url})")
 
     st.divider()
 
