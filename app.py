@@ -2043,61 +2043,35 @@ with team_tab:
 
     st.caption("Click a logo to view that team's profile:")
 
-    # Inject CSS: transparent button overlays the logo above it via negative margin-top.
-    # :has(.tp-logo-img) targets stMarkdown blocks containing our logo, then + sibling
-    # targets the immediately following stButton and makes it invisible but clickable.
-    st.markdown(
-        """
-        <style>
-        [data-testid="stMarkdown"]:has(.tp-logo-img) + [data-testid="stButton"] button {
-            margin-top: -38px !important;
-            height: 38px !important;
-            min-height: 0 !important;
-            opacity: 0 !important;
-            cursor: pointer !important;
-            padding: 0 !important;
-            width: 100% !important;
-            position: relative !important;
-            z-index: 10 !important;
-        }
-        [data-testid="stMarkdown"]:has(.tp-logo-img) + [data-testid="stButton"] {
-            margin-bottom: 0 !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    # Render logos as plain HTML <a href> links — no Streamlit buttons needed.
+    # Clicking a logo reloads the app with ?tp_team=<name> in the URL, which is
+    # already read by the session_state initializer above.
 
-    # Render grid: 10 columns × N rows. Each cell = logo image + invisible overlaid button.
-    _N_COLS = 10
-    for _row_start in range(0, len(_sorted_tp), _N_COLS):
-        _row_teams = _sorted_tp[_row_start : _row_start + _N_COLS]
-        _row_cols  = st.columns(_N_COLS)
-        for _ci, _tp_t in enumerate(_row_teams):
-            with _row_cols[_ci]:
-                _tp_logo = _tp_logo_lu.get(_tp_t, "")
-                _is_sel  = _tp_t == _grid_selected
-                _border  = "2px solid #29b6f6" if _is_sel else "1px solid transparent"
-                _bg      = "rgba(41,182,246,0.12)" if _is_sel else "transparent"
-                if _tp_logo:
-                    st.markdown(
-                        f"<div style='text-align:center;border:{_border};"
-                        f"border-radius:5px;padding:2px;background:{_bg};'>"
-                        f"<img class='tp-logo-img' src='{_tp_logo}'"
-                        f" style='width:32px;height:32px;object-fit:contain;display:block;margin:auto;'>"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
-                # Transparent button — overlays the logo above (via negative margin-top CSS).
-                if st.button(
-                    " ",
-                    key=f"tp_btn_{_tp_t}",
-                    help=_tp_t,
-                    use_container_width=True,
-                ):
-                    st.session_state["tp_selected_team"] = _tp_t
-                    st.query_params["tp_team"] = _tp_t
-                    st.rerun()
+    _logo_cells = []
+    for _tp_t in _sorted_tp:
+        _tp_logo = _tp_logo_lu.get(_tp_t, "")
+        _is_sel  = _tp_t == _grid_selected
+        _border  = "2px solid #29b6f6" if _is_sel else "2px solid transparent"
+        _bg      = "rgba(41,182,246,0.15)" if _is_sel else "transparent"
+        _encoded = _urlparse.quote(_tp_t)
+        if _tp_logo:
+            _logo_cells.append(
+                f"<a href='?tp_team={_encoded}'"
+                f" title='{_tp_t}'"
+                f" style='display:inline-flex;align-items:center;justify-content:center;"
+                f"width:40px;height:40px;border:{_border};border-radius:6px;"
+                f"background:{_bg};text-decoration:none;transition:border 0.15s,background 0.15s;'>"
+                f"<img src='{_tp_logo}'"
+                f" style='width:32px;height:32px;object-fit:contain;'>"
+                f"</a>"
+            )
+
+    _grid_html = (
+        "<div style='display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;'>"
+        + "".join(_logo_cells)
+        + "</div>"
+    )
+    st.markdown(_grid_html, unsafe_allow_html=True)
 
     _grid_selected = st.session_state.get("tp_selected_team", team_options[0] if team_options else "")
 
