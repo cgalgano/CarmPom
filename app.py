@@ -2009,21 +2009,86 @@ with team_tab:
     else:
         team_options = _all_teams["Team"].sort_values().tolist()
 
+    # ── Logo grid selector ────────────────────────────────────────────────
+    # Clicking a logo card sets ?tp_team=<name> in the URL, triggering a rerun
+    import urllib.parse as _urlparse
+
+    _qp_team = st.query_params.get("tp_team", "")
+    if _qp_team and _qp_team in team_options:
+        _grid_selected = _qp_team
+    elif "Duke" in team_options:
+        _grid_selected = "Duke"
+    else:
+        _grid_selected = team_options[0] if team_options else ""
+
+    # Logo and seed lookups
+    _tp_logo_lu = {
+        str(row["Team"]): str(row["logo_url"])
+        for _, row in _all_teams.iterrows()
+        if pd.notna(row.get("logo_url")) and row.get("logo_url")
+    }
+    _tp_seed_lu: dict[str, int] = {}
+    if _profile_bracket is not None and "seed" in _profile_bracket.columns:
+        for _, _pr in _profile_bracket.iterrows():
+            _tp_seed_lu[str(_pr["Team"])] = int(_pr["seed"])
+
+    # Sort by seed then alpha so the grid reads like a bracket
+    _sorted_tp = sorted(team_options, key=lambda t: (_tp_seed_lu.get(t, 99), t))
+
+    # Build the HTML grid — 2 rows of 32, grouped visually by seed line
+    _grid_html = (
+        "<div style='display:flex;flex-wrap:wrap;gap:5px;padding:6px 0 14px 0'>"
+    )
+    for _tp_t in _sorted_tp:
+        _tp_logo = _tp_logo_lu.get(_tp_t, "")
+        _tp_s    = _tp_seed_lu.get(_tp_t, "")
+        _is_sel  = _tp_t == _grid_selected
+        _border  = "2px solid #29b6f6" if _is_sel else "1px solid #2a2a2a"
+        _bg      = "rgba(41,182,246,0.13)" if _is_sel else "rgba(255,255,255,0.03)"
+        _enc     = _urlparse.quote(_tp_t)
+        _img     = (
+            f"<img src='{_tp_logo}' style='width:34px;height:34px;object-fit:contain'>"
+            if _tp_logo else
+            f"<div style='width:34px;height:34px;background:#333;border-radius:4px;"
+            f"display:flex;align-items:center;justify-content:center;"
+            f"font-size:10px;color:#aaa'>{_tp_s}</div>"
+        )
+        _name_short = _tp_t if len(_tp_t) <= 12 else _tp_t[:11] + "…"
+        _grid_html += (
+            f"<a href='?tp_team={_enc}' style='text-decoration:none'>"
+            f"<div style='border:{_border};border-radius:8px;padding:5px 4px 4px 4px;"
+            f"background:{_bg};cursor:pointer;text-align:center;width:58px'>"
+            f"{_img}"
+            f"<div style='font-size:8px;color:#ccc;margin-top:3px;line-height:1.2;"
+            f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis'>{_name_short}</div>"
+            f"<div style='font-size:8px;color:#29b6f6;font-weight:700'>#{_tp_s}</div>"
+            f"</div></a>"
+        )
+    _grid_html += "</div>"
+
+    st.caption("Click a logo to view that team's profile:")
+    st.markdown(_grid_html, unsafe_allow_html=True)
+
     # Search input filters the dropdown to matching teams
     _search_query = st.text_input(
         "Search team",
-        placeholder="🔍  Type a team name to filter...",
+        placeholder="🔍  Or type a team name to filter...",
         label_visibility="collapsed",
         key="team_profile_search",
     )
     _filtered_opts = (
         [t for t in team_options if _search_query.strip().lower() in t.lower()]
         if _search_query.strip() else team_options
-    ) or team_options  # fall back to full list if nothing matches
+    ) or team_options
 
-    _default_idx = 0
-    if not _search_query.strip() and "Duke" in _filtered_opts:
-        _default_idx = _filtered_opts.index("Duke")
+    # Selectbox respects URL param selection; search overrides it
+    if _search_query.strip():
+        _default_idx = 0
+    else:
+        _default_idx = (
+            _filtered_opts.index(_grid_selected)
+            if _grid_selected in _filtered_opts else 0
+        )
 
     selected_team = st.selectbox(
         "Team",
