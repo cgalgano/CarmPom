@@ -2429,71 +2429,6 @@ with bracket_tab:
     _odds_lu: dict = _load_odds_data()
     _inj_lu: dict = _load_injuries_data()
 
-    # ── Matchup card HTML ─────────────────────────────────────────────────
-    def _card_html(ta: pd.Series, tb: pd.Series, wp_a: float) -> str:
-        """Return HTML card for a single first-round matchup."""
-        sa, sb = int(ta["seed"]), int(tb["seed"])
-        fav_a = wp_a >= 0.5
-        wp_pct_a = round(wp_a * 100)
-        wp_pct_b = 100 - wp_pct_a
-        bar_left = "#1e7d32" if fav_a else "#c62828"
-        bar_right = "#1e7d32" if not fav_a else "#c62828"
-        em_a, em_b = float(ta["AdjEM"]), float(tb["AdjEM"])
-        em_col_a = "#1e7d32" if em_a > 0 else "#c62828"
-        em_col_b = "#1e7d32" if em_b > 0 else "#c62828"
-        style_a = "font-weight:700" if fav_a else "color:#555"
-        style_b = "font-weight:700" if not fav_a else "color:#555"
-        n_a = ta["Team"]
-        n_b = tb["Team"]
-        _base = (
-            f"<div style='border:1px solid #dde3eb;border-radius:10px;padding:12px 14px;"
-            f"margin-bottom:10px;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,0.07)'>"
-            # Team A row
-            f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:5px'>"
-            f"<div><span style='background:#1e2d40;color:white;border-radius:3px;padding:1px 6px;"
-            f"font-size:10px;font-weight:700;margin-right:5px'>{sa}</span>"
-            f"<span style='font-size:13px;{style_a}'>{n_a}</span></div>"
-            f"<span style='font-size:12px;color:{em_col_a};font-weight:600'>{em_a:+.1f}</span></div>"
-            # Win-prob bar
-            f"<div style='display:flex;height:6px;border-radius:3px;overflow:hidden;margin:4px 0'>"
-            f"<div style='width:{wp_pct_a}%;background:{bar_left}'></div>"
-            f"<div style='width:{wp_pct_b}%;background:{bar_right}'></div></div>"
-            # Team B row
-            f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px'>"
-            f"<div><span style='background:#78909c;color:white;border-radius:3px;padding:1px 6px;"
-            f"font-size:10px;font-weight:700;margin-right:5px'>{sb}</span>"
-            f"<span style='font-size:13px;{style_b}'>{n_b}</span></div>"
-            f"<span style='font-size:12px;color:{em_col_b};font-weight:600'>{em_b:+.1f}</span></div>"
-            # Footer: win% only
-            f"<div style='display:flex;justify-content:space-between;font-size:11px;color:#777;"
-            f"border-top:1px solid #eee;padding-top:5px'>"
-            f"<span><b style='color:#333'>{wp_pct_a}%</b> {n_a.split()[0]} &nbsp;"
-            f"<b style='color:#333'>{wp_pct_b}%</b> {n_b.split()[0]}</span>"
-            f"</div>"   # close footer div
-        )
-        # ── Optional alert badges ─────────────────────────────────────────
-        # 🚑 if either team has injury notes cached
-        _has_inj = bool(_inj_lu.get(n_a) or _inj_lu.get(n_b))
-        # 📊 if CarmPom vs market gap > 8 percentage points
-        _has_edge = False
-        _line_a, _ = _odds_for_matchup(n_a, n_b, _odds_lu)
-        if _line_a and _line_a.get("impl_prob") is not None:
-            _gap = abs(wp_a - float(_line_a["impl_prob"]))
-            _has_edge = _gap > 0.08
-        if _has_inj or _has_edge:
-            _badges = []
-            if _has_inj:
-                _badges.append("<span style='background:#fff3e0;color:#e65100;border:1px solid #ffb300;"
-                               "border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600'>🚑 Injury Alert</span>")
-            if _has_edge:
-                _badges.append("<span style='background:#e8f5e9;color:#1b5e20;border:1px solid #4caf50;"
-                               "border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600'>📊 Model Edge</span>")
-            return (
-                _base
-                + f"<div style='margin-top:6px;display:flex;gap:4px;flex-wrap:wrap'>{''.join(_badges)}</div>"
-                + "</div>"   # close outer wrapper
-            )
-        return _base + "</div>"   # close outer wrapper div
 
     # ── Matchup detail panel ──────────────────────────────────────────────
     def _detail_panel(ta: pd.Series, tb: pd.Series, wp_a: float, n: int) -> None:
@@ -2866,89 +2801,12 @@ with bracket_tab:
                 st.markdown(f"- {_b}")
 
 
-    st.subheader("🏆 2026 NCAA Tournament")
-    if _bracket_mode == "real":
-        st.success("Real bracket seedings loaded.", icon="✅")
-    else:
-        st.info("Projected bracket from CarmPom rankings.", icon="📅")
-
-    # ── Championship odds strip ───────────────────────────────────────────
-    st.markdown("##### Top Championship Contenders")
-    _strip_cols = st.columns(8)
-    for _ci, (_, _crow) in enumerate(_sim.head(8).iterrows()):
-        with _strip_cols[_ci]:
-            st.markdown(
-                f"<div style='background:#1e2d40;color:white;border-radius:8px;padding:8px 6px;"
-                f"text-align:center;font-family:system-ui,sans-serif;margin-bottom:8px'>"
-                f"<div style='font-size:20px;font-weight:800;color:#f9d71c'>{_crow['Champ%']:.1f}%</div>"
-                f"<div style='font-size:10px;font-weight:600;line-height:1.3;margin-top:2px'>"
-                f"{_crow['Team']}</div>"
-                f"<div style='font-size:9px;opacity:0.55;margin-top:2px'>"
-                f"{_crow['Region']} · {int(_crow['Seed'])}-seed</div>"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
-
-    st.divider()
-
-    # ── Region tabs with bracket cards ───────────────────────────────────
-    _MU_PAIRS = [(1, 16), (8, 9), (5, 12), (4, 13), (6, 11), (3, 14), (7, 10), (2, 15)]
-    _champ_lu = _sim.set_index("Team")["Champ%"].to_dict()
-
-    _brk_east, _brk_west, _brk_south, _brk_mw = st.tabs(
-        ["🗺️ East", "🗺️ West", "🗺️ South", "🗺️ Midwest"]
-    )
-
-    for _rtab, _region in [
-        (_brk_east, "East"), (_brk_west, "West"),
-        (_brk_south, "South"), (_brk_mw, "Midwest"),
-    ]:
-        with _rtab:
-            _reg = bracket[bracket["region"] == _region].copy()
-            _seed_lu: dict = {int(r["seed"]): r for _, r in _reg.iterrows()}
-
-            # Cards: top half (1/8/5/4) then bottom half (6/3/7/2)
-            # Each card gets an Analyze button — clicking opens the full detail panel below.
-            if f"mu_open_{_region}" not in st.session_state:
-                st.session_state[f"mu_open_{_region}"] = None
-
-            for _half in [_MU_PAIRS[:4], _MU_PAIRS[4:]]:
-                _card_cols = st.columns(4, gap="small")
-                for _ci, (_sa, _sb) in enumerate(_half):
-                    if _sa not in _seed_lu or _sb not in _seed_lu:
-                        continue
-                    _ta = _seed_lu[_sa]
-                    _tb = _seed_lu[_sb]
-                    _wp = _win_prob(float(_ta["AdjEM"]), float(_tb["AdjEM"]))
-                    with _card_cols[_ci]:
-                        st.markdown(_card_html(_ta, _tb, _wp), unsafe_allow_html=True)
-                        _is_open = st.session_state[f"mu_open_{_region}"] == (_sa, _sb)
-                        if st.button(
-                            "📊 Analyzing ▲" if _is_open else "🔍 Analyze",
-                            key=f"mu_btn_{_region}_{_sa}_{_sb}",
-                            use_container_width=True,
-                            type="primary" if _is_open else "secondary",
-                        ):
-                            st.session_state[f"mu_open_{_region}"] = None if _is_open else (_sa, _sb)
-                            st.rerun()
-
-            # Render the detail panel for the currently open matchup
-            _open_mu = st.session_state.get(f"mu_open_{_region}")
-            if _open_mu:
-                _sa_sel, _sb_sel = _open_mu
-                if _sa_sel in _seed_lu and _sb_sel in _seed_lu:
-                    _ta_sel = _seed_lu[_sa_sel]
-                    _tb_sel = _seed_lu[_sb_sel]
-                    _wp_sel = _win_prob(float(_ta_sel["AdjEM"]), float(_tb_sel["AdjEM"]))
-                    with st.container(border=True):
-                        _detail_panel(_ta_sel, _tb_sel, _wp_sel, _n_teams)
-
     # ── Upset Watch — data computed here, rendered in _pk_r7 My Bracket tab ──────
     _upset_rows_cache: list[dict] = []
     for _ur in ["East", "West", "South", "Midwest"]:
         _ureg = bracket[bracket["region"] == _ur].copy()
         _usl: dict = {int(r["seed"]): r for _, r in _ureg.iterrows()}
-        for _usa, _usb in _MU_PAIRS:
+        for _usa, _usb in _BP_MU_PAIRS:
             if _usa not in _usl or _usb not in _usl:
                 continue
             _uta = _usl[_usa]
@@ -3305,15 +3163,36 @@ with bracket_tab:
                 ):
                     st.session_state[_analyze_key] = not _is_analyzing
                     st.rerun()
-                if _is_analyzing:
-                    _ta_an = pd.Series({**_pk_lu.get(ta, {}), "seed": sa, "Team": ta})
-                    _tb_an = pd.Series({**_pk_lu.get(tb, {}), "seed": sb, "Team": tb})
-                    _wp_an = _win_prob(
-                        float(_pk_lu.get(ta, {}).get("AdjEM", 0)),
-                        float(_pk_lu.get(tb, {}).get("AdjEM", 0)),
-                    )
-                    with st.container(border=True):
-                        _detail_panel(_ta_an, _tb_an, _wp_an, _n_teams)
+                # Analysis is rendered full-width below the grid by _render_open_analyses()
+
+        def _render_open_analyses(rnd: int, n_slots: int) -> None:
+            """Render any open matchup analysis panels full-width below the pick card grid."""
+            for _oa_slot in range(n_slots):
+                if not st.session_state.get(f"pk_analyze_{rnd}_{_oa_slot}"):
+                    continue
+                _oa_ta, _oa_tb = _bp_candidates(rnd, _oa_slot, _picks, _pk_brkt)
+                if _oa_ta == "TBD" or _oa_tb == "TBD":
+                    continue
+                _oa_sa_data = _pk_brkt[_pk_brkt["Team"] == _oa_ta]
+                _oa_sb_data = _pk_brkt[_pk_brkt["Team"] == _oa_tb]
+                _oa_sa = int(_oa_sa_data["seed"].values[0]) if len(_oa_sa_data) else 8
+                _oa_sb = int(_oa_sb_data["seed"].values[0]) if len(_oa_sb_data) else 9
+                _oa_ta_ser = pd.Series({**_pk_lu.get(_oa_ta, {}), "seed": _oa_sa, "Team": _oa_ta})
+                _oa_tb_ser = pd.Series({**_pk_lu.get(_oa_tb, {}), "seed": _oa_sb, "Team": _oa_tb})
+                _oa_wp = _win_prob(
+                    float(_pk_lu.get(_oa_ta, {}).get("AdjEM", 0)),
+                    float(_pk_lu.get(_oa_tb, {}).get("AdjEM", 0)),
+                )
+                st.divider()
+                st.markdown(
+                    f"<div style='background:#1e2d40;color:white;border-radius:8px 8px 0 0;"
+                    f"padding:10px 18px;font-family:system-ui,sans-serif'>"
+                    f"<span style='font-size:16px;font-weight:700'>🔍 Full Analysis — "
+                    f"({_oa_sa}) {_oa_ta} vs ({_oa_sb}) {_oa_tb}</span></div>",
+                    unsafe_allow_html=True,
+                )
+                with st.container(border=True):
+                    _detail_panel(_oa_ta_ser, _oa_tb_ser, _oa_wp, _n_teams)
 
         def _region_header(region: str, subtitle: str = "") -> None:
             """Render a colored region banner for the bracket pick view."""
@@ -3341,6 +3220,7 @@ with bracket_tab:
                     if _mi == 3:
                         _cols = st.columns(4, gap="small")
                 st.markdown("<div style='margin:8px 0'></div>", unsafe_allow_html=True)
+            _render_open_analyses(0, 32)
 
         # ── Round 2 (16 games, 4 regions × 4) ─────────────────────────────
         with _pk_r2:
@@ -3352,6 +3232,7 @@ with bracket_tab:
                     _slot = _ri * 4 + _mi
                     _pk_render_matchup(1, _slot, _cols32[_mi])
                 st.markdown("<div style='margin:8px 0'></div>", unsafe_allow_html=True)
+            _render_open_analyses(1, 16)
 
         # ── Sweet 16 (8 games, 4 regions × 2) ─────────────────────────────
         with _pk_r3:
@@ -3363,6 +3244,7 @@ with bracket_tab:
                     for _mi in range(2):
                         _slot = _ri * 2 + _mi
                         _pk_render_matchup(2, _slot, st.container())
+            _render_open_analyses(2, 8)
 
         # ── Elite Eight (4 games, one per region) ─────────────────────────
         with _pk_r4:
@@ -3372,6 +3254,7 @@ with bracket_tab:
                 with _e8_cols[_ri]:
                     _region_header(_region)
                     _pk_render_matchup(3, _ri, st.container())
+            _render_open_analyses(3, 4)
 
         # ── Final Four (2 games) ───────────────────────────────────────────
         with _pk_r5:
@@ -3383,6 +3266,7 @@ with bracket_tab:
             with _f4r:
                 st.markdown("**South vs Midwest**")
                 _pk_render_matchup(4, 1, st.container())
+            _render_open_analyses(4, 2)
 
         # ── Championship ───────────────────────────────────────────────────
         with _pk_r6:
