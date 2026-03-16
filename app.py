@@ -1225,8 +1225,8 @@ def _bp_autofill(
 # Tabs
 # ---------------------------------------------------------------------------
 
-rankings_tab, team_tab, bracket_tab, pick_tab, about_tab = st.tabs(
-    ["📊 Team Rankings", "🏀 Team Profile", "🏆 Bracket Sim", "🗳️ My Bracket", "ℹ️ About"]
+rankings_tab, team_tab, bracket_tab, about_tab = st.tabs(
+    ["📊 Team Rankings", "🏀 Team Profile", "🏆 Bracket", "ℹ️ About"]
 )
 
 # ---------------------------------------------------------------------------
@@ -2660,22 +2660,11 @@ with bracket_tab:
                 st.markdown(f"- {_b}")
 
 
-    _hdr_l, _hdr_r = st.columns([3, 2])
-    with _hdr_l:
-        st.subheader("🏆 2026 NCAA Tournament")
-        if _bracket_mode == "real":
-            st.success("Real bracket seedings loaded.", icon="✅")
-        else:
-            st.info("Projected bracket from CarmPom rankings.", icon="📅")
-    with _hdr_r:
-        _n_sims_val = st.select_slider(
-            "Simulations", options=[5_000, 10_000, 25_000, 50_000, 100_000],
-            value=25_000,
-        )
-        if st.button("🔄 Re-run", use_container_width=True):
-            with st.spinner(f"Running {_n_sims_val:,} simulations…"):
-                st.session_state[_brk_key] = simulate_bracket(bracket, n_sims=_n_sims_val)
-            st.rerun()
+    st.subheader("🏆 2026 NCAA Tournament")
+    if _bracket_mode == "real":
+        st.success("Real bracket seedings loaded.", icon="✅")
+    else:
+        st.info("Projected bracket from CarmPom rankings.", icon="📅")
 
     # ── Championship odds strip ───────────────────────────────────────────
     st.markdown("##### Top Championship Contenders")
@@ -2712,17 +2701,11 @@ with bracket_tab:
             _reg = bracket[bracket["region"] == _region].copy()
             _seed_lu: dict = {int(r["seed"]): r for _, r in _reg.iterrows()}
 
-            # Build matchup option strings for the analyzer
-            _mu_opts: list[str] = []
-            for _sa, _sb in _MU_PAIRS:
-                if _sa in _seed_lu and _sb in _seed_lu:
-                    _ta = _seed_lu[_sa]
-                    _tb = _seed_lu[_sb]
-                    _mu_opts.append(
-                        f"({_sa}) {_ta['Team']}  vs  ({_sb}) {_tb['Team']}"
-                    )
-
             # Cards: top half (1/8/5/4) then bottom half (6/3/7/2)
+            # Each card gets an Analyze button — clicking opens the full detail panel below.
+            if f"mu_open_{_region}" not in st.session_state:
+                st.session_state[f"mu_open_{_region}"] = None
+
             for _half in [_MU_PAIRS[:4], _MU_PAIRS[4:]]:
                 _card_cols = st.columns(4, gap="small")
                 for _ci, (_sa, _sb) in enumerate(_half):
@@ -2733,27 +2716,26 @@ with bracket_tab:
                     _wp = _win_prob(float(_ta["AdjEM"]), float(_tb["AdjEM"]))
                     with _card_cols[_ci]:
                         st.markdown(_card_html(_ta, _tb, _wp), unsafe_allow_html=True)
+                        _is_open = st.session_state[f"mu_open_{_region}"] == (_sa, _sb)
+                        if st.button(
+                            "📊 Analyzing ▲" if _is_open else "🔍 Analyze",
+                            key=f"mu_btn_{_region}_{_sa}_{_sb}",
+                            use_container_width=True,
+                            type="primary" if _is_open else "secondary",
+                        ):
+                            st.session_state[f"mu_open_{_region}"] = None if _is_open else (_sa, _sb)
+                            st.rerun()
 
-            st.divider()
-
-            # Matchup Analyzer
-            st.markdown("##### 🔍 Matchup Analyzer")
-            st.caption("Select any first-round game for a full breakdown.")
-            _sel_mu = st.selectbox(
-                "Matchup",
-                options=_mu_opts,
-                index=0,
-                key=f"mu_sel_{_region}",
-                label_visibility="collapsed",
-            )
-            if _sel_mu and _sel_mu in _mu_opts:
-                _idx = _mu_opts.index(_sel_mu)
-                _sa_sel, _sb_sel = _MU_PAIRS[_idx]
-                _ta_sel = _seed_lu[_sa_sel]
-                _tb_sel = _seed_lu[_sb_sel]
-                _wp_sel = _win_prob(float(_ta_sel["AdjEM"]), float(_tb_sel["AdjEM"]))
-                with st.container(border=True):
-                    _detail_panel(_ta_sel, _tb_sel, _wp_sel, _n_teams)
+            # Render the detail panel for the currently open matchup
+            _open_mu = st.session_state.get(f"mu_open_{_region}")
+            if _open_mu:
+                _sa_sel, _sb_sel = _open_mu
+                if _sa_sel in _seed_lu and _sb_sel in _seed_lu:
+                    _ta_sel = _seed_lu[_sa_sel]
+                    _tb_sel = _seed_lu[_sb_sel]
+                    _wp_sel = _win_prob(float(_ta_sel["AdjEM"]), float(_tb_sel["AdjEM"]))
+                    with st.container(border=True):
+                        _detail_panel(_ta_sel, _tb_sel, _wp_sel, _n_teams)
 
     # ── Upset Watch tab ─────────────────────────────────────────────────────────
     with _brk_upset:
@@ -2840,10 +2822,11 @@ with bracket_tab:
 
 
 # ---------------------------------------------------------------------------
-# My Bracket (Pick'em) tab
+# My Bracket (Pick'em) — rendered inside the Bracket tab
 # ---------------------------------------------------------------------------
 
-with pick_tab:
+with bracket_tab:
+    st.divider()
     # ── Load data ──────────────────────────────────────────────────────────
     _pk_brkt = load_real_bracket()
     if _pk_brkt is None:
