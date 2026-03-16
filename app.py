@@ -2402,7 +2402,7 @@ with scatter_tab:
     _filt_col1, _filt_col2, _filt_col3 = st.columns([2, 2, 3], gap="small")
 
     # Conference filter
-    _conf_options = sorted(_sc_merged["conference"].dropna().unique().tolist()) if "conference" in _sc_merged.columns else []
+    _conf_options = sorted(_sc_merged["Conf"].dropna().unique().tolist()) if "Conf" in _sc_merged.columns else []
     with _filt_col1:
         _sel_confs = st.multiselect(
             "Conference",
@@ -2434,7 +2434,7 @@ with scatter_tab:
     # Apply filters
     _sc_plot = _sc_merged.copy()
     if _sel_confs:
-        _sc_plot = _sc_plot[_sc_plot["conference"].isin(_sel_confs)]
+        _sc_plot = _sc_plot[_sc_plot["Conf"].isin(_sel_confs)]
     if _sel_seeds:
         _sc_plot = _sc_plot[_sc_plot["seed"].isin(_sel_seeds)]
     if _sel_teams:
@@ -2452,14 +2452,30 @@ with scatter_tab:
         invert_y: bool = False,
         x_ref: float | None = None,
         y_ref: float | None = None,
+        x_domain: list[float] | None = None,
+        y_domain: list[float] | None = None,
     ):
         """Build an Altair logo scatter chart (logos rendered client-side)."""
         df = df.dropna(subset=[x_col, y_col]).copy()
 
-        # zero=False zooms axes to the actual data range rather than forcing from 0
-        # padding gives breathing room so logos at the edges don't get clipped
-        x_scale = _alt.Scale(reverse=invert_x, zero=False, padding=20)
-        y_scale = _alt.Scale(reverse=invert_y, zero=False, padding=20)
+        # Use fixed domains when provided so axes don't rescale on filter changes.
+        # Padding is added manually to the domain ends.
+        PAD = 0.5  # axis padding in data units
+        if x_domain:
+            x_scale = _alt.Scale(
+                reverse=invert_x, zero=False,
+                domain=[x_domain[0] - PAD, x_domain[1] + PAD],
+            )
+        else:
+            x_scale = _alt.Scale(reverse=invert_x, zero=False, padding=20)
+
+        if y_domain:
+            y_scale = _alt.Scale(
+                reverse=invert_y, zero=False,
+                domain=[y_domain[0] - PAD, y_domain[1] + PAD],
+            )
+        else:
+            y_scale = _alt.Scale(reverse=invert_y, zero=False, padding=20)
 
         layers: list = []
 
@@ -2539,6 +2555,8 @@ with scatter_tab:
                     invert_y=True,
                     x_ref=float(_sc_merged["AdjO"].median()),
                     y_ref=float(_sc_merged["AdjD"].median()),
+                    x_domain=[float(_sc_merged["AdjO"].min()), float(_sc_merged["AdjO"].max())],
+                    y_domain=[float(_sc_merged["AdjD"].min()), float(_sc_merged["AdjD"].max())],
                 ),
                 use_container_width=True,
             )
@@ -2565,6 +2583,8 @@ with scatter_tab:
                     invert_x=True,
                     x_ref=float(_sc_merged["TOPG"].median()),
                     y_ref=float(_sc_merged["FTmPG"].median()),
+                    x_domain=[float(_sc_merged["TOPG"].min()), float(_sc_merged["TOPG"].max())],
+                    y_domain=[float(_sc_merged["FTmPG"].min()), float(_sc_merged["FTmPG"].max())],
                 ),
                 use_container_width=True,
             )
@@ -2593,6 +2613,8 @@ with scatter_tab:
                     invert_y=True,
                     x_ref=float(_sc_merged["Opp3PaPG"].median()),
                     y_ref=float(_sc_merged["Opp3P%"].median()),
+                    x_domain=[float(_sc_merged["Opp3PaPG"].min()), float(_sc_merged["Opp3PaPG"].max())],
+                    y_domain=[float(_sc_merged["Opp3P%"].min()), float(_sc_merged["Opp3P%"].max())],
                 ),
                 use_container_width=True,
             )
@@ -2618,6 +2640,8 @@ with scatter_tab:
                     "3PT % Made",
                     x_ref=float(_sc_merged["3PaPG"].median()),
                     y_ref=float(_sc_merged["3P%"].median()),
+                    x_domain=[float(_sc_merged["3PaPG"].min()), float(_sc_merged["3PaPG"].max())],
+                    y_domain=[float(_sc_merged["3P%"].min()), float(_sc_merged["3P%"].max())],
                 ),
                 use_container_width=True,
             )
