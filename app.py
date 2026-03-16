@@ -74,8 +74,8 @@ st.markdown(
 )
 
 st.title("🏀 CarmPom")
-st.markdown("#### NCAA Basketball rankings and tournament predictions — like KenPom, but open.")
-st.caption("Built by Carmen Galgano with the help of Claude Sonnet 4.6 · The goal: the ultimate free resource for March Madness.")
+st.markdown("#### The Ultimate Free Resource for March Madness")
+st.caption("Built by Carmen Galgano")
 
 st.divider()
 
@@ -83,30 +83,27 @@ hero_left, hero_right = st.columns([3, 2], gap="large")
 
 with hero_left:
     st.markdown("""
-    Win-loss records don't tell the full story. A 20-10 team that beat bad opponents by 30
-    looks identical on paper to one that went 20-10 grinding out close games against a tough
-    schedule. They are not the same team.
+    - I built this resource to save myself time trying to understand every team during March Madness.
+      Being a numbers guy, I just want a straightforward, data-driven approach to each team and matchup.
 
-    CarmPom ranks every D1 team by **Adjusted Efficiency Margin (AdjEM)** — the difference
-    between Offensive and Defensive Adjusted Efficiency, measured in points per 100 possessions,
-    after adjusting for who you played. It's the most honest single-number summary of how good
-    a team actually is.
+    - I trained my model on **20+ years of tournament data** to create one of the most accurate and
+      predictive metrics available: **Adjusted Efficiency Margin (AdjEM)** — the difference between
+      Offensive and Defensive Adjusted Efficiency, measured in points per 100 possessions after
+      adjusting for strength of schedule. A team that goes 25-5 beating cupcakes will have a much
+      lower AdjEM than one that went 22-8 in a brutal conference. It's the most honest single-number
+      summary of how good a team actually is — and the backbone of every prediction on this site.
 
-    On top of the ratings, an ML model trained on 20+ years of tournament data converts
-    efficiency numbers into win probabilities. This is the key difference from KenPom:
-    KenPom's tournament prediction is essentially "whoever has the better rating wins" — a
-    simple rule that ignores how large the gap is, how teams shoot, how they protect the ball,
-    and dozens of other factors that actually decided tournament games historically.
-    CarmPom's model learned all of that from real outcomes. A 3-point efficiency edge isn't
-    treated the same as a 15-point edge. A team that wins with elite defense gets weighted
-    differently than one riding a hot three-point shooting stretch. The model is a **LightGBM
-    gradient boosting classifier** — a state-of-the-art approach that finds non-linear
-    patterns across shooting, ball security, rebounding, tempo, and efficiency that a simple
-    rating comparison would miss entirely. The result: **0.826 AUC and 0.411 log loss
-    vs KenPom's 0.752 AUC and 0.499 log loss** on the 2025 tournament — an 18% improvement
-    in discrimination and an 18% reduction in prediction error using real outcomes as the
-    benchmark. Log loss is the stricter measure: it penalizes overconfident wrong predictions
-    heavily, so a lower number means the model is both more accurate *and* better calibrated.
+    ---
+
+    **Our Features**
+    - 📊 Team Rankings and Metrics similar to KenPom
+    - 📈 Valuable Charts to understand team strengths and weaknesses
+    - 🏀 Team Profile Page — an in-depth look at every team in College Basketball
+    - 🏆 Bracket Creation Tab — analyze each matchup and make selections backed by data
+
+    ---
+
+    *Good luck to all — This is March!* 🎉
     """)
 
 with hero_right:
@@ -128,7 +125,7 @@ st.divider()
 # --- Feature importance section ---
 st.markdown("### What actually wins in March?")
 st.markdown(
-    "We looked at every NCAA Tournament game from 2003–2025 and asked: which stats actually "
+    "I looked at every NCAA Tournament game from 2003–2025 and asked: which stats actually "
     "predicted who won? The numbers below show what the model learned to lean on."
 )
 
@@ -2539,7 +2536,7 @@ with scatter_tab:
                 use_container_width=True,
             )
             st.markdown(
-                "<small>Our model uses pre-tournament efficiency, but bracket predictors know "
+                "<small>My model uses pre-tournament efficiency, but bracket predictors know "
                 "that variance is highest for teams relying on the arc. "
                 "**Top-right** teams (high volume + high accuracy) are legitimately dangerous — they can "
                 "go supernova or stay ice-cold. **Bottom-left** teams rarely win with 3s and survive "
