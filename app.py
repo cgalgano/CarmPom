@@ -2346,15 +2346,15 @@ with scatter_tab:
 
         layers: list = []
 
-        # Quadrant reference lines at the median — solid + subtle for clear visual division
+        # Quadrant reference lines at the median
         if x_ref is not None:
             layers.append(
-                _alt.Chart().mark_rule(color="#999", strokeWidth=1.5, opacity=0.7)
+                _alt.Chart().mark_rule(color="white", strokeWidth=1.5, opacity=0.55)
                 .encode(x=_alt.datum(x_ref))
             )
         if y_ref is not None:
             layers.append(
-                _alt.Chart().mark_rule(color="#999", strokeWidth=1.5, opacity=0.7)
+                _alt.Chart().mark_rule(color="white", strokeWidth=1.5, opacity=0.55)
                 .encode(y=_alt.datum(y_ref))
             )
 
@@ -2396,10 +2396,11 @@ with scatter_tab:
             _alt.layer(*layers)
             .properties(height=380)
             .configure_axis(
-                gridColor="#eeeeee", gridWidth=0.5,
-                domainColor="#cccccc", tickColor="#cccccc",
-                labelColor="#555555", titleColor="#444444",
-                titleFontSize=11, labelFontSize=10,
+                gridColor="rgba(255,255,255,0.1)", gridWidth=0.5,
+                domainColor="rgba(255,255,255,0.3)", tickColor="rgba(255,255,255,0.3)",
+                labelColor="#ffffff", titleColor="#ffffff",
+                titleFontSize=13, labelFontSize=12,
+                labelFontWeight="normal", titleFontWeight="bold",
             )
             .configure_view(strokeWidth=0)
         )
