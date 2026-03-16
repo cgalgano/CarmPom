@@ -2010,15 +2010,21 @@ with team_tab:
         team_options = _all_teams["Team"].sort_values().tolist()
 
     # ── Logo grid selector ────────────────────────────────────────────────
-    # Clicking a logo card replaces the URL in-place (same tab, no navigation)
+    # ── Logo grid selector ────────────────────────────────────────────────
+    # session_state is the source of truth; query_params syncs it on load
     import urllib.parse as _urlparse
 
-    _qp_team = st.query_params.get("tp_team", "")
-    if _qp_team and _qp_team in team_options:
-        _grid_selected = _qp_team
-    elif "Duke" in team_options:
-        _grid_selected = "Duke"
-    else:
+    if "tp_selected_team" not in st.session_state:
+        _qp_team = st.query_params.get("tp_team", "")
+        if _qp_team and _qp_team in team_options:
+            st.session_state["tp_selected_team"] = _qp_team
+        elif "Duke" in team_options:
+            st.session_state["tp_selected_team"] = "Duke"
+        else:
+            st.session_state["tp_selected_team"] = team_options[0] if team_options else ""
+
+    _grid_selected: str = st.session_state.get("tp_selected_team", team_options[0] if team_options else "")
+    if _grid_selected not in team_options:
         _grid_selected = team_options[0] if team_options else ""
 
     # Logo and seed lookups
@@ -2035,39 +2041,42 @@ with team_tab:
     # Sort by seed then alpha so the grid reads like a bracket
     _sorted_tp = sorted(team_options, key=lambda t: (_tp_seed_lu.get(t, 99), t))
 
-    # Build the HTML grid — onclick uses window.location.replace so it stays in the same tab
-    _grid_html = (
-        "<div style='display:flex;flex-wrap:wrap;gap:5px;padding:6px 0 14px 0'>"
-    )
-    for _tp_t in _sorted_tp:
-        _tp_logo = _tp_logo_lu.get(_tp_t, "")
-        _tp_s    = _tp_seed_lu.get(_tp_t, "")
-        _is_sel  = _tp_t == _grid_selected
-        _border  = "2px solid #29b6f6" if _is_sel else "1px solid #2a2a2a"
-        _bg      = "rgba(41,182,246,0.13)" if _is_sel else "rgba(255,255,255,0.03)"
-        _enc     = _urlparse.quote(_tp_t)
-        _img     = (
-            f"<img src='{_tp_logo}' style='width:34px;height:34px;object-fit:contain'>"
-            if _tp_logo else
-            f"<div style='width:34px;height:34px;background:#333;border-radius:4px;"
-            f"display:flex;align-items:center;justify-content:center;"
-            f"font-size:10px;color:#aaa'>{_tp_s}</div>"
-        )
-        _name_short = _tp_t if len(_tp_t) <= 12 else _tp_t[:11] + "…"
-        _grid_html += (
-            f"<div onclick=\"window.location.replace('?tp_team={_enc}')\" "
-            f"style='border:{_border};border-radius:8px;padding:5px 4px 4px 4px;"
-            f"background:{_bg};cursor:pointer;text-align:center;width:58px'>"
-            f"{_img}"
-            f"<div style='font-size:8px;color:#ccc;margin-top:3px;line-height:1.2;"
-            f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis'>{_name_short}</div>"
-            f"<div style='font-size:8px;color:#29b6f6;font-weight:700'>#{_tp_s}</div>"
-            f"</div>"
-        )
-    _grid_html += "</div>"
-
     st.caption("Click a logo to view that team's profile:")
-    st.markdown(_grid_html, unsafe_allow_html=True)
+
+    # Render grid: 8 columns × N rows. Each cell = logo img + small button.
+    _N_COLS = 8
+    for _row_start in range(0, len(_sorted_tp), _N_COLS):
+        _row_teams = _sorted_tp[_row_start : _row_start + _N_COLS]
+        _row_cols  = st.columns(_N_COLS)
+        for _ci, _tp_t in enumerate(_row_teams):
+            with _row_cols[_ci]:
+                _tp_logo = _tp_logo_lu.get(_tp_t, "")
+                _tp_s    = _tp_seed_lu.get(_tp_t, "")
+                _is_sel  = _tp_t == _grid_selected
+                # Logo image
+                _border_style = "2px solid #29b6f6" if _is_sel else "1px solid transparent"
+                if _tp_logo:
+                    st.markdown(
+                        f"<div style='text-align:center;border:{_border_style};"
+                        f"border-radius:6px;padding:2px;background:"
+                        f"{'rgba(41,182,246,0.12)' if _is_sel else 'transparent'}'>"
+                        f"<img src='{_tp_logo}' style='width:38px;height:38px;object-fit:contain'>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+                # Button (seed + abbrev name as label, primary when selected)
+                _short = _tp_t[:6] if len(_tp_t) > 6 else _tp_t
+                if st.button(
+                    f"#{_tp_s} {_short}",
+                    key=f"tp_btn_{_tp_t}",
+                    type="primary" if _is_sel else "secondary",
+                    use_container_width=True,
+                ):
+                    st.session_state["tp_selected_team"] = _tp_t
+                    st.query_params["tp_team"] = _tp_t
+                    st.rerun()
+
+    _grid_selected = st.session_state.get("tp_selected_team", team_options[0] if team_options else "")
 
     # Search input filters the dropdown to matching teams
     _search_query = st.text_input(
@@ -2081,19 +2090,16 @@ with team_tab:
         if _search_query.strip() else team_options
     ) or team_options
 
-    # Selectbox respects URL param selection; search overrides it.
-    # on_change syncs the query param so the grid highlight updates too.
+    # on_change: sync selectbox pick back to session_state + grid highlight
     def _tp_sync_qp() -> None:
-        """Update ?tp_team when the selectbox changes, keeping grid in sync."""
-        st.query_params["tp_team"] = st.session_state.get("tp_selectbox", "")
+        val = st.session_state.get("tp_selectbox", "")
+        st.session_state["tp_selected_team"] = val
+        st.query_params["tp_team"] = val
 
-    if _search_query.strip():
-        _default_idx = 0
-    else:
-        _default_idx = (
-            _filtered_opts.index(_grid_selected)
-            if _grid_selected in _filtered_opts else 0
-        )
+    _default_idx = (
+        _filtered_opts.index(_grid_selected)
+        if _grid_selected in _filtered_opts else 0
+    )
 
     selected_team = st.selectbox(
         "Team",
