@@ -38,6 +38,22 @@ st.set_page_config(
     layout="wide",
 )
 
+# Allow pick button labels (team names) to wrap onto multiple lines
+st.markdown(
+    """
+    <style>
+    div[data-testid="stBaseButton-secondary"] p,
+    div[data-testid="stBaseButton-primary"] p {
+        white-space: normal !important;
+        word-break: break-word !important;
+        line-height: 1.25 !important;
+        font-size: 11px !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.title("🏀 CarmPom")
 st.markdown("#### NCAA Basketball rankings and tournament predictions — like KenPom, but open.")
 
@@ -2330,15 +2346,15 @@ with scatter_tab:
 
         layers: list = []
 
-        # Median reference lines using datum so they share the main scale
+        # Quadrant reference lines at the median — solid + subtle for clear visual division
         if x_ref is not None:
             layers.append(
-                _alt.Chart().mark_rule(strokeDash=[4, 4], color="#bbb", strokeWidth=1)
+                _alt.Chart().mark_rule(color="#999", strokeWidth=1.5, opacity=0.7)
                 .encode(x=_alt.datum(x_ref))
             )
         if y_ref is not None:
             layers.append(
-                _alt.Chart().mark_rule(strokeDash=[4, 4], color="#bbb", strokeWidth=1)
+                _alt.Chart().mark_rule(color="#999", strokeWidth=1.5, opacity=0.7)
                 .encode(y=_alt.datum(y_ref))
             )
 
@@ -3196,7 +3212,7 @@ with bracket_tab:
                     f"<div style='display:flex;align-items:center'>{img_a}"
                     f"<span style='background:#1e2d40;color:white;border-radius:3px;"
                     f"padding:1px 5px;font-size:9px;font-weight:700;margin-right:5px'>{sa}</span>"
-                    f"<span style='font-weight:{'700' if sel_a else '400'};word-break:break-word;max-width:130px;line-height:1.3;display:inline-block'>"
+                    f"<span style='font-weight:{'700' if sel_a else '400'};word-break:break-word;flex:1;line-height:1.3;display:inline-block;font-size:11px'>"
                     f"{'✅ ' if sel_a else ''}{ta}</span></div>"
                     f"<span style='color:{em_col_a};font-size:11px;font-weight:600'>{em_label_a}</span>"
                     f"</div>"
@@ -3215,7 +3231,7 @@ with bracket_tab:
                     f"<div style='display:flex;align-items:center'>{img_b}"
                     f"<span style='background:#78909c;color:white;border-radius:3px;"
                     f"padding:1px 5px;font-size:9px;font-weight:700;margin-right:5px'>{sb}</span>"
-                    f"<span style='font-weight:{'700' if sel_b else '400'};word-break:break-word;max-width:130px;line-height:1.3;display:inline-block'>"
+                    f"<span style='font-weight:{'700' if sel_b else '400'};word-break:break-word;flex:1;line-height:1.3;display:inline-block;font-size:11px'>"
                     f"{'✅ ' if sel_b else ''}{tb}</span></div>"
                     f"<span style='color:{em_col_b};font-size:11px;font-weight:600'>{em_label_b}</span>"
                     f"</div></div>",
