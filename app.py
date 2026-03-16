@@ -1127,6 +1127,10 @@ def _generate_single_game_bullets(
 
 _BP_MU_PAIRS   = [(1, 16), (8, 9), (5, 12), (4, 13), (6, 11), (3, 14), (7, 10), (2, 15)]
 _BP_REGIONS    = ["East", "West", "South", "Midwest"]
+# Light background + border accent per region for visual differentiation
+_BP_REGION_BG: dict[str, str]     = {"East": "#dbeafe", "West": "#fee2e2", "South": "#dcfce7", "Midwest": "#fef3c7"}
+_BP_REGION_ACC: dict[str, str]    = {"East": "#1d4ed8", "West": "#b91c1c", "South": "#15803d", "Midwest": "#d97706"}
+_BP_REGION_EMOJI: dict[str, str]  = {"East": "🔵", "West": "🔴", "South": "🟢", "Midwest": "🟡"}
 _BP_ROUND_NAMES = ["1st Round", "Round of 32", "Sweet 16", "Elite Eight", "Final Four", "Championship"]
 _BP_ROUND_SLOTS = [32, 16, 8, 4, 2, 1]  # total games per round
 
@@ -2978,6 +2982,12 @@ with bracket_tab:
     else:
         _pk_df   = load_rankings(2026)
         _pk_lu   = _pk_df.set_index("Team").to_dict("index")   # AdjEM/AdjO/AdjD/etc.
+        # Logo URL lookup: Team → ESPN CDN image URL
+        _pk_logo_lu: dict[str, str] = {
+            row["Team"]: str(row["logo_url"])
+            for _, row in _pk_df.iterrows()
+            if pd.notna(row.get("logo_url")) and row.get("logo_url")
+        }
 
         # ── Session state ──────────────────────────────────────────────────
         if "bp_picks" not in st.session_state:
@@ -3119,6 +3129,34 @@ with bracket_tab:
             "⚡ Upset Watch",
         ])
 
+        # ── Helper: leverage label for high-stakes games ───────────────────
+        def _leverage_label(
+            rnd: int, ta: str, tb: str, wp_a: float
+        ) -> tuple[str, str, str] | None:
+            """Return (badge_text, text_color, bg_color) for high-leverage games, or None."""
+            nr_a = int(_pk_lu.get(ta, {}).get("AdjEM_nr", 999))
+            nr_b = int(_pk_lu.get(tb, {}).get("AdjEM_nr", 999))
+            best_nr = min(nr_a, nr_b)
+            upset_wp = (1 - wp_a) if nr_a < nr_b else wp_a  # underdog's win prob
+            close = abs(wp_a - 0.5) <= 0.10  # within 10pp of 50/50
+
+            if rnd == 3:  # Elite Eight — winner always goes to Final Four
+                return ("🔑 Final Four Gatekeeper", "#7c3aed", "#ede9fe")
+            if rnd == 2:  # Sweet 16
+                if best_nr <= 5:
+                    return ("⚡ Top-5 Seed On the Line", "#b45309", "#fef3c7")
+                if best_nr <= 20 and close:
+                    return ("⚔️ Elite Eight Toss-Up", "#0369a1", "#e0f2fe")
+            if rnd == 1:  # Round of 32
+                if best_nr <= 10 and upset_wp >= 0.35:
+                    return ("⚠️ Upset Alert — Top-10 at Risk", "#b91c1c", "#fee2e2")
+                if best_nr <= 15 and close:
+                    return ("⚔️ Tight Battle of Contenders", "#0369a1", "#e0f2fe")
+            if rnd == 0:  # Round of 64
+                if best_nr <= 8 and upset_wp >= 0.38:
+                    return ("⚠️ Upset Alert", "#b91c1c", "#fee2e2")
+            return None
+
         # ── Helper: render one matchup card with pick buttons ──────────────
         def _pk_render_matchup(rnd: int, slot: int, container) -> None:
             """Render the pick card + two buttons for one matchup slot."""
@@ -3169,13 +3207,35 @@ with bracket_tab:
                 fav_bar_a = "#1565c0" if wp_pct_a >= wp_pct_b else "#b0bec5"
                 fav_bar_b = "#1565c0" if wp_pct_b > wp_pct_a else "#b0bec5"
 
+                # Small inline logo image tags (16px, renders inside HTML)
+                logo_a = _pk_logo_lu.get(ta, "")
+                logo_b = _pk_logo_lu.get(tb, "")
+                img_a = (
+                    f"<img src='{logo_a}' style='width:16px;height:16px;object-fit:contain;"
+                    f"vertical-align:middle;margin-right:4px;border-radius:2px'>"
+                ) if logo_a else ""
+                img_b = (
+                    f"<img src='{logo_b}' style='width:16px;height:16px;object-fit:contain;"
+                    f"vertical-align:middle;margin-right:4px;border-radius:2px'>"
+                ) if logo_b else ""
+
+                # High-leverage badge (3-tuple: text, text-color, bg-color) or None
+                _lev = _leverage_label(rnd, ta, tb, wp_a)
+                _lev_html = (
+                    f"<div style='font-size:9px;font-weight:700;color:{_lev[1]};"
+                    f"background:{_lev[2]};border-radius:4px;padding:2px 6px;"
+                    f"margin-bottom:4px;display:inline-block'>{_lev[0]}</div>"
+                ) if _lev else ""
+
                 st.markdown(
                     f"<div style='font-family:system-ui,sans-serif;font-size:12px;margin-bottom:6px'>"
+                    f"{_lev_html}"
                     # Team A
                     f"<div style='border:{border_a};border-radius:7px;padding:6px 8px;"
                     f"background:{bg_a};opacity:{op_a};margin-bottom:3px;"
                     f"display:flex;justify-content:space-between;align-items:center'>"
-                    f"<div><span style='background:#1e2d40;color:white;border-radius:3px;"
+                    f"<div style='display:flex;align-items:center'>{img_a}"
+                    f"<span style='background:#1e2d40;color:white;border-radius:3px;"
                     f"padding:1px 5px;font-size:9px;font-weight:700;margin-right:5px'>{sa}</span>"
                     f"<span style='font-weight:{'700' if sel_a else '400'}'>"
                     f"{'✅ ' if sel_a else ''}{ta_short}</span></div>"
@@ -3193,7 +3253,8 @@ with bracket_tab:
                     f"<div style='border:{border_b};border-radius:7px;padding:6px 8px;"
                     f"background:{bg_b};opacity:{op_b};"
                     f"display:flex;justify-content:space-between;align-items:center'>"
-                    f"<div><span style='background:#78909c;color:white;border-radius:3px;"
+                    f"<div style='display:flex;align-items:center'>{img_b}"
+                    f"<span style='background:#78909c;color:white;border-radius:3px;"
                     f"padding:1px 5px;font-size:9px;font-weight:700;margin-right:5px'>{sb}</span>"
                     f"<span style='font-weight:{'700' if sel_b else '400'}'>"
                     f"{'✅ ' if sel_b else ''}{tb_short}</span></div>"
@@ -3254,11 +3315,25 @@ with bracket_tab:
                     with st.container(border=True):
                         _detail_panel(_ta_an, _tb_an, _wp_an, _n_teams)
 
+        def _region_header(region: str, subtitle: str = "") -> None:
+            """Render a colored region banner for the bracket pick view."""
+            bg  = _BP_REGION_BG[region]
+            acc = _BP_REGION_ACC[region]
+            emo = _BP_REGION_EMOJI[region]
+            st.markdown(
+                f"<div style='background:{bg};border-left:4px solid {acc};"
+                f"border-radius:0 6px 6px 0;padding:6px 12px;margin:8px 0 6px'>"
+                f"<span style='font-weight:700;color:{acc};font-size:14px'>{emo} {region} Region</span>"
+                f"{'<span style=\'font-size:11px;color:#666;margin-left:8px\'>' + subtitle + '</span>' if subtitle else ''}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
         # ── Round 1 (32 games, 4 regions × 8) ──────────────────────────────
         with _pk_r1:
             st.caption("Pick every first-round winner. All 32 matchups are live — start anywhere.")
             for _ri, _region in enumerate(_BP_REGIONS):
-                st.markdown(f"**{_region} Region**")
+                _region_header(_region)
                 _cols = st.columns(4, gap="small")
                 for _mi in range(8):
                     _slot = _ri * 8 + _mi
@@ -3269,9 +3344,9 @@ with bracket_tab:
 
         # ── Round 2 (16 games, 4 regions × 4) ─────────────────────────────
         with _pk_r2:
-            st.caption("Round of 32 — your Round 1 picks determine the matchups.")
+            st.caption("Round of 32 — matchups populate automatically from your Round 1 picks. Use 🔍 Analyze on any card.")
             for _ri, _region in enumerate(_BP_REGIONS):
-                st.markdown(f"**{_region} Region**")
+                _region_header(_region)
                 _cols32 = st.columns(4, gap="small")
                 for _mi in range(4):
                     _slot = _ri * 4 + _mi
@@ -3280,22 +3355,22 @@ with bracket_tab:
 
         # ── Sweet 16 (8 games, 4 regions × 2) ─────────────────────────────
         with _pk_r3:
-            st.caption("Sweet 16 — four regions, two games each.")
+            st.caption("Sweet 16 — four regions, two games each. 🔍 Analyze any matchup.")
             _s16_cols = st.columns(4, gap="medium")
             for _ri, _region in enumerate(_BP_REGIONS):
                 with _s16_cols[_ri]:
-                    st.markdown(f"**{_region}**")
+                    _region_header(_region)
                     for _mi in range(2):
                         _slot = _ri * 2 + _mi
                         _pk_render_matchup(2, _slot, st.container())
 
         # ── Elite Eight (4 games, one per region) ─────────────────────────
         with _pk_r4:
-            st.caption("Elite Eight — regional champions. Four teams advance to the Final Four.")
+            st.caption("Elite Eight — regional champions. Every game is a 🔑 Final Four Gatekeeper.")
             _e8_cols = st.columns(4, gap="medium")
             for _ri, _region in enumerate(_BP_REGIONS):
                 with _e8_cols[_ri]:
-                    st.markdown(f"**{_region}**")
+                    _region_header(_region)
                     _pk_render_matchup(3, _ri, st.container())
 
         # ── Final Four (2 games) ───────────────────────────────────────────
