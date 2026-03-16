@@ -1664,7 +1664,7 @@ def generate_playstyle_name(t: pd.Series, ts: pd.Series | None, n: int) -> tuple
         return "🏀 Rebounding Foundation", "Controls the glass consistently and limits opponent second-chance opportunities"
 
     # ── Fallback ──────────────────────────────────────────────────────────
-    return "🏀 Tournament-Tested", "No single dominant trait — competes in multiple phases and earned their spot"
+    return "⚖️ Balanced", "No single dominant trait — competes in multiple phases without a glaring weakness"
 
 
 def generate_team_writeup(t: pd.Series, ts: pd.Series | None, n: int) -> str:
