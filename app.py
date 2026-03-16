@@ -2152,6 +2152,8 @@ with team_tab:
             ("FTmPG",    "FTM per game",                False),
             ("Opp3PaPG", "Opp 3PT attempts/game",       True),
             ("Opp3P%",   "Opp three-point %",           True),
+            ("StlPG",    "Steals per game (forced TOs)", False),
+            ("BlkPG",    "Blocks per game (paint def.)", False),
         ]
         stat_rows = []
         for col, label, _ in _STAT_DISPLAY:
@@ -2297,23 +2299,23 @@ with scatter_tab:
         """Build an Altair logo scatter chart (logos rendered client-side)."""
         df = df.dropna(subset=[x_col, y_col]).copy()
 
-        x_scale = _alt.Scale(reverse=invert_x)
-        y_scale = _alt.Scale(reverse=invert_y)
+        # zero=False zooms axes to the actual data range rather than forcing from 0
+        # padding gives breathing room so logos at the edges don't get clipped
+        x_scale = _alt.Scale(reverse=invert_x, zero=False, padding=20)
+        y_scale = _alt.Scale(reverse=invert_y, zero=False, padding=20)
 
         layers: list = []
 
-        # Median reference lines
+        # Median reference lines using datum so they share the main scale
         if x_ref is not None:
             layers.append(
-                _alt.Chart(pd.DataFrame({"v": [x_ref]}))
-                .mark_rule(strokeDash=[4, 4], color="#bbb", strokeWidth=1)
-                .encode(x=_alt.X("v:Q", scale=x_scale))
+                _alt.Chart().mark_rule(strokeDash=[4, 4], color="#bbb", strokeWidth=1)
+                .encode(x=_alt.datum(x_ref))
             )
         if y_ref is not None:
             layers.append(
-                _alt.Chart(pd.DataFrame({"v": [y_ref]}))
-                .mark_rule(strokeDash=[4, 4], color="#bbb", strokeWidth=1)
-                .encode(y=_alt.Y("v:Q", scale=y_scale))
+                _alt.Chart().mark_rule(strokeDash=[4, 4], color="#bbb", strokeWidth=1)
+                .encode(y=_alt.datum(y_ref))
             )
 
         # Split: teams with a logo URL vs without
