@@ -2658,7 +2658,7 @@ with bracket_tab:
         with _left_col:
             st.markdown(
                 f"<div style='background:#eaf5ed;border-radius:8px;padding:8px 12px;"
-                f"text-align:center;margin-bottom:6px'><b>{name_a}</b></div>",
+                f"text-align:center;margin-bottom:6px;color:#1b5e20'><b>{name_a}</b></div>",
                 unsafe_allow_html=True,
             )
             st.markdown(lh, unsafe_allow_html=True)
@@ -2668,7 +2668,7 @@ with bracket_tab:
         with _right_col:
             st.markdown(
                 f"<div style='background:#fdecea;border-radius:8px;padding:8px 12px;"
-                f"text-align:center;margin-bottom:6px'><b>{name_b}</b></div>",
+                f"text-align:center;margin-bottom:6px;color:#b71c1c'><b>{name_b}</b></div>",
                 unsafe_allow_html=True,
             )
             st.markdown(rh, unsafe_allow_html=True)
@@ -2894,7 +2894,7 @@ with bracket_tab:
 
                 st.markdown(
                     f"<div style='background:#f8f9fa;border-radius:6px;padding:8px 12px;"
-                    f"font-size:13px;margin-top:8px'>"
+                    f"font-size:13px;margin-top:8px;color:#222'>"
                     f"<b>ML:</b> {name_a} {_ml_str} &nbsp;&nbsp; <b>Spread:</b> {name_a} {_spread_str}"
                     f"</div>",
                     unsafe_allow_html=True,
@@ -2904,7 +2904,7 @@ with bracket_tab:
                     _value_pct   = abs(_gap)
                     st.markdown(
                         f"<div style='background:#e8f5e9;border-left:3px solid #4caf50;"
-                        f"border-radius:4px;padding:8px 12px;margin-top:8px;font-size:13px'>"
+                        f"border-radius:4px;padding:8px 12px;margin-top:8px;font-size:13px;color:#1b5e20'>"
                         f"⚡ <b>CarmPom sees value on {_value_team}</b>: model gives them "
                         f"{_value_pct} percentage points more than the market."
                         f"</div>",
