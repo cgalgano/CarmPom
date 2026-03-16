@@ -128,8 +128,7 @@ st.divider()
 st.markdown("### What actually wins in March?")
 st.markdown(
     "We looked at every NCAA Tournament game from 2003–2025 and asked: which stats actually "
-    "predicted who won? The bars below show what the model learned to lean on. "
-    "Longer bar = more predictive."
+    "predicted who won? The numbers below show what the model learned to lean on."
 )
 
 # Fan-friendly labels and plain-English explanations for each feature
@@ -202,15 +201,22 @@ for _, row in feat_df.iterrows():
     label, explanation = FEATURE_EXPLAINERS.get(feature, (feature, ""))
     is_top = pct == feat_df["pct"].max()
 
-    col_label, col_bar = st.columns([3, 2])
-    with col_label:
-        if is_top:
-            st.markdown(f"**🏆 {label}**")
-        else:
-            st.markdown(f"**{label}**")
-        st.caption(explanation)
-    with col_bar:
-        st.progress(int(pct), text=f"{pct:.1f}% of model weight")
+    pct_badge = (
+        f"<span style='font-size:12px;font-weight:700;color:#29b6f6;background:#0d1f2d;"
+        f"border:1px solid #29b6f6;border-radius:4px;padding:1px 6px;white-space:nowrap'>"
+        f"{pct:.1f}%</span>"
+    )
+    if is_top:
+        st.markdown(
+            f"**🏆 {label}** &nbsp; {pct_badge}",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            f"**{label}** &nbsp; {pct_badge}",
+            unsafe_allow_html=True,
+        )
+    st.caption(explanation)
 
 st.divider()
 
