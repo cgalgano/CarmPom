@@ -3331,9 +3331,9 @@ with bracket_tab:
         )
 
         st.info(
-            "**Tip:** Click **🔍 Analyze** on any matchup card to get a full data-driven breakdown "
-            "of that game — win probability, efficiency comparison, playstyle tendencies, and market odds. "
-            "The analysis panel appears at the bottom of the page.",
+            "**Tip:** Click **� Analyze Matchup** on any card to expand a full breakdown — "
+            "win probability, efficiency comparison, playstyle radar charts, and market odds — "
+            "right below that row of games.",
             icon=None,
         )
         _m1, _m2, _m3, _m4 = st.columns(4)
@@ -3624,18 +3624,24 @@ with bracket_tab:
                     st.session_state[_analyze_key] = False
                 _is_analyzing = st.session_state[_analyze_key]
                 if st.button(
-                    "📊 Close Analysis" if _is_analyzing else "🔍 Analyze Matchup",
+                    "✖ Close Analysis" if _is_analyzing else "📊 Analyze Matchup",
                     key=f"bp_{rnd}_{slot}_analyze",
                     use_container_width=True,
                     type="primary" if _is_analyzing else "secondary",
                 ):
-                    st.session_state[_analyze_key] = not _is_analyzing
+                    _new_val = not _is_analyzing
+                    # Auto-close every other open analysis so only one is open at a time
+                    if _new_val:
+                        for _k in list(st.session_state.keys()):
+                            if _k.startswith("pk_analyze_") and _k != _analyze_key:
+                                st.session_state[_k] = False
+                    st.session_state[_analyze_key] = _new_val
                     st.rerun()
-                # Analysis is rendered full-width below the grid by _render_open_analyses()
+                # Analysis renders full-width immediately below the row via _render_open_analyses()
 
-        def _render_open_analyses(rnd: int, n_slots: int) -> None:
-            """Render any open matchup analysis panels full-width below the pick card grid."""
-            for _oa_slot in range(n_slots):
+        def _render_open_analyses(rnd: int, slots) -> None:
+            """Render open matchup analysis panels full-width below the row they belong to."""
+            for _oa_slot in slots:
                 if not st.session_state.get(f"pk_analyze_{rnd}_{_oa_slot}"):
                     continue
                 _oa_ta, _oa_tb = _bp_candidates(rnd, _oa_slot, _picks, _pk_brkt)
@@ -3681,30 +3687,35 @@ with bracket_tab:
             st.caption("Pick every first-round winner. All 32 matchups are live — start anywhere.")
             for _ri, _region in enumerate(_BP_REGIONS):
                 _region_header(_region)
+                # Row 1 of 2 within this region
                 _cols = st.columns(4, gap="small")
-                for _mi in range(8):
+                for _mi in range(4):
                     _slot = _ri * 8 + _mi
-                    _pk_render_matchup(0, _slot, _cols[_mi % 4])
-                    if _mi == 3:
-                        _cols = st.columns(4, gap="small")
+                    _pk_render_matchup(0, _slot, _cols[_mi])
+                _render_open_analyses(0, range(_ri * 8, _ri * 8 + 4))
+                # Row 2 of 2 within this region
+                _cols = st.columns(4, gap="small")
+                for _mi in range(4, 8):
+                    _slot = _ri * 8 + _mi
+                    _pk_render_matchup(0, _slot, _cols[_mi - 4])
+                _render_open_analyses(0, range(_ri * 8 + 4, _ri * 8 + 8))
                 st.markdown("<div style='margin:8px 0'></div>", unsafe_allow_html=True)
-            _render_open_analyses(0, 32)
 
         # ── Round 2 (16 games, 4 regions × 4) ─────────────────────────────
         with _pk_r2:
-            st.caption("Round of 32 — matchups populate automatically from your Round 1 picks. Use 🔍 Analyze on any card.")
+            st.caption("Round of 32 — matchups populate automatically from your Round 1 picks.")
             for _ri, _region in enumerate(_BP_REGIONS):
                 _region_header(_region)
                 _cols32 = st.columns(4, gap="small")
                 for _mi in range(4):
                     _slot = _ri * 4 + _mi
                     _pk_render_matchup(1, _slot, _cols32[_mi])
+                _render_open_analyses(1, range(_ri * 4, _ri * 4 + 4))
                 st.markdown("<div style='margin:8px 0'></div>", unsafe_allow_html=True)
-            _render_open_analyses(1, 16)
 
         # ── Sweet 16 (8 games, 4 regions × 2) ─────────────────────────────
         with _pk_r3:
-            st.caption("Sweet 16 — four regions, two games each. 🔍 Analyze any matchup.")
+            st.caption("Sweet 16 — four regions, two games each.")
             _s16_cols = st.columns(4, gap="medium")
             for _ri, _region in enumerate(_BP_REGIONS):
                 with _s16_cols[_ri]:
@@ -3712,7 +3723,7 @@ with bracket_tab:
                     for _mi in range(2):
                         _slot = _ri * 2 + _mi
                         _pk_render_matchup(2, _slot, st.container())
-            _render_open_analyses(2, 8)
+            _render_open_analyses(2, range(8))
 
         # ── Elite Eight (4 games, one per region) ─────────────────────────
         with _pk_r4:
@@ -3722,7 +3733,7 @@ with bracket_tab:
                 with _e8_cols[_ri]:
                     _region_header(_region)
                     _pk_render_matchup(3, _ri, st.container())
-            _render_open_analyses(3, 4)
+            _render_open_analyses(3, range(4))
 
         # ── Final Four (2 games) ───────────────────────────────────────────
         with _pk_r5:
@@ -3734,7 +3745,7 @@ with bracket_tab:
             with _f4r:
                 st.markdown("**South vs Midwest**")
                 _pk_render_matchup(4, 1, st.container())
-            _render_open_analyses(4, 2)
+            _render_open_analyses(4, range(2))
 
         # ── Championship ───────────────────────────────────────────────────
         with _pk_r6:
