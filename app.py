@@ -2593,8 +2593,9 @@ with bracket_tab:
             ) if _t_logo else ""
             _champ_pct = float(_trow["Champ%"])
             _f4_pct = float(_trow["F4%"])
-            _bar_w = max(_champ_pct * 4, 2)  # scale bar width (max ~80px for a 20% team)
-            _bar_color = "#1e7d32" if _champ_pct >= 10 else ("#1565c0" if _champ_pct >= 4 else "#78909c")
+            _t_em = float(_trow["AdjEM"])
+            _t_rk = int(_trow["CarmPomRk"])
+            _champ_color = "#1e7d32" if _champ_pct >= 10 else ("#1565c0" if _champ_pct >= 4 else "#78909c")
             st.markdown(
                 f"<div style='border:1px solid #333;border-radius:8px;padding:8px 10px;"
                 f"margin-bottom:6px;font-family:system-ui,sans-serif'>"
@@ -2603,12 +2604,12 @@ with bracket_tab:
                 f"<span style='font-size:11px;font-weight:600'>"
                 f"<span style='color:#888;margin-right:3px'>({int(_trow['Seed'])})</span>"
                 f"{_trow['Team']}</span></div>"
-                f"<div style='display:flex;align-items:center;gap:6px'>"
-                f"<div style='background:#222;border-radius:3px;height:8px;flex:1;overflow:hidden'>"
-                f"<div style='width:{_bar_w}%;height:100%;background:{_bar_color};border-radius:3px'></div></div>"
-                f"<span style='font-size:16px;font-weight:800;color:{_bar_color};min-width:45px;text-align:right'>"
+                f"<div style='display:flex;justify-content:space-between;align-items:baseline'>"
+                f"<span style='font-size:12px;color:#aaa'>AdjEM <b style=\"color:inherit\">{_t_em:+.1f}</b>"
+                f" <span style='font-size:10px'>#{_t_rk}</span></span>"
+                f"<span style='font-size:18px;font-weight:800;color:{_champ_color}'>"
                 f"{_champ_pct:.1f}%</span></div>"
-                f"<div style='font-size:10px;color:#888;margin-top:2px'>F4: {_f4_pct:.1f}%</div>"
+                f"<div style='font-size:10px;color:#888;margin-top:2px'>Final Four: {_f4_pct:.1f}%</div>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
