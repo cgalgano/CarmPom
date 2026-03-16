@@ -134,13 +134,10 @@ def _parse_event(ev: dict) -> list[tuple[str, str, dict]]:
     home_odds_obj = odds.get("homeTeamOdds", {})
     away_is_fav = bool(away_odds_obj.get("favorite"))
 
-    # Spread (absolute value from ESPN, sign derived from favourite flag)
-    spread_abs: float | None = odds.get("spread")  # e.g. 2.5
-    if spread_abs is not None:
-        away_spread = -spread_abs if away_is_fav else spread_abs
-        home_spread = -spread_abs if not away_is_fav else spread_abs
-    else:
-        away_spread = home_spread = None
+    # Spread — ESPN's `spread` field is already signed from the HOME team's
+    # perspective (negative = home is favourite, positive = home is underdog).
+    home_spread: float | None = odds.get("spread")   # e.g. -5.5 for Louisville at home
+    away_spread: float | None = (-home_spread) if home_spread is not None else None
 
     # Moneyline strings → floats
     ml_obj = odds.get("moneyline", {})
