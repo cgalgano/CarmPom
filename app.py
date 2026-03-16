@@ -1043,10 +1043,16 @@ def _generate_single_game_bullets(
                 "are within 5 percentage points of each other — both models see roughly the same game."
             )
     else:
-        bullets.append(
-            "📊 **Betting lines**: Run `uv run python pipeline/fetch_odds.py` to pull live ESPN odds, "
-            "then refresh the page — market vs model comparison will appear here automatically."
-        )
+        if odds_lu:
+            bullets.append(
+                f"📊 **Betting lines**: No odds posted yet for this matchup — likely a winner-pending game. "
+                "Re-run `uv run python pipeline/fetch_odds.py` once both teams are confirmed."
+            )
+        else:
+            bullets.append(
+                "📊 **Betting lines**: Run `uv run python pipeline/fetch_odds.py` to pull live ESPN odds, "
+                "then refresh the page — market vs model comparison will appear here automatically."
+            )
 
     # ── Possession randomness ─────────────────────────────────────────────
     bullets.append(
@@ -2384,11 +2390,22 @@ with bracket_tab:
                 if _fetched_at:
                     st.caption(f"Odds last fetched: {_fetched_at} UTC  ·  Refresh: `uv run python pipeline/fetch_odds.py`")
             else:
-                st.info(
-                    "No odds data in cache. Run `uv run python pipeline/fetch_odds.py` "
-                    "to pull live ESPN tournament lines (no API key needed), then refresh.",
-                    icon="ℹ️",
-                )
+                if _odds_lu:
+                    # Cache exists but no line for this specific game yet —
+                    # likely a First Four winner-pending matchup
+                    st.info(
+                        f"No odds posted yet for **{name_a} vs {name_b}**. "
+                        "Lines typically appear once both teams are confirmed "
+                        "(e.g. after a First Four game). Re-run "
+                        "`uv run python pipeline/fetch_odds.py` to refresh.",
+                        icon="⏳",
+                    )
+                else:
+                    st.info(
+                        "No odds data in cache. Run `uv run python pipeline/fetch_odds.py` "
+                        "to pull live ESPN tournament lines (no API key needed), then refresh.",
+                        icon="ℹ️",
+                    )
 
         # ── Single-Game Reality Check ──────────────────────────────────────
         st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
