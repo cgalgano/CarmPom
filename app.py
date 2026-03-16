@@ -2009,11 +2009,7 @@ with team_tab:
     else:
         team_options = _all_teams["Team"].sort_values().tolist()
 
-    # ── Logo grid selector ────────────────────────────────────────────────
-    # ── Logo grid selector ────────────────────────────────────────────────
-    # session_state is the source of truth; query_params syncs it on load
-    import urllib.parse as _urlparse
-
+    # Sync selected team from URL query param on first load
     if "tp_selected_team" not in st.session_state:
         _qp_team = st.query_params.get("tp_team", "")
         if _qp_team and _qp_team in team_options:
@@ -2023,62 +2019,14 @@ with team_tab:
         else:
             st.session_state["tp_selected_team"] = team_options[0] if team_options else ""
 
-    _grid_selected: str = st.session_state.get("tp_selected_team", team_options[0] if team_options else "")
-    if _grid_selected not in team_options:
-        _grid_selected = team_options[0] if team_options else ""
+    _current_selected: str = st.session_state.get("tp_selected_team", team_options[0] if team_options else "")
+    if _current_selected not in team_options:
+        _current_selected = team_options[0] if team_options else ""
 
-    # Logo and seed lookups
-    _tp_logo_lu = {
-        str(row["Team"]): str(row["logo_url"])
-        for _, row in _all_teams.iterrows()
-        if pd.notna(row.get("logo_url")) and row.get("logo_url")
-    }
-    _tp_seed_lu: dict[str, int] = {}
-    if _profile_bracket is not None and "seed" in _profile_bracket.columns:
-        for _, _pr in _profile_bracket.iterrows():
-            _tp_seed_lu[str(_pr["Team"])] = int(_pr["seed"])
-
-    # Sort by seed then alpha so the grid reads like a bracket
-    _sorted_tp = sorted(team_options, key=lambda t: (_tp_seed_lu.get(t, 99), t))
-
-    st.caption("Click a logo to view that team's profile:")
-
-    # Render logos as plain HTML <a href> links — no Streamlit buttons needed.
-    # Clicking a logo reloads the app with ?tp_team=<name> in the URL, which is
-    # already read by the session_state initializer above.
-
-    _logo_cells = []
-    for _tp_t in _sorted_tp:
-        _tp_logo = _tp_logo_lu.get(_tp_t, "")
-        _is_sel  = _tp_t == _grid_selected
-        _border  = "2px solid #29b6f6" if _is_sel else "2px solid transparent"
-        _bg      = "rgba(41,182,246,0.15)" if _is_sel else "transparent"
-        _encoded = _urlparse.quote(_tp_t)
-        if _tp_logo:
-            _logo_cells.append(
-                f"<a href='?tp_team={_encoded}'"
-                f" title='{_tp_t}'"
-                f" style='display:inline-flex;align-items:center;justify-content:center;"
-                f"width:40px;height:40px;border:{_border};border-radius:6px;"
-                f"background:{_bg};text-decoration:none;transition:border 0.15s,background 0.15s;'>"
-                f"<img src='{_tp_logo}'"
-                f" style='width:32px;height:32px;object-fit:contain;'>"
-                f"</a>"
-            )
-
-    _grid_html = (
-        "<div style='display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;'>"
-        + "".join(_logo_cells)
-        + "</div>"
-    )
-    st.markdown(_grid_html, unsafe_allow_html=True)
-
-    _grid_selected = st.session_state.get("tp_selected_team", team_options[0] if team_options else "")
-
-    # Search input filters the dropdown to matching teams
+    # Search input filters the dropdown
     _search_query = st.text_input(
         "Search team",
-        placeholder="🔍  Or type a team name to filter...",
+        placeholder="🔍  Type a team name to filter...",
         label_visibility="collapsed",
         key="team_profile_search",
     )
@@ -2087,15 +2035,14 @@ with team_tab:
         if _search_query.strip() else team_options
     ) or team_options
 
-    # on_change: sync selectbox pick back to session_state + grid highlight
     def _tp_sync_qp() -> None:
         val = st.session_state.get("tp_selectbox", "")
         st.session_state["tp_selected_team"] = val
         st.query_params["tp_team"] = val
 
     _default_idx = (
-        _filtered_opts.index(_grid_selected)
-        if _grid_selected in _filtered_opts else 0
+        _filtered_opts.index(_current_selected)
+        if _current_selected in _filtered_opts else 0
     )
 
     selected_team = st.selectbox(
