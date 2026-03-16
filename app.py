@@ -1562,9 +1562,10 @@ def generate_playstyle_name(t: pd.Series, ts: pd.Series | None, n: int) -> tuple
     fast = adjt_nr <= 80
     slow = adjt_nr >= 270
 
-    # Style flags from per-game stats (all 8 radar spokes)
+    # Style flags from per-game stats (all 10 radar spokes)
     three_heavy = three_light = three_accurate = three_inaccurate = False
     glass_eater = good_dreb = ball_safe = ball_wild = ft_heavy = pass_first = False
+    forced_to = rim_protector = False
     if ts is not None:
         _3pa_nr  = int(ts.get("3PaPG_nr",  n))
         _3pct_nr = int(ts.get("3P%_nr",    n))
