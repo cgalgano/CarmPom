@@ -75,6 +75,7 @@ st.markdown(
 
 st.title("🏀 CarmPom")
 st.markdown("#### NCAA Basketball rankings and tournament predictions — like KenPom, but open.")
+st.caption("Built by Carmen Galgano with the help of Claude Sonnet 4.6 · The goal: the ultimate free resource for March Madness.")
 
 st.divider()
 
@@ -1311,7 +1312,7 @@ def _bp_autofill(
 # ---------------------------------------------------------------------------
 
 rankings_tab, team_tab, scatter_tab, bracket_tab, about_tab = st.tabs(
-    ["📊 Team Rankings", "🏀 Team Profile", "📈 Scatter Plots", "🏆 Bracket", "ℹ️ About"]
+    ["📊 Team Rankings", "🏀 Team Profile", "📈 Valuable Charts", "🏆 Bracket", "ℹ️ About"]
 )
 
 # ---------------------------------------------------------------------------
@@ -2320,11 +2321,11 @@ with team_tab:
             st.caption("No game data available.")
 
 # ---------------------------------------------------------------------------
-# Scatter Plots tab
+# Valuable Charts tab
 # ---------------------------------------------------------------------------
 
 with scatter_tab:
-    st.markdown("### 📈 Tournament Team Scatter Plots")
+    st.markdown("### 📈 Valuable Charts")
     st.markdown(
         "Visual breakdowns across key dimensions — each logo is a tournament team. "
         "Hover for details."
