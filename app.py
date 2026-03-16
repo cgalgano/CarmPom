@@ -9,6 +9,7 @@ Run with:
 
 import sys
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -2221,13 +2222,8 @@ with team_tab:
 with scatter_tab:
     st.markdown("### 📈 Tournament Team Scatter Plots")
     st.markdown(
-        "Visual breakdowns across key dimensions — each dot is a tournament team. "
-        "Seed colors: "
-        "<span style='color:#c8a400'>■ 1–4</span> &nbsp;"
-        "<span style='color:#e07b3a'>■ 5–8</span> &nbsp;"
-        "<span style='color:#4a90d9'>■ 9–12</span> &nbsp;"
-        "<span style='color:#888'>■ 13–16</span>",
-        unsafe_allow_html=True,
+        "Visual breakdowns across key dimensions — each dot is a tournament team, "
+        "labeled with its logo."
     )
 
     _sc_ratings = load_rankings(2026)
@@ -2248,15 +2244,30 @@ with scatter_tab:
     )
     _sc_merged["seed"] = pd.to_numeric(_sc_merged["seed"], errors="coerce")
 
-    def _seed_color(seed: float) -> str:
-        """Map tournament seed to a tier color."""
-        if pd.isna(seed): return "#888"
-        if seed <= 4:  return "#c8a400"
-        if seed <= 8:  return "#e07b3a"
-        if seed <= 12: return "#4a90d9"
-        return "#888"
+    # No seed-color column needed — logos replace color coding
+    import io as _io
+    import urllib.request as _urlreq
+    from matplotlib.offsetbox import AnnotationBbox, OffsetImage
+    from PIL import Image as _PILImage
 
-    _sc_merged["_sc_color"] = _sc_merged["seed"].apply(_seed_color)
+    @st.cache_data(show_spinner=False, ttl=3600)
+    def _fetch_logo_arr(url: str):
+        """Download an ESPN logo PNG and return a 28x28 RGBA numpy array, or None."""
+        try:
+            with _urlreq.urlopen(url, timeout=4) as _r:
+                _img = _PILImage.open(_io.BytesIO(_r.read())).convert("RGBA").resize((28, 28), _PILImage.LANCZOS)
+            return np.array(_img)
+        except Exception:
+            return None
+
+    # Build logo array lookup for all tournament teams
+    _logo_arrays: dict[str, Any] = {}
+    for _, _lr in _sc_merged.iterrows():
+        _lurl = _lr.get("logo_url")
+        if _lurl and pd.notna(_lurl):
+            _arr = _fetch_logo_arr(str(_lurl))
+            if _arr is not None:
+                _logo_arrays[str(_lr["Team"])] = _arr
 
     def _scatter_chart(
         df: pd.DataFrame,
@@ -2270,43 +2281,47 @@ with scatter_tab:
         x_ref: float | None = None,
         y_ref: float | None = None,
     ):
-        """Build a labeled scatter plot for tournament teams and return the figure."""
+        """Build a logo-labeled scatter plot for tournament teams and return the figure."""
         df = df.dropna(subset=[x_col, y_col]).copy()
         fig, ax = plt.subplots(figsize=(6.8, 5.2))
         ax.set_facecolor("#f9f9f9")
         fig.patch.set_facecolor("#ffffff")
 
-        # Draw reference lines before points so dots sit on top
+        # Median reference lines drawn first so dots sit on top
         if x_ref is not None:
             ax.axvline(x_ref, color="#ccc", linewidth=0.9, zorder=1, linestyle="--")
         if y_ref is not None:
             ax.axhline(y_ref, color="#ccc", linewidth=0.9, zorder=1, linestyle="--")
 
-        # Scatter points
+        # Ghost dots at each point so axes scale correctly before logos are placed
         ax.scatter(
             df[x_col], df[y_col],
-            c=df["_sc_color"], s=50, zorder=3, alpha=0.92,
-            edgecolors="white", linewidths=0.6,
+            c="none", s=4, zorder=2, alpha=0,
         )
 
-        # Team name labels — short last word to avoid clutter
+        # Team logos via AnnotationBbox — fall back to a small colored dot
         for _, row in df.iterrows():
-            name = str(row["Team"])
-            short = name if len(name) <= 9 else name.split()[-1] if " " in name else name[:9]
-            ax.annotate(
-                short,
-                (row[x_col], row[y_col]),
-                fontsize=5.5, ha="left", va="bottom",
-                xytext=(2, 2), textcoords="offset points",
-                color="#333", zorder=4,
-            )
+            x_val, y_val = row[x_col], row[y_col]
+            logo_arr = _logo_arrays.get(str(row["Team"]))
+            if logo_arr is not None:
+                oi = OffsetImage(logo_arr, zoom=0.55, alpha=0.92)
+                ab = AnnotationBbox(
+                    oi, (x_val, y_val),
+                    frameon=False, zorder=5,
+                    box_alignment=(0.5, 0.5),
+                )
+                ax.add_artist(ab)
+            else:
+                # fallback dot when logo unavailable
+                ax.scatter(x_val, y_val, c="#4a90d9", s=40, zorder=4,
+                           edgecolors="white", linewidths=0.6)
 
         if invert_x: ax.invert_xaxis()
         if invert_y: ax.invert_yaxis()
 
         ax.set_xlabel(x_label, fontsize=9, color="#444")
         ax.set_ylabel(y_label, fontsize=9, color="#444")
-        ax.set_title(title, fontsize=11, fontweight="bold", pad=10, color="#111")
+        # Title is rendered as a Streamlit markdown header above the figure
         ax.grid(True, linestyle="--", linewidth=0.35, color="#ddd", zorder=0)
         ax.spines[["top", "right"]].set_visible(False)
         plt.tight_layout()
@@ -2316,37 +2331,52 @@ with scatter_tab:
 
     with _sc_col1:
         # Chart 1: Efficiency Landscape (AdjO vs AdjD)
+        st.markdown("**⚡ Efficiency Landscape**")
         if not _sc_merged.empty and "AdjO" in _sc_merged.columns:
             _fig_eff = _scatter_chart(
                 _sc_merged, "AdjO", "AdjD",
                 "Adjusted Offense (pts/100 possessions)",
                 "Adjusted Defense (pts/100 possessions)",
-                "⚡ Efficiency Landscape",
-                invert_y=True,  # lower AdjD = fewer pts allowed = better → up
+                "Efficiency Landscape",
+                invert_y=True,  # lower AdjD = fewer pts allowed → up
                 x_ref=_sc_merged["AdjO"].median(),
                 y_ref=_sc_merged["AdjD"].median(),
             )
             st.pyplot(_fig_eff, use_container_width=True)
             plt.close(_fig_eff)
-            st.caption("Better offense → right · Better defense → up · Top-right quadrant = elite two-way teams")
+            st.markdown(
+                "<small>CarmPom's AdjEM is built from these two ingredients. "
+                "Teams in the **top-right** dominate on both ends — historically the profile of "
+                "Final Four teams. In March, a coaching upset can mask a bad defense for one game, "
+                "but elite two-way teams consistently advance. "
+                "Dashed lines = tournament median. Better offense → right; better defense → up.</small>",
+                unsafe_allow_html=True,
+            )
         else:
             st.caption("Efficiency data unavailable.")
 
     with _sc_col2:
         # Chart 2: Ball Security vs FT Drawing
+        st.markdown("**🔒 Ball Security vs Free-Throw Drawing**")
         if not _sc_merged.empty and "TOPG" in _sc_merged.columns and "FTmPG" in _sc_merged.columns:
             _fig_ball = _scatter_chart(
                 _sc_merged, "TOPG", "FTmPG",
                 "Turnovers per Game (fewer = better →)",
                 "Free Throws Made per Game",
-                "🔒 Ball Security vs FT Drawing",
-                invert_x=True,  # fewer TOs = better → plot rightward
+                "Ball Security vs FT Drawing",
+                invert_x=True,  # fewer TOs = better → rightward
                 x_ref=_sc_merged["TOPG"].median(),
                 y_ref=_sc_merged["FTmPG"].median(),
             )
             st.pyplot(_fig_ball, use_container_width=True)
             plt.close(_fig_ball)
-            st.caption("Fewer turnovers → right · More FTs drawn → up · Top-right = disciplined and gets to the line")
+            st.markdown(
+                "<small>Turnovers are magnified in elimination games — one late giveaway can end a season. "
+                "Teams in the **top-right** take care of the ball *and* draw fouls, giving them two reliable "
+                "scoring paths when half-court offense stalls in tournament pressure. "
+                "Fewer turnovers → right; more FTs made → up.</small>",
+                unsafe_allow_html=True,
+            )
         else:
             st.caption("Per-game data unavailable.")
 
@@ -2354,12 +2384,13 @@ with scatter_tab:
 
     with _sc_col3:
         # Chart 3: 3PT Defense landscape
+        st.markdown("**🛡 3PT Defense Landscape**")
         if not _sc_merged.empty and "Opp3PaPG" in _sc_merged.columns and "Opp3P%" in _sc_merged.columns:
             _fig_3d = _scatter_chart(
                 _sc_merged, "Opp3PaPG", "Opp3P%",
                 "Opp 3PT Attempts Allowed per Game",
                 "Opp 3PT % Allowed",
-                "🛡️ 3PT Defense Landscape",
+                "3PT Defense Landscape",
                 invert_x=True,  # fewer attempts allowed = better
                 invert_y=True,  # lower % allowed = better
                 x_ref=_sc_merged["Opp3PaPG"].median(),
@@ -2367,24 +2398,40 @@ with scatter_tab:
             )
             st.pyplot(_fig_3d, use_container_width=True)
             plt.close(_fig_3d)
-            st.caption("Limits 3PT volume → right · Limits 3PT% → up · Top-right = elite 3PT defense")
+            st.markdown(
+                "<small>The three-pointer is the biggest equalizer in March — a hot-shooting "
+                "mid-major can beat anyone if left open. This chart identifies teams that **both** "
+                "contest 3PT attempts (volume) and limit the conversion rate. "
+                "Top-right = elite 3PT defense that removes the game's highest-variance shot. "
+                "Limits volume → right; limits % → up.</small>",
+                unsafe_allow_html=True,
+            )
         else:
             st.caption("3PT defense data unavailable.")
 
     with _sc_col4:
         # Chart 4: 3PT Offense — volume vs accuracy
+        st.markdown("**🎯 3PT Offense — Volume vs Accuracy**")
         if not _sc_merged.empty and "3PaPG" in _sc_merged.columns and "3P%" in _sc_merged.columns:
             _fig_3o = _scatter_chart(
                 _sc_merged, "3PaPG", "3P%",
                 "3PT Attempts per Game",
                 "3PT % Made",
-                "🎯 3PT Offense — Volume vs Accuracy",
+                "3PT Offense — Volume vs Accuracy",
                 x_ref=_sc_merged["3PaPG"].median(),
                 y_ref=_sc_merged["3P%"].median(),
             )
             st.pyplot(_fig_3o, use_container_width=True)
             plt.close(_fig_3o)
-            st.caption("Heavy volume → right · High accuracy → up · Top-right = high-volume, efficient 3PT teams")
+            st.markdown(
+                "<small>Our model uses pre-tournament efficiency, but bracket predictors know "
+                "that variance is highest for teams relying on the arc. "
+                "**Top-right** teams (high volume + high accuracy) are legitimately dangerous — they can "
+                "go supernova or stay ice-cold. **Bottom-left** teams rarely win with 3s and survive "
+                "on interior play and defense. Use this to read *how* a team will try to beat you. "
+                "Heavy volume → right; better accuracy → up.</small>",
+                unsafe_allow_html=True,
+            )
         else:
             st.caption("3PT offense data unavailable.")
 
@@ -3059,9 +3106,7 @@ with bracket_tab:
                 bg_a = "#e8f5e9" if sel_a else "#fafafa"
                 bg_b = "#e8f5e9" if sel_b else "#fafafa"
 
-                ta_short = ta[:17] + "…" if len(ta) > 17 else ta
-                tb_short = tb[:17] + "…" if len(tb) > 17 else tb
-
+                # Use full names; CSS word-break handles overflow in the card
                 fav_bar_a = "#1565c0" if wp_pct_a >= wp_pct_b else "#b0bec5"
                 fav_bar_b = "#1565c0" if wp_pct_b > wp_pct_a else "#b0bec5"
 
@@ -3095,8 +3140,8 @@ with bracket_tab:
                     f"<div style='display:flex;align-items:center'>{img_a}"
                     f"<span style='background:#1e2d40;color:white;border-radius:3px;"
                     f"padding:1px 5px;font-size:9px;font-weight:700;margin-right:5px'>{sa}</span>"
-                    f"<span style='font-weight:{'700' if sel_a else '400'}'>"
-                    f"{'✅ ' if sel_a else ''}{ta_short}</span></div>"
+                    f"<span style='font-weight:{'700' if sel_a else '400'};word-break:break-word;max-width:130px;line-height:1.3;display:inline-block'>"
+                    f"{'✅ ' if sel_a else ''}{ta}</span></div>"
                     f"<span style='color:{em_col_a};font-size:11px;font-weight:600'>{em_label_a}</span>"
                     f"</div>"
                     # Probability bar + labels
@@ -3114,8 +3159,8 @@ with bracket_tab:
                     f"<div style='display:flex;align-items:center'>{img_b}"
                     f"<span style='background:#78909c;color:white;border-radius:3px;"
                     f"padding:1px 5px;font-size:9px;font-weight:700;margin-right:5px'>{sb}</span>"
-                    f"<span style='font-weight:{'700' if sel_b else '400'}'>"
-                    f"{'✅ ' if sel_b else ''}{tb_short}</span></div>"
+                    f"<span style='font-weight:{'700' if sel_b else '400'};word-break:break-word;max-width:130px;line-height:1.3;display:inline-block'>"
+                    f"{'✅ ' if sel_b else ''}{tb}</span></div>"
                     f"<span style='color:{em_col_b};font-size:11px;font-weight:600'>{em_label_b}</span>"
                     f"</div></div>",
                     unsafe_allow_html=True,
