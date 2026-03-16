@@ -3243,7 +3243,7 @@ with bracket_tab:
                     f"<div style='display:flex;align-items:center'>{img_a}"
                     f"<span style='background:#1e2d40;color:white;border-radius:3px;"
                     f"padding:1px 5px;font-size:9px;font-weight:700;margin-right:5px'>{sa}</span>"
-                    f"<span style='font-weight:{'700' if sel_a else '400'};word-break:break-word;flex:1;line-height:1.3;display:inline-block;font-size:11px'>"
+                    f"<span style='color:#000;font-weight:{'700' if sel_a else '500'};word-break:break-word;flex:1;line-height:1.3;display:inline-block;font-size:11px'>"
                     f"{'✅ ' if sel_a else ''}{ta}</span></div>"
                     f"<span style='color:{em_col_a};font-size:11px;font-weight:600'>{em_label_a}</span>"
                     f"</div>"
@@ -3262,7 +3262,7 @@ with bracket_tab:
                     f"<div style='display:flex;align-items:center'>{img_b}"
                     f"<span style='background:#78909c;color:white;border-radius:3px;"
                     f"padding:1px 5px;font-size:9px;font-weight:700;margin-right:5px'>{sb}</span>"
-                    f"<span style='font-weight:{'700' if sel_b else '400'};word-break:break-word;flex:1;line-height:1.3;display:inline-block;font-size:11px'>"
+                    f"<span style='color:#000;font-weight:{'700' if sel_b else '500'};word-break:break-word;flex:1;line-height:1.3;display:inline-block;font-size:11px'>"
                     f"{'✅ ' if sel_b else ''}{tb}</span></div>"
                     f"<span style='color:{em_col_b};font-size:11px;font-weight:600'>{em_label_b}</span>"
                     f"</div></div>",
