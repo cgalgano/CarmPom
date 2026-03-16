@@ -2043,7 +2043,32 @@ with team_tab:
 
     st.caption("Click a logo to view that team's profile:")
 
-    # Render grid: 10 columns × N rows. Each cell = small logo + name button.
+    # Inject CSS: transparent button overlays the logo above it via negative margin-top.
+    # :has(.tp-logo-img) targets stMarkdown blocks containing our logo, then + sibling
+    # targets the immediately following stButton and makes it invisible but clickable.
+    st.markdown(
+        """
+        <style>
+        [data-testid="stMarkdown"]:has(.tp-logo-img) + [data-testid="stButton"] button {
+            margin-top: -38px !important;
+            height: 38px !important;
+            min-height: 0 !important;
+            opacity: 0 !important;
+            cursor: pointer !important;
+            padding: 0 !important;
+            width: 100% !important;
+            position: relative !important;
+            z-index: 10 !important;
+        }
+        [data-testid="stMarkdown"]:has(.tp-logo-img) + [data-testid="stButton"] {
+            margin-bottom: 0 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Render grid: 10 columns × N rows. Each cell = logo image + invisible overlaid button.
     _N_COLS = 10
     for _row_start in range(0, len(_sorted_tp), _N_COLS):
         _row_teams = _sorted_tp[_row_start : _row_start + _N_COLS]
@@ -2051,23 +2076,23 @@ with team_tab:
         for _ci, _tp_t in enumerate(_row_teams):
             with _row_cols[_ci]:
                 _tp_logo = _tp_logo_lu.get(_tp_t, "")
-                _tp_s    = _tp_seed_lu.get(_tp_t, "")
                 _is_sel  = _tp_t == _grid_selected
-                _border_style = "2px solid #29b6f6" if _is_sel else "1px solid transparent"
+                _border  = "2px solid #29b6f6" if _is_sel else "1px solid transparent"
+                _bg      = "rgba(41,182,246,0.12)" if _is_sel else "transparent"
                 if _tp_logo:
                     st.markdown(
-                        f"<div style='text-align:center;border:{_border_style};"
-                        f"border-radius:5px;padding:1px;background:"
-                        f"{'rgba(41,182,246,0.12)' if _is_sel else 'transparent'}'>"
-                        f"<img src='{_tp_logo}' style='width:28px;height:28px;object-fit:contain'>"
+                        f"<div style='text-align:center;border:{_border};"
+                        f"border-radius:5px;padding:2px;background:{_bg};'>"
+                        f"<img class='tp-logo-img' src='{_tp_logo}'"
+                        f" style='width:32px;height:32px;object-fit:contain;display:block;margin:auto;'>"
                         f"</div>",
                         unsafe_allow_html=True,
                     )
-                _short = _tp_t[:8] if len(_tp_t) > 8 else _tp_t
+                # Transparent button — overlays the logo above (via negative margin-top CSS).
                 if st.button(
-                    _short,
+                    " ",
                     key=f"tp_btn_{_tp_t}",
-                    type="primary" if _is_sel else "secondary",
+                    help=_tp_t,
                     use_container_width=True,
                 ):
                     st.session_state["tp_selected_team"] = _tp_t
