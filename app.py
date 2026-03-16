@@ -38,16 +38,35 @@ st.set_page_config(
     layout="wide",
 )
 
-# Allow pick button labels (team names) to wrap onto multiple lines
+# Bracket pick button styling: light background, black readable team names, wrapping text
 st.markdown(
     """
     <style>
-    div[data-testid="stBaseButton-secondary"] p,
-    div[data-testid="stBaseButton-primary"] p {
+    /* Secondary (unpicked) pick buttons — white bg, black text */
+    div[data-testid="stBaseButton-secondary"] {
+        background-color: #f0f2f6 !important;
+        border: 1px solid #ccd0d9 !important;
+    }
+    div[data-testid="stBaseButton-secondary"]:hover {
+        background-color: #e2e6ef !important;
+        border-color: #a0a8bc !important;
+    }
+    div[data-testid="stBaseButton-secondary"] p {
+        color: #111111 !important;
         white-space: normal !important;
         word-break: break-word !important;
         line-height: 1.25 !important;
         font-size: 11px !important;
+        font-weight: 600 !important;
+    }
+    /* Primary (picked) pick buttons — green bg, white text */
+    div[data-testid="stBaseButton-primary"] p {
+        color: #ffffff !important;
+        white-space: normal !important;
+        word-break: break-word !important;
+        line-height: 1.25 !important;
+        font-size: 11px !important;
+        font-weight: 700 !important;
     }
     </style>
     """,
