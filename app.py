@@ -851,7 +851,211 @@ def generate_clash_narrative(ta: pd.Series, tb: pd.Series, wp_a: float, n: int) 
 
 
 # ---------------------------------------------------------------------------
-# Pick'em helpers (bracket picker tab)
+# Odds + Injury cache loaders (read from pipeline output files)
+# ---------------------------------------------------------------------------
+
+@st.cache_data(ttl=1800)
+def _load_odds_data() -> dict:
+    """Load betting lines from data/odds_cache.json (written by pipeline/fetch_odds.py).
+
+    Returns a nested dict: odds_lu[team_a][team_b] = {ml, spread, impl_prob, ...}
+    Returns {} if cache doesn't exist yet.
+    """
+    import json as _json
+    _p = ROOT / "data" / "odds_cache.json"
+    if not _p.exists():
+        return {}
+    try:
+        return _json.loads(_p.read_text(encoding="utf-8")).get("odds", {})
+    except Exception:
+        return {}
+
+
+@st.cache_data(ttl=1800)
+def _load_injuries_data() -> dict:
+    """Load ESPN-scraped injury notes from data/injuries_cache.json.
+
+    Returns a dict: inj_lu[team_name] = [{headline, status, description, published}, ...]
+    """
+    import json as _json
+    _p = ROOT / "data" / "injuries_cache.json"
+    if not _p.exists():
+        return {}
+    try:
+        data = _json.loads(_p.read_text(encoding="utf-8"))
+        return data.get("teams", {})
+    except Exception:
+        return {}
+
+
+def _ml_to_prob(ml: float) -> float:
+    """Convert American moneyline to no-vig-adjusted implied probability."""
+    if ml < 0:
+        raw = abs(ml) / (abs(ml) + 100)
+    else:
+        raw = 100 / (ml + 100)
+    return raw   # caller removes vig by normalising with the other side
+
+
+def _odds_for_matchup(ta_name: str, tb_name: str, odds_lu: dict) -> tuple[dict, dict] | tuple[None, None]:
+    """Look up betting lines for a matchup from the odds cache (both directions).
+
+    Returns (line_a, line_b) or (None, None) if not found.
+    """
+    from difflib import get_close_matches as _gcm
+    all_keys = list(odds_lu.keys())
+
+    def _find(name: str) -> str | None:
+        if name in odds_lu:
+            return name
+        hits = _gcm(name, all_keys, n=1, cutoff=0.55)
+        return hits[0] if hits else None
+
+    ka = _find(ta_name)
+    if ka is None:
+        return None, None
+    kb = _find(tb_name) if tb_name in odds_lu.get(ka, {}) else None
+    if kb is None:
+        # Try looking in kb's inner dict
+        for inner_key in odds_lu.get(ka, {}):
+            hits = _gcm(tb_name, [inner_key], n=1, cutoff=0.55)
+            if hits:
+                kb = inner_key
+                break
+    if kb is None:
+        return None, None
+
+    line_a = odds_lu[ka].get(kb)
+    line_b = odds_lu.get(kb, {}).get(ka)
+    return line_a, line_b
+
+
+def _generate_single_game_bullets(
+    ta: "pd.Series",
+    tb: "pd.Series",
+    pg_a: dict,
+    pg_b: dict,
+    wp_a: float,
+    odds_lu: dict,
+    n: int,
+) -> list[str]:
+    """Return single-game reality-check bullets for the matchup analyzer.
+
+    Unlike the simulation analysis (which averages 25K games), these bullets
+    focus on what can actually change the outcome of ONE game.
+    """
+    bullets: list[str] = []
+    name_a, name_b = ta["Team"], tb["Team"]
+    adjo_a = float(ta.get("AdjO", 100))
+    adjo_b = float(tb.get("AdjO", 100))
+    adjd_a = float(ta.get("AdjD", 100))
+    adjd_b = float(tb.get("AdjD", 100))
+    adjt_a = float(ta.get("AdjT", 68))
+    adjt_b = float(tb.get("AdjT", 68))
+    avg_tempo = (adjt_a + adjt_b) / 2.0
+
+    # ── Expected score estimate ──────────────────────────────────────────
+    # Uses AdjO * AdjD cross formula (comparable to KenPom pythagorean)
+    _NAT_AVG = 100.0
+    eff_a = adjo_a * (adjd_b / _NAT_AVG)    # pts/100 for team A vs this defense
+    eff_b = adjo_b * (adjd_a / _NAT_AVG)
+    pts_a = round(eff_a * avg_tempo / 100)
+    pts_b = round(eff_b * avg_tempo / 100)
+    margin = pts_a - pts_b
+    fav_name  = name_a if pts_a > pts_b else name_b
+    dog_name  = name_b if pts_a > pts_b else name_a
+    fav_pts   = max(pts_a, pts_b)
+    dog_pts   = min(pts_a, pts_b)
+    dog_deficit = abs(margin)
+
+    bullets.append(
+        f"📐 **Projected score** (AdjEM/AdjT model): {name_a} **{pts_a}** – {name_b} **{pts_b}**. "
+        f"{fav_name} is expected to win by ~{dog_deficit} points — but that's one game, and margins like these flip routinely."
+    )
+
+    # ── Path to upset ─────────────────────────────────────────────────────
+    if dog_deficit >= 3:
+        # How much suppression does the underdog need?
+        # Dog needs: fav_new_score ≤ dog_pts → fav efficiency needs to drop by X%
+        suppress_pct = round((dog_deficit / fav_pts) * 100)
+        # OR: dog needs to score X% more than projected
+        boost_pct = round((dog_deficit / dog_pts) * 100)
+        bullets.append(
+            f"🔑 **Path to upset for {dog_name}**: They need to either hold {fav_name} to ≤ "
+            f"**{dog_pts} pts** (a {suppress_pct}% efficiency reduction vs projection), "
+            f"or score ≥ **{fav_pts} pts** themselves (a {boost_pct}% offensive boost). "
+            "In a single game, both are possible — that's the whole point."
+        )
+    else:
+        bullets.append(
+            f"🎲 **Dead heat**: Expected margin is just {dog_deficit} pts — this game is genuinely decided by "
+            "execution, not talent gap. Any advantage (hot shooter, key foul call, transition bucket) wins it."
+        )
+
+    # ── Three-point variance ───────────────────────────────────────────────
+    for tname, pg in [(name_a, pg_a), (name_b, pg_b)]:
+        three_pa = float(pg.get("3PaPG", 0) or 0) if pg else 0
+        three_pct = float(pg.get("3P%", 35) or 35) / 100 if pg else 0.35
+        if three_pa >= 18:
+            # ±8 percentage point swing in one game is normal (1 standard deviation ≈ 7-8%)
+            swing_pts = round(0.08 * three_pa * 3, 1)
+            hot_pts = round(three_pct * three_pa * 3 + swing_pts, 1)
+            cold_pts = round(max(0, three_pct * three_pa * 3 - swing_pts), 1)
+            tier = "elite" if three_pa >= 25 else "heavy"
+            bullets.append(
+                f"🌐 **Three-point variance — {tname}**: They attempt **{three_pa:.0f} threes/game** ({tier} volume). "
+                f"A normal cold shooting night ({round((three_pct - 0.08)*100)}% from three) costs them ~{swing_pts:.0f} pts. "
+                f"A hot night ({round((three_pct + 0.08)*100)}%) adds ~{swing_pts:.0f} pts. "
+                "One-game swings like this are decisive."
+            )
+            break  # only show the more three-heavy team to keep it concise
+
+    # ── Market vs Model ───────────────────────────────────────────────────
+    line_a, line_b = _odds_for_matchup(name_a, name_b, odds_lu)
+    if line_a and line_a.get("impl_prob") is not None:
+        book_prob_a = float(line_a["impl_prob"])
+        book_prob_b = 1.0 - book_prob_a
+        model_pct_a = round(wp_a * 100)
+        book_pct_a  = round(book_prob_a * 100)
+        gap = model_pct_a - book_pct_a
+        ml_str = f"{int(line_a['ml']):+d}" if line_a.get("ml") else "N/A"
+        spread_str = (
+            f"spread: {line_a['spread']:+.1f}" if line_a.get("spread") is not None else "no spread available"
+        )
+        if abs(gap) >= 5:
+            if gap > 0:
+                # CarmPom likes name_a more than market
+                bullets.append(
+                    f"📊 **Model vs Market edge — {name_a}**: CarmPom gives them **{model_pct_a}%** vs Vegas **{book_pct_a}%** "
+                    f"(ML {ml_str}, {spread_str}). That's a {abs(gap)}-pt gap — CarmPom sees more here than the market does."
+                )
+            else:
+                # Market likes name_a more than CarmPom
+                bullets.append(
+                    f"📊 **Model vs Market divergence — {name_b}**: CarmPom gives the underdog **{100 - model_pct_a}%** "
+                    f"vs Vegas **{100 - book_pct_a}%** (ML {ml_str}, {spread_str}). "
+                    f"The market is giving {name_b} {abs(gap)} more percentage points than CarmPom — "
+                    "something the oddsmakers know that pure efficiency doesn't capture."
+                )
+        else:
+            bullets.append(
+                f"📊 **Market alignment** (ML {ml_str}, {spread_str}): CarmPom ({model_pct_a}%) and Vegas ({book_pct_a}%) "
+                "are within 5 percentage points of each other — both models see roughly the same game."
+            )
+    else:
+        bullets.append(
+            "📊 **Betting lines**: Run `uv run python pipeline/fetch_odds.py` to load live tournament lines, "
+            "then restart the app — market vs model comparison will appear here automatically."
+        )
+
+    # ── Possession randomness ─────────────────────────────────────────────
+    bullets.append(
+        f"🎯 **The one-game truth**: March Madness upsets happen because single games are decided by ~{int(avg_tempo)} possessions. "
+        "That means 5–8 genuinely 50/50 moments (tip-offs, charge/block calls, scramble rebounds, late-clock shots) "
+        "can completely reverse a 10-point efficiency gap. The stats set the stage — randomness writes the ending."
+    )
+
+    return bullets
 # ---------------------------------------------------------------------------
 
 _BP_MU_PAIRS   = [(1, 16), (8, 9), (5, 12), (4, 13), (6, 11), (3, 14), (7, 10), (2, 15)]
@@ -1823,6 +2027,15 @@ with bracket_tab:
     _n_teams = len(_brk_full_r)
     _r_lookup = _brk_full_r.set_index("Team").to_dict("index")
 
+    # Per-game stats joined to team names for variance analysis
+    _pg_df = load_per_game_stats(2026)
+    _pg_named = _brk_full_r[["team_id", "Team"]].merge(_pg_df, on="team_id", how="left")
+    _pg_lu: dict = _pg_named.set_index("Team").to_dict("index")
+
+    # Odds + injury caches (populated by pipeline scripts; {} if not yet fetched)
+    _odds_lu: dict = _load_odds_data()
+    _inj_lu: dict = _load_injuries_data()
+
     # ── Matchup card HTML ─────────────────────────────────────────────────
     def _card_html(ta: pd.Series, tb: pd.Series, wp_a: float) -> str:
         """Return HTML card for a single first-round matchup."""
@@ -1839,7 +2052,7 @@ with bracket_tab:
         style_b = "font-weight:700" if not fav_a else "color:#555"
         n_a = ta["Team"]
         n_b = tb["Team"]
-        return (
+        _base = (
             f"<div style='border:1px solid #dde3eb;border-radius:10px;padding:12px 14px;"
             f"margin-bottom:10px;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,0.07)'>"
             # Team A row
@@ -1864,8 +2077,30 @@ with bracket_tab:
             f"<span><b style='color:#333'>{wp_pct_a}%</b> {n_a.split()[0]} &nbsp;"
             f"<b style='color:#333'>{wp_pct_b}%</b> {n_b.split()[0]}</span>"
             f"</div>"   # close footer div
-            f"</div>"   # close outer wrapper div
         )
+        # ── Optional alert badges ─────────────────────────────────────────
+        # 🚑 if either team has injury notes cached
+        _has_inj = bool(_inj_lu.get(n_a) or _inj_lu.get(n_b))
+        # 📊 if CarmPom vs market gap > 8 percentage points
+        _has_edge = False
+        _line_a, _ = _odds_for_matchup(n_a, n_b, _odds_lu)
+        if _line_a and _line_a.get("impl_prob") is not None:
+            _gap = abs(wp_a - float(_line_a["impl_prob"]))
+            _has_edge = _gap > 0.08
+        if _has_inj or _has_edge:
+            _badges = []
+            if _has_inj:
+                _badges.append("<span style='background:#fff3e0;color:#e65100;border:1px solid #ffb300;"
+                               "border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600'>🚑 Injury Alert</span>")
+            if _has_edge:
+                _badges.append("<span style='background:#e8f5e9;color:#1b5e20;border:1px solid #4caf50;"
+                               "border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600'>📊 Model Edge</span>")
+            return (
+                _base
+                + f"<div style='margin-top:6px;display:flex;gap:4px;flex-wrap:wrap'>{''.join(_badges)}</div>"
+                + "</div>"   # close outer wrapper
+            )
+        return _base + "</div>"   # close outer wrapper div
 
     # ── Matchup detail panel ──────────────────────────────────────────────
     def _detail_panel(ta: pd.Series, tb: pd.Series, wp_a: float, n: int) -> None:
@@ -2047,7 +2282,134 @@ with bracket_tab:
             for bullet in generate_matchup_analysis(_ta_full, _tb_full, wp_a, n):
                 st.markdown(f"- {bullet}")
 
-    # ── Header row ────────────────────────────────────────────────────────
+        # ── Injury Intel ───────────────────────────────────────────────────
+        _notes_a = _inj_lu.get(name_a, [])
+        _notes_b = _inj_lu.get(name_b, [])
+        if _notes_a or _notes_b:
+            st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
+            with st.expander("🚑 Injury Intel", expanded=True):
+                _STATUS_COLORS = {
+                    "Out":         ("#c62828", "#ffebee"),
+                    "Doubtful":    ("#e65100", "#fff3e0"),
+                    "Questionable":("#f57f17", "#fffde7"),
+                    "Monitor":     ("#616161", "#f5f5f5"),
+                }
+                for _tname, _notes in [(name_a, _notes_a), (name_b, _notes_b)]:
+                    if not _notes:
+                        continue
+                    st.markdown(f"**{_tname}**")
+                    for _note in _notes[:4]:  # cap at 4 per team
+                        _status = _note.get("status", "Monitor")
+                        _fc, _bg = _STATUS_COLORS.get(_status, ("#616161", "#f5f5f5"))
+                        _headline = _note.get("headline", "")
+                        _desc     = _note.get("description", "")
+                        _pub      = _note.get("published", "")[:10] if _note.get("published") else ""
+                        st.markdown(
+                            f"<div style='background:{_bg};border-left:3px solid {_fc};"
+                            f"border-radius:4px;padding:7px 10px;margin:4px 0;font-size:13px'>"
+                            f"<span style='color:{_fc};font-weight:700;font-size:11px;"
+                            f"text-transform:uppercase;letter-spacing:0.5px'>{_status}</span>"
+                            f"{'&nbsp;·&nbsp;<span style=\"color:#777;font-size:11px\">' + _pub + '</span>' if _pub else ''}"
+                            f"<div style='margin-top:3px;font-weight:600'>{_headline}</div>"
+                            f"{'<div style=\"color:#555;margin-top:2px\">' + _desc[:180] + ('…' if len(_desc) > 180 else '') + '</div>' if _desc else ''}"
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
+                st.caption("Source: ESPN team news. Refresh via `uv run python pipeline/fetch_injuries.py`.")
+        else:
+            with st.expander("🚑 Injury Intel", expanded=False):
+                st.info(
+                    "No injury data in cache. Run `uv run python pipeline/fetch_injuries.py` "
+                    "in a terminal to scrape ESPN news for tournament teams.",
+                    icon="ℹ️",
+                )
+
+        # ── Market vs Model ────────────────────────────────────────────────
+        _line_a, _line_b = _odds_for_matchup(name_a, name_b, _odds_lu)
+        st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
+        with st.expander("📊 Market vs Model", expanded=bool(_line_a)):
+            if _line_a and _line_a.get("impl_prob") is not None:
+                _book_prob_a = float(_line_a["impl_prob"])
+                _book_pct_a  = round(_book_prob_a * 100)
+                _book_pct_b  = 100 - _book_pct_a
+                _model_pct_a = round(wp_a * 100)
+                _model_pct_b = 100 - _model_pct_a
+                _gap = _model_pct_a - _book_pct_a   # +ve = CarmPom likes A more than market
+                _ml_str     = f"{int(_line_a['ml']):+d}" if _line_a.get("ml") else "N/A"
+                _spread_str = (f"{_line_a['spread']:+.1f}" if _line_a.get("spread") is not None else "N/A")
+                _books_str  = f"{_line_a.get('book_count', 1)} bookmakers" if _line_a.get("book_count", 1) > 1 else "1 bookmaker"
+
+                _col_m, _col_b = st.columns(2)
+                with _col_m:
+                    st.metric(f"CarmPom — {name_a}", f"{_model_pct_a}%")
+                with _col_b:
+                    st.metric(f"Vegas ({_books_str}) — {name_a}", f"{_book_pct_a}%",
+                              delta=f"{_gap:+d}pp vs model", delta_color="off")
+
+                _col_m2, _col_b2 = st.columns(2)
+                with _col_m2:
+                    st.metric(f"CarmPom — {name_b}", f"{_model_pct_b}%")
+                with _col_b2:
+                    st.metric(f"Vegas — {name_b}", f"{_book_pct_b}%",
+                              delta=f"{-_gap:+d}pp vs model", delta_color="off")
+
+                st.markdown(
+                    f"<div style='background:#f8f9fa;border-radius:6px;padding:8px 12px;"
+                    f"font-size:13px;margin-top:8px'>"
+                    f"<b>ML:</b> {name_a} {_ml_str} &nbsp;&nbsp; <b>Spread:</b> {name_a} {_spread_str}"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+                if abs(_gap) >= 5:
+                    _value_team  = name_a if _gap > 0 else name_b
+                    _value_pct   = abs(_gap)
+                    st.markdown(
+                        f"<div style='background:#e8f5e9;border-left:3px solid #4caf50;"
+                        f"border-radius:4px;padding:8px 12px;margin-top:8px;font-size:13px'>"
+                        f"⚡ <b>CarmPom sees value on {_value_team}</b>: model gives them "
+                        f"{_value_pct} percentage points more than the market."
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.caption("CarmPom and Vegas agree within 5 percentage points — both models see the same game.")
+                _fetched_at = ""
+                try:
+                    import json as _j
+                    _meta = _j.loads((ROOT / "data" / "odds_cache.json").read_text())
+                    _fetched_at = _meta.get("fetched_at", "")[:16].replace("T", " ")
+                except Exception:
+                    pass
+                if _fetched_at:
+                    st.caption(f"Odds last fetched: {_fetched_at} UTC  ·  Refresh: `uv run python pipeline/fetch_odds.py`")
+            else:
+                st.info(
+                    "No odds data in cache. Add your free Odds API key to `.streamlit/secrets.toml` "
+                    "and run `uv run python pipeline/fetch_odds.py` to pull live tournament lines.",
+                    icon="ℹ️",
+                )
+
+        # ── Single-Game Reality Check ──────────────────────────────────────
+        st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
+        with st.expander("🎲 Single-Game Reality Check", expanded=True):
+            st.markdown(
+                "<div style='background:#1e2d40;color:white;border-radius:6px;padding:8px 14px;"
+                "font-size:13px;margin-bottom:10px'>"
+                "The win probability above averages thousands of simulations. "
+                "This section explains what can actually flip <b>one game</b> — "
+                "because March is decided by individual possessions, not projections."
+                "</div>",
+                unsafe_allow_html=True,
+            )
+            _pg_a_data = _pg_lu.get(name_a, {})
+            _pg_b_data = _pg_lu.get(name_b, {})
+            _sg_bullets = _generate_single_game_bullets(
+                _ta_full, _tb_full, _pg_a_data, _pg_b_data, wp_a, _odds_lu, n
+            )
+            for _b in _sg_bullets:
+                st.markdown(f"- {_b}")
+
+
     _hdr_l, _hdr_r = st.columns([3, 2])
     with _hdr_l:
         st.subheader("🏆 2026 NCAA Tournament")
