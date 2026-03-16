@@ -264,8 +264,10 @@ def load_per_game_stats(season: int) -> pd.DataFrame:
         "fg3m", "fg3a", "ftm", "fta", "oreb", "dreb", "ast", "tov",
     ])
 
-    # Self-join on game_id to get the opponent's pts for each game.
-    opp = bs[["game_id", "team_id", "pts"]].rename(columns={"team_id": "opp_id", "pts": "opp_pts"})
+    # Self-join on game_id to get the opponent's pts and 3PT stats for each game.
+    opp = bs[["game_id", "team_id", "pts", "fg3a", "fg3m"]].rename(
+        columns={"team_id": "opp_id", "pts": "opp_pts", "fg3a": "opp_fg3a", "fg3m": "opp_fg3m"}
+    )
     bs = bs.merge(opp, on="game_id", how="left")
     bs = bs[bs["team_id"] != bs["opp_id"]]  # drop the self-row from the join
 
@@ -284,6 +286,8 @@ def load_per_game_stats(season: int) -> pd.DataFrame:
         dreb=("dreb", "sum"),
         ast=("ast", "sum"),
         tov=("tov", "sum"),
+        opp_fg3a=("opp_fg3a", "sum"),
+        opp_fg3m=("opp_fg3m", "sum"),
     ).reset_index()
 
     g = agg["games"]
@@ -300,6 +304,9 @@ def load_per_game_stats(season: int) -> pd.DataFrame:
     s["3PmPG"]  = (agg["fg3m"] / g).round(1)
     s["FT%"]    = (agg["ftm"] / agg["fta"] * 100).round(1)
     s["FTmPG"]  = (agg["ftm"] / g).round(1)
+    s["Opp3PaPG"] = (agg["opp_fg3a"] / g).round(1)
+    # Guard against divide-by-zero if opp never attempted a 3 (shouldn't happen)
+    s["Opp3P%"]   = (agg["opp_fg3m"] / agg["opp_fg3a"] * 100).where(agg["opp_fg3a"] > 0, other=0.0).round(1)
 
     # National rank for each stat (rank 1 = best); lower is better for OppPPG and TOPG.
     # Filter to rated D1 teams only before ranking so max rank = number of rated teams.
@@ -314,6 +321,8 @@ def load_per_game_stats(season: int) -> pd.DataFrame:
         "PPG": False, "OppPPG": True, "RebPG": False, "AstPG": False,
         "OrebPG": False, "TOPG": True, "FG%": False, "3P%": False,
         "3PaPG": False, "3PmPG": False, "FT%": False, "FTmPG": False,
+        # 3PT defense: lower attempts/% allowed = better → ascending rank
+        "Opp3PaPG": True, "Opp3P%": True,
     }
     for col, asc in stat_rank_cfg.items():
         s[f"{col}_nr"] = s[col].rank(ascending=asc, method="min").astype(int)
@@ -1225,8 +1234,8 @@ def _bp_autofill(
 # Tabs
 # ---------------------------------------------------------------------------
 
-rankings_tab, team_tab, bracket_tab, about_tab = st.tabs(
-    ["📊 Team Rankings", "🏀 Team Profile", "🏆 Bracket", "ℹ️ About"]
+rankings_tab, team_tab, scatter_tab, bracket_tab, about_tab = st.tabs(
+    ["📊 Team Rankings", "🏀 Team Profile", "📈 Scatter Plots", "🏆 Bracket", "ℹ️ About"]
 )
 
 # ---------------------------------------------------------------------------
@@ -2087,18 +2096,20 @@ with team_tab:
         st.divider()
         st.markdown("#### Per-Game Stats")
         _STAT_DISPLAY = [
-            ("PPG",    "Points per game",         False),
-            ("OppPPG", "Opp. pts per game",       True),
-            ("FG%",    "Field goal %",            False),
-            ("3P%",    "Three-point %",           False),
-            ("FT%",    "Free throw %",            False),
-            ("RebPG",  "Rebounds per game",       False),
-            ("OrebPG", "Off. rebounds per game",  False),
-            ("AstPG",  "Assists per game",        False),
-            ("TOPG",   "Turnovers per game",      True),
-            ("3PaPG",  "3PA per game",            False),
-            ("3PmPG",  "3PM per game",            False),
-            ("FTmPG",  "FTM per game",            False),
+            ("PPG",      "Points per game",             False),
+            ("OppPPG",   "Opp. pts per game",           True),
+            ("FG%",      "Field goal %",                False),
+            ("3P%",      "Three-point %",               False),
+            ("FT%",      "Free throw %",                False),
+            ("RebPG",    "Rebounds per game",           False),
+            ("OrebPG",   "Off. rebounds per game",      False),
+            ("AstPG",    "Assists per game",            False),
+            ("TOPG",     "Turnovers per game",          True),
+            ("3PaPG",    "3PA per game",                False),
+            ("3PmPG",    "3PM per game",                False),
+            ("FTmPG",    "FTM per game",                False),
+            ("Opp3PaPG", "Opp 3PT attempts/game",       True),
+            ("Opp3P%",   "Opp three-point %",           True),
         ]
         stat_rows = []
         for col, label, _ in _STAT_DISPLAY:
@@ -2198,6 +2209,180 @@ with team_tab:
                 st.caption("No completed game data available.")
         else:
             st.caption("No game data available.")
+
+# ---------------------------------------------------------------------------
+# Scatter Plots tab
+# ---------------------------------------------------------------------------
+
+with scatter_tab:
+    st.markdown("### 📈 Tournament Team Scatter Plots")
+    st.markdown(
+        "Visual breakdowns across key dimensions — each dot is a tournament team. "
+        "Seed colors: "
+        "<span style='color:#c8a400'>■ 1–4</span> &nbsp;"
+        "<span style='color:#e07b3a'>■ 5–8</span> &nbsp;"
+        "<span style='color:#4a90d9'>■ 9–12</span> &nbsp;"
+        "<span style='color:#888'>■ 13–16</span>",
+        unsafe_allow_html=True,
+    )
+
+    _sc_ratings = load_rankings(2026)
+    _sc_pg = load_per_game_stats(2026)
+    try:
+        _sc_brk = pd.read_csv("data/bracket_2026.csv")
+        _sc_brk["team"] = _sc_brk["team"].str.strip()
+        _sc_tourn_names: set[str] = set(_sc_brk["team"].tolist())
+    except Exception:
+        _sc_brk = pd.DataFrame(columns=["team", "seed"])
+        _sc_tourn_names = set()
+
+    _sc_r = _sc_ratings[_sc_ratings["Team"].isin(_sc_tourn_names)].copy()
+    _sc_merged = _sc_r.merge(_sc_pg, on="team_id", how="left")
+    _sc_merged = _sc_merged.merge(
+        _sc_brk[["team", "seed"]].rename(columns={"team": "Team"}),
+        on="Team", how="left",
+    )
+    _sc_merged["seed"] = pd.to_numeric(_sc_merged["seed"], errors="coerce")
+
+    def _seed_color(seed: float) -> str:
+        """Map tournament seed to a tier color."""
+        if pd.isna(seed): return "#888"
+        if seed <= 4:  return "#c8a400"
+        if seed <= 8:  return "#e07b3a"
+        if seed <= 12: return "#4a90d9"
+        return "#888"
+
+    _sc_merged["_sc_color"] = _sc_merged["seed"].apply(_seed_color)
+
+    def _scatter_chart(
+        df: pd.DataFrame,
+        x_col: str,
+        y_col: str,
+        x_label: str,
+        y_label: str,
+        title: str,
+        invert_x: bool = False,
+        invert_y: bool = False,
+        x_ref: float | None = None,
+        y_ref: float | None = None,
+    ):
+        """Build a labeled scatter plot for tournament teams and return the figure."""
+        df = df.dropna(subset=[x_col, y_col]).copy()
+        fig, ax = plt.subplots(figsize=(6.8, 5.2))
+        ax.set_facecolor("#f9f9f9")
+        fig.patch.set_facecolor("#ffffff")
+
+        # Draw reference lines before points so dots sit on top
+        if x_ref is not None:
+            ax.axvline(x_ref, color="#ccc", linewidth=0.9, zorder=1, linestyle="--")
+        if y_ref is not None:
+            ax.axhline(y_ref, color="#ccc", linewidth=0.9, zorder=1, linestyle="--")
+
+        # Scatter points
+        ax.scatter(
+            df[x_col], df[y_col],
+            c=df["_sc_color"], s=50, zorder=3, alpha=0.92,
+            edgecolors="white", linewidths=0.6,
+        )
+
+        # Team name labels — short last word to avoid clutter
+        for _, row in df.iterrows():
+            name = str(row["Team"])
+            short = name if len(name) <= 9 else name.split()[-1] if " " in name else name[:9]
+            ax.annotate(
+                short,
+                (row[x_col], row[y_col]),
+                fontsize=5.5, ha="left", va="bottom",
+                xytext=(2, 2), textcoords="offset points",
+                color="#333", zorder=4,
+            )
+
+        if invert_x: ax.invert_xaxis()
+        if invert_y: ax.invert_yaxis()
+
+        ax.set_xlabel(x_label, fontsize=9, color="#444")
+        ax.set_ylabel(y_label, fontsize=9, color="#444")
+        ax.set_title(title, fontsize=11, fontweight="bold", pad=10, color="#111")
+        ax.grid(True, linestyle="--", linewidth=0.35, color="#ddd", zorder=0)
+        ax.spines[["top", "right"]].set_visible(False)
+        plt.tight_layout()
+        return fig
+
+    _sc_col1, _sc_col2 = st.columns(2, gap="large")
+
+    with _sc_col1:
+        # Chart 1: Efficiency Landscape (AdjO vs AdjD)
+        if not _sc_merged.empty and "AdjO" in _sc_merged.columns:
+            _fig_eff = _scatter_chart(
+                _sc_merged, "AdjO", "AdjD",
+                "Adjusted Offense (pts/100 possessions)",
+                "Adjusted Defense (pts/100 possessions)",
+                "⚡ Efficiency Landscape",
+                invert_y=True,  # lower AdjD = fewer pts allowed = better → up
+                x_ref=_sc_merged["AdjO"].median(),
+                y_ref=_sc_merged["AdjD"].median(),
+            )
+            st.pyplot(_fig_eff, use_container_width=True)
+            plt.close(_fig_eff)
+            st.caption("Better offense → right · Better defense → up · Top-right quadrant = elite two-way teams")
+        else:
+            st.caption("Efficiency data unavailable.")
+
+    with _sc_col2:
+        # Chart 2: Ball Security vs FT Drawing
+        if not _sc_merged.empty and "TOPG" in _sc_merged.columns and "FTmPG" in _sc_merged.columns:
+            _fig_ball = _scatter_chart(
+                _sc_merged, "TOPG", "FTmPG",
+                "Turnovers per Game (fewer = better →)",
+                "Free Throws Made per Game",
+                "🔒 Ball Security vs FT Drawing",
+                invert_x=True,  # fewer TOs = better → plot rightward
+                x_ref=_sc_merged["TOPG"].median(),
+                y_ref=_sc_merged["FTmPG"].median(),
+            )
+            st.pyplot(_fig_ball, use_container_width=True)
+            plt.close(_fig_ball)
+            st.caption("Fewer turnovers → right · More FTs drawn → up · Top-right = disciplined and gets to the line")
+        else:
+            st.caption("Per-game data unavailable.")
+
+    _sc_col3, _sc_col4 = st.columns(2, gap="large")
+
+    with _sc_col3:
+        # Chart 3: 3PT Defense landscape
+        if not _sc_merged.empty and "Opp3PaPG" in _sc_merged.columns and "Opp3P%" in _sc_merged.columns:
+            _fig_3d = _scatter_chart(
+                _sc_merged, "Opp3PaPG", "Opp3P%",
+                "Opp 3PT Attempts Allowed per Game",
+                "Opp 3PT % Allowed",
+                "🛡️ 3PT Defense Landscape",
+                invert_x=True,  # fewer attempts allowed = better
+                invert_y=True,  # lower % allowed = better
+                x_ref=_sc_merged["Opp3PaPG"].median(),
+                y_ref=_sc_merged["Opp3P%"].median(),
+            )
+            st.pyplot(_fig_3d, use_container_width=True)
+            plt.close(_fig_3d)
+            st.caption("Limits 3PT volume → right · Limits 3PT% → up · Top-right = elite 3PT defense")
+        else:
+            st.caption("3PT defense data unavailable.")
+
+    with _sc_col4:
+        # Chart 4: 3PT Offense — volume vs accuracy
+        if not _sc_merged.empty and "3PaPG" in _sc_merged.columns and "3P%" in _sc_merged.columns:
+            _fig_3o = _scatter_chart(
+                _sc_merged, "3PaPG", "3P%",
+                "3PT Attempts per Game",
+                "3PT % Made",
+                "🎯 3PT Offense — Volume vs Accuracy",
+                x_ref=_sc_merged["3PaPG"].median(),
+                y_ref=_sc_merged["3P%"].median(),
+            )
+            st.pyplot(_fig_3o, use_container_width=True)
+            plt.close(_fig_3o)
+            st.caption("Heavy volume → right · High accuracy → up · Top-right = high-volume, efficient 3PT teams")
+        else:
+            st.caption("3PT offense data unavailable.")
 
 # ---------------------------------------------------------------------------
 # Bracket Simulation tab
