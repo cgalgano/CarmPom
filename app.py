@@ -2364,32 +2364,33 @@ with bracket_tab:
                         unsafe_allow_html=True,
                     )
 
-                    # ── Radar chart ──────────────────────────────────────────
+                    # ── Radar chart — exact same logic as Team Profile tab ────
+                    _ts_row = _pg_lu.get(tname)
+                    _ts_s   = pd.Series(_ts_row) if _ts_row else None
+                    _n_pg   = max(n - 1, 1)
+
+                    if _ts_s is not None:
+                        _adjt_pct  = round((1 - (float(_tr_s["AdjT_nr"]) - 1) / _n_pg) * 100, 1)
+                        _3pa_pct   = round((1 - (float(_ts_s["3PaPG_nr"]) - 1) / _n_pg) * 100, 1)
+                        _3pct_pct  = round((1 - (float(_ts_s["3P%_nr"])   - 1) / _n_pg) * 100, 1)
+                        _oreb_pct  = round((1 - (float(_ts_s["OrebPG_nr"])- 1) / _n_pg) * 100, 1)
+                        _to_pct    = round((1 - (float(_ts_s["TOPG_nr"])  - 1) / _n_pg) * 100, 1)
+                        _ftm_pct   = round((1 - (float(_ts_s["FTmPG_nr"])- 1) / _n_pg) * 100, 1)
+                        _ast_pct   = round((1 - (float(_ts_s["AstPG_nr"])- 1) / _n_pg) * 100, 1)
+                        _dreb_pct  = round((1 - (float(_ts_s["RebPG_nr"])- 1) / _n_pg) * 100, 1)
+                    else:
+                        _adjt_pct = _3pa_pct = _3pct_pct = _oreb_pct = _to_pct = _ftm_pct = _ast_pct = _dreb_pct = 50
+
                     _rlabels = [
                         "Pace", "3PT Volume", "3PT Accuracy", "Off. Rebounding",
                         "Ball Security", "FT Drawing", "Assists", "Def. Rebounding",
                     ]
-                    _rn = max(n - 1, 1)
-                    # Convert national rank → percentile (rank 1 = 100th pct)
-                    def _rp(rank_val: object) -> float:
-                        try:
-                            return round((1 - (float(rank_val) - 1) / _rn) * 100, 1)
-                        except (TypeError, ValueError):
-                            return 50.0
+                    _rv      = [_adjt_pct, _3pa_pct, _3pct_pct, _oreb_pct,
+                                _to_pct,  _ftm_pct,  _ast_pct,  _dreb_pct]
+                    _N_sp    = len(_rlabels)
+                    _m_ang   = [i / _N_sp * 2 * 3.14159 for i in range(_N_sp)] + [0]
+                    _m_vals  = _rv + _rv[:1]
 
-                    _rv = [
-                        _rp(_tr_s.get("AdjT_nr",   n)),
-                        _rp(_tr_s.get("3PaPG_nr",  n)),
-                        _rp(_tr_s.get("3P%_nr",    n)),
-                        _rp(_tr_s.get("OrebPG_nr", n)),
-                        _rp(_tr_s.get("TOPG_nr",   n)),   # rank 1 = fewest TOs → high = better
-                        _rp(_tr_s.get("FTmPG_nr",  n)),
-                        _rp(_tr_s.get("AstPG_nr",  n)),
-                        _rp(_tr_s.get("RebPG_nr",  n)),   # total reb as proxy for def reb
-                    ]
-                    _N_sp   = len(_rlabels)
-                    _m_ang  = [i / _N_sp * 2 * 3.14159 for i in range(_N_sp)] + [0]
-                    _m_vals = _rv + _rv[:1]
                     _fig_m, _ax_m = plt.subplots(figsize=(3.8, 3.8), subplot_kw=dict(polar=True))
                     _ax_m.set_theta_offset(3.14159 / 2)
                     _ax_m.set_theta_direction(-1)
@@ -2406,7 +2407,7 @@ with bracket_tab:
                     plt.tight_layout()
                     st.pyplot(_fig_m, use_container_width=True)
                     plt.close(_fig_m)
-                    st.caption("Spokes = national percentile. Ball Security = inverted TO rate.")
+                    st.caption("Each spoke = national percentile for that playstyle dimension. Ball Security = inverted turnover rate.")
 
         # ── Matchup Narrative ──────────────────────────────────────────────
         st.markdown("<div style='margin-top:18px'></div>", unsafe_allow_html=True)
