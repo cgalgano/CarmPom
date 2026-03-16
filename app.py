@@ -2570,9 +2570,133 @@ with bracket_tab:
             st.session_state[_brk_key] = simulate_bracket(bracket, n_sims=25_000)
     _sim = st.session_state[_brk_key]
 
+    # ── Path-adjusted championship probability ────────────────────────────
+    # For each team, trace the bracket path assuming the toughest opponent
+    # (highest AdjEM) advances at every round, then multiply win probs.
+    _SEED_ORDER_PATH = [1, 16, 8, 9, 5, 12, 4, 13, 6, 11, 3, 14, 7, 10, 2, 15]
+    _seed_pos_path = {s: i for i, s in enumerate(_SEED_ORDER_PATH)}
+
+    def _calc_path_champ(brkt_df: pd.DataFrame) -> dict[str, tuple[float, list[str]]]:
+        """Compute path-adjusted championship % for every team.
+
+        For each team, trace a 6-game gauntlet where the toughest possible
+        opponent (highest AdjEM from the eligible bracket slot) shows up at
+        every round.  The returned probability is the product of six
+        individual win-probabilities — the team's chance of cutting the nets
+        if they always draw the hardest road.
+
+        Returns {team_name: (path_pct, [opponent_name_per_round])}.
+        """
+        # ---- build per-region bracket arrays in seed-order position -------
+        # region → list of (bracket_pos, team_name, adjem)
+        region_data: dict[str, list[tuple[int, str, float]]] = {}
+        for _, r in brkt_df.iterrows():
+            reg = r["region"]
+            if reg not in region_data:
+                region_data[reg] = []
+            region_data[reg].append((
+                _seed_pos_path.get(int(r["seed"]), int(r["seed"])),
+                r["Team"],
+                float(r["AdjEM"]),
+            ))
+        for reg in region_data:
+            region_data[reg].sort(key=lambda x: x[0])  # bracket position order
+
+        def _strongest(teams: list[tuple[str, float]]) -> tuple[str, float]:
+            """Return (name, adjem) of the highest-AdjEM team in a group."""
+            return max(teams, key=lambda t: t[1])
+
+        # ---- within each region, compute each team's 4-round regional path -
+        # For every team we answer: "what is the toughest opponent at each
+        # round if the strongest team from the opposing bracket half always
+        # advances?"  The focal team always advances by assumption.
+        region_paths: dict[str, dict[str, tuple[float, list[str]]]] = {}  # reg → {name: (prob, [opps])}
+        # Also record each region's strongest team (for F4/Championship lookup)
+        region_best: dict[str, tuple[str, float]] = {}
+
+        for reg, teams in region_data.items():
+            ordered: list[tuple[str, float]] = [(t[1], t[2]) for t in teams]
+            n = len(ordered)  # should be 16
+
+            # Build a flat bracket tree so we can query "who is the toughest
+            # team in the bracket slot opposing team at position p in round r?"
+            # Round 0 (R64): pairs (0,1),(2,3),… ; Round 1 (R32): pairs of R64 winners, etc.
+            team_paths: dict[str, tuple[float, list[str]]] = {}
+
+            for idx, (t_name, t_em) in enumerate(ordered):
+                prob = 1.0
+                opps: list[str] = []
+                # Walk 4 rounds.  At each round the "group size" doubles.
+                group_size = 2
+                pos = idx  # current bracket position
+                for _rnd in range(4):
+                    # Determine the range of the opposing group
+                    group_start = (pos // group_size) * group_size
+                    half = group_size // 2
+                    if pos < group_start + half:
+                        opp_start = group_start + half
+                    else:
+                        opp_start = group_start
+                    opp_end = opp_start + half
+                    # Collect all teams in the opposing half (by original index)
+                    opp_pool = [ordered[j] for j in range(opp_start, min(opp_end, n))]
+                    if not opp_pool:
+                        break
+                    opp_name, opp_em = _strongest(opp_pool)
+                    wp = _win_prob(t_em, opp_em)
+                    prob *= wp
+                    opps.append(opp_name)
+                    group_size *= 2
+
+                team_paths[t_name] = (prob, opps)
+
+            region_paths[reg] = team_paths
+            # Strongest team in the region (for F4 matching)
+            region_best[reg] = _strongest(ordered)
+
+        # ---- Final Four / Championship legs ----------------------------------
+        _reg_order = ["East", "West", "South", "Midwest"]
+        f4_pairs = [(_reg_order[0], _reg_order[1]), (_reg_order[2], _reg_order[3])]
+
+        full_results: dict[str, tuple[float, list[str]]] = {}
+
+        for reg in _reg_order:
+            # Identify F4 opponent region and Championship opponent pair
+            other_reg = ""
+            champ_pair = ("", "")
+            for pair in f4_pairs:
+                if reg in pair:
+                    other_reg = pair[0] if pair[1] == reg else pair[1]
+                else:
+                    champ_pair = pair
+            f4_opp_name, f4_opp_em = region_best[other_reg]
+            # Championship: strongest of the two remaining region bests
+            rw_a, rw_b = region_best[champ_pair[0]], region_best[champ_pair[1]]
+            champ_opp_name, champ_opp_em = _strongest([rw_a, rw_b])
+
+            for t_name, (reg_prob, reg_opps) in region_paths[reg].items():
+                t_em = next(
+                    em for _, r in brkt_df.iterrows()
+                    if r["Team"] == t_name
+                    for em in [float(r["AdjEM"])]
+                )
+                f4_wp = _win_prob(t_em, f4_opp_em)
+                ch_wp = _win_prob(t_em, champ_opp_em)
+                title_prob = reg_prob * f4_wp * ch_wp * 100  # percentage
+                all_opps = reg_opps + [f4_opp_name, champ_opp_name]
+                full_results[t_name] = (title_prob, all_opps)
+
+        return full_results
+
+    _path_results = _calc_path_champ(bracket)
+
     # ── Title Odds — top 16 teams' championship probability ───────────────
     st.markdown("### 🏆 Title Odds")
-    st.caption("Championship probability from 25,000 Monte Carlo simulations. Based on CarmPom's adjusted efficiency ratings.")
+    st.caption(
+        "**Sim %** = Monte Carlo championship probability (25,000 random simulations). "
+        "**Path %** = championship probability assuming the toughest opponent advances at every round — "
+        "the hardest road to cut the nets."
+    )
 
     _top16 = _sim.head(16).copy()
     # Grab logo URLs from the rankings table
@@ -2595,7 +2719,12 @@ with bracket_tab:
             _f4_pct = float(_trow["F4%"])
             _t_em = float(_trow["AdjEM"])
             _t_rk = int(_trow["CarmPomRk"])
+            _t_name = _trow["Team"]
+            _path_pct, _path_opps = _path_results.get(_t_name, (0.0, []))
             _champ_color = "#1e7d32" if _champ_pct >= 10 else ("#1565c0" if _champ_pct >= 4 else "#78909c")
+            # Show last 3 opponents (E8, F4, Championship) for compact display
+            _path_tail = _path_opps[-3:] if len(_path_opps) >= 3 else _path_opps
+            _path_str = " → ".join(_path_tail) if _path_tail else ""
             st.markdown(
                 f"<div style='border:1px solid #333;border-radius:8px;padding:8px 10px;"
                 f"margin-bottom:6px;font-family:system-ui,sans-serif'>"
@@ -2603,14 +2732,18 @@ with bracket_tab:
                 f"{_t_img}"
                 f"<span style='font-size:11px;font-weight:600'>"
                 f"<span style='color:#888;margin-right:3px'>({int(_trow['Seed'])})</span>"
-                f"{_trow['Team']}</span></div>"
+                f"{_t_name}</span></div>"
                 f"<div style='display:flex;justify-content:space-between;align-items:baseline'>"
                 f"<span style='font-size:12px;color:#aaa'>AdjEM <b style=\"color:inherit\">{_t_em:+.1f}</b>"
                 f" <span style='font-size:10px'>#{_t_rk}</span></span>"
                 f"<span style='font-size:18px;font-weight:800;color:{_champ_color}'>"
                 f"{_champ_pct:.1f}%</span></div>"
-                f"<div style='font-size:10px;color:#888;margin-top:2px'>Final Four: {_f4_pct:.1f}%</div>"
-                f"</div>",
+                f"<div style='display:flex;justify-content:space-between;align-items:baseline;margin-top:2px'>"
+                f"<span style='font-size:10px;color:#888'>Final Four: {_f4_pct:.1f}%</span>"
+                f"<span style='font-size:10px;color:#e65100;font-weight:600'>Path: {_path_pct:.1f}%</span></div>"
+                + (f"<div style='font-size:9px;color:#666;margin-top:3px;line-height:1.4'>"
+                   f"🗺️ {_path_str}</div>" if _path_str else "")
+                + f"</div>",
                 unsafe_allow_html=True,
             )
 
