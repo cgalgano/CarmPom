@@ -2364,6 +2364,50 @@ with bracket_tab:
                         unsafe_allow_html=True,
                     )
 
+                    # ── Radar chart ──────────────────────────────────────────
+                    _rlabels = [
+                        "Pace", "3PT Volume", "3PT Accuracy", "Off. Rebounding",
+                        "Ball Security", "FT Drawing", "Assists", "Def. Rebounding",
+                    ]
+                    _rn = max(n - 1, 1)
+                    # Convert national rank → percentile (rank 1 = 100th pct)
+                    def _rp(rank_val: object) -> float:
+                        try:
+                            return round((1 - (float(rank_val) - 1) / _rn) * 100, 1)
+                        except (TypeError, ValueError):
+                            return 50.0
+
+                    _rv = [
+                        _rp(_tr_s.get("AdjT_nr",   n)),
+                        _rp(_tr_s.get("3PaPG_nr",  n)),
+                        _rp(_tr_s.get("3P%_nr",    n)),
+                        _rp(_tr_s.get("OrebPG_nr", n)),
+                        _rp(_tr_s.get("TOPG_nr",   n)),   # rank 1 = fewest TOs → high = better
+                        _rp(_tr_s.get("FTmPG_nr",  n)),
+                        _rp(_tr_s.get("AstPG_nr",  n)),
+                        _rp(_tr_s.get("RebPG_nr",  n)),   # total reb as proxy for def reb
+                    ]
+                    _N_sp   = len(_rlabels)
+                    _m_ang  = [i / _N_sp * 2 * 3.14159 for i in range(_N_sp)] + [0]
+                    _m_vals = _rv + _rv[:1]
+                    _fig_m, _ax_m = plt.subplots(figsize=(3.8, 3.8), subplot_kw=dict(polar=True))
+                    _ax_m.set_theta_offset(3.14159 / 2)
+                    _ax_m.set_theta_direction(-1)
+                    _ax_m.set_xticks(_m_ang[:-1])
+                    _ax_m.set_xticklabels(_rlabels, size=6.5, color="#333")
+                    _ax_m.set_yticks([20, 40, 60, 80, 100])
+                    _ax_m.set_yticklabels(["20", "40", "60", "80", "100"], size=5.5, color="#aaa")
+                    _ax_m.set_ylim(0, 100)
+                    _ax_m.plot(_m_ang, _m_vals, color=side_color, linewidth=1.8)
+                    _ax_m.fill(_m_ang, _m_vals, color=side_color, alpha=0.2)
+                    _ax_m.set_title("Playstyle Profile", size=8, pad=12, color="#555", fontweight="bold")
+                    _ax_m.spines["polar"].set_visible(False)
+                    _ax_m.grid(color="#ccc", linestyle="--", linewidth=0.5)
+                    plt.tight_layout()
+                    st.pyplot(_fig_m, use_container_width=True)
+                    plt.close(_fig_m)
+                    st.caption("Spokes = national percentile. Ball Security = inverted TO rate.")
+
         # ── Matchup Narrative ──────────────────────────────────────────────
         st.markdown("<div style='margin-top:18px'></div>", unsafe_allow_html=True)
         st.markdown("##### ⚔️ How They Match Up")
