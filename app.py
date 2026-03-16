@@ -2346,16 +2346,19 @@ with scatter_tab:
 
         layers: list = []
 
-        # Quadrant reference lines at the median
+        # Quadrant reference lines at the median — use a real 1-row DataFrame so
+        # Altair actually renders the rule in a layered chart.
         if x_ref is not None:
             layers.append(
-                _alt.Chart().mark_rule(color="white", strokeWidth=1.5, opacity=0.55)
-                .encode(x=_alt.datum(x_ref))
+                _alt.Chart(pd.DataFrame({"v": [x_ref]}))
+                .mark_rule(color="white", strokeWidth=2, opacity=0.65, strokeDash=[6, 4])
+                .encode(x=_alt.X("v:Q", scale=x_scale))
             )
         if y_ref is not None:
             layers.append(
-                _alt.Chart().mark_rule(color="white", strokeWidth=1.5, opacity=0.55)
-                .encode(y=_alt.datum(y_ref))
+                _alt.Chart(pd.DataFrame({"v": [y_ref]}))
+                .mark_rule(color="white", strokeWidth=2, opacity=0.65, strokeDash=[6, 4])
+                .encode(y=_alt.Y("v:Q", scale=y_scale))
             )
 
         # Split: teams with a logo URL vs without
