@@ -2211,7 +2211,7 @@ with team_tab:
                     f"<div style='margin-bottom:10px'>"
                     f"<div style='display:flex;justify-content:space-between;margin-bottom:3px'>"
                     f"<span><b>{sr['Stat']}</b>: {sr['Value']}</span>"
-                    f"<span style='color:#666;font-size:12px'>{_nr_str} &nbsp; {pct}th pct</span>"
+                    f"<span style='color:inherit;font-size:12px'>{_nr_str} &nbsp; {pct}th pct</span>"
                     f"</div>"
                     f"<div style='background:#e8e8e8;border-radius:4px;height:7px;overflow:hidden'>"
                     f"<div style='width:{pct}%;height:100%;background:{color};border-radius:4px;transition:width .3s'></div>"
@@ -2551,9 +2551,9 @@ with bracket_tab:
         # Title
         st.markdown(
             f"<h3 style='text-align:center;margin:4px 0 2px;font-family:system-ui,sans-serif'>"
-            f"<span style='color:#1e2d40'>({int(ta['seed'])}) {name_a}</span>"
+            f"<span style='color:inherit'>({int(ta['seed'])}) {name_a}</span>"
             f"  <span style='color:#aaa;font-size:16px'>vs</span>  "
-            f"<span style='color:#1e2d40'>({int(tb['seed'])}) {name_b}</span></h3>",
+            f"<span style='color:inherit'>({int(tb['seed'])}) {name_b}</span></h3>",
             unsafe_allow_html=True,
         )
 
@@ -2567,7 +2567,7 @@ with bracket_tab:
             f"<div style='width:{wp_pct_b}%;background:#c62828;display:flex;align-items:center;"
             f"justify-content:center'><span style='color:white;font-size:12px;font-weight:700'>{wp_pct_b}%</span></div>"
             f"</div>"
-            f"<div style='font-size:12px;color:#555'>CarmPom gives "
+            f"<div style='font-size:12px;color:inherit'>CarmPom gives "
             f"<b>{fav}</b> a <b>{fav_pct}%</b> chance to win</div></div>",
             unsafe_allow_html=True,
         )
@@ -2699,7 +2699,7 @@ with bracket_tab:
                     # Per-team style prose (2-3 sentences)
                     _style_text = generate_style_profile(_tr_s, n)
                     st.markdown(
-                        f"<div style='font-size:13px;color:#444;line-height:1.55'>{_style_text}</div>",
+                        f"<div style='font-size:13px;color:inherit;line-height:1.55'>{_style_text}</div>",
                         unsafe_allow_html=True,
                     )
 
@@ -2757,8 +2757,8 @@ with bracket_tab:
         st.markdown("#### ⚔️ How They Match Up")
         _clash = generate_clash_narrative(_ta_full, _tb_full, wp_a, n)
         st.markdown(
-            f"<div style='background:#eef2f7;border-left:4px solid #1e2d40;border-radius:0 8px 8px 0;"
-            f"padding:14px 18px;font-size:14px;color:#1a1a2e;line-height:1.75;font-weight:400'>{_clash}</div>",
+            f"<div style='background:#1e2d4f;border-left:4px solid #4a9eff;border-radius:0 8px 8px 0;"
+            f"padding:14px 18px;font-size:14px;color:#e8eaf0;line-height:1.75;font-weight:400'>{_clash}</div>",
             unsafe_allow_html=True,
         )
 
@@ -3205,9 +3205,9 @@ with bracket_tab:
                     f"<div style='width:{wp_pct_a}%;background:{fav_bar_a}'></div>"
                     f"<div style='width:{wp_pct_b}%;background:{fav_bar_b}'></div></div>"
                     f"<div style='display:flex;justify-content:space-between;font-size:9px;"
-                    f"color:#999;padding:1px 2px 3px'>"
-                    f"<span><b style='color:#555'>{wp_pct_a}%</b></span>"
-                    f"<span><b style='color:#555'>{wp_pct_b}%</b></span></div>"
+                    f"color:inherit;padding:1px 2px 3px'>"
+                    f"<span><b style='color:inherit'>{wp_pct_a}%</b></span>"
+                    f"<span><b style='color:inherit'>{wp_pct_b}%</b></span></div>"
                     # Team B
                     f"<div style='border:{border_b};border-radius:7px;padding:6px 8px;"
                     f"background:{bg_b};opacity:{op_b};"
