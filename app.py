@@ -2706,13 +2706,13 @@ with bracket_tab:
     _MU_PAIRS = [(1, 16), (8, 9), (5, 12), (4, 13), (6, 11), (3, 14), (7, 10), (2, 15)]
     _champ_lu = _sim.set_index("Team")["Champ%"].to_dict()
 
-    _brk_east, _brk_west, _brk_south, _brk_mw, _brk_upset = st.tabs(
-        ["🗺️ East", "🗺️ West", "🗺️ South", "🗺️ Midwest", "⚡ Upset Watch"]
+    _brk_east, _brk_west, _brk_south, _brk_mw = st.tabs(
+        ["🗺️ East", "🗺️ West", "🗺️ South", "🗺️ Midwest"]
     )
 
     for _rtab, _region in [
         (_brk_east, "East"), (_brk_west, "West"),
-        (_brk_south, "South"), (_brk_mw, "Midwest")
+        (_brk_south, "South"), (_brk_mw, "Midwest"),
     ]:
         with _rtab:
             _reg = bracket[bracket["region"] == _region].copy()
@@ -2754,88 +2754,30 @@ with bracket_tab:
                     with st.container(border=True):
                         _detail_panel(_ta_sel, _tb_sel, _wp_sel, _n_teams)
 
-    # ── Upset Watch tab ─────────────────────────────────────────────────────────
-    with _brk_upset:
-        st.markdown("#### ⚡ Upset Watch — First Round")
-        st.caption(
-            "Ranked by CarmPom's upset score: how much the underdog outperforms their seed suggests. "
-            "March Madness is one-and-done — variance is high and the best team doesn't always win."
-        )
-
-        # Collect all 32 first-round matchups and score upset potential
-        _upset_rows: list[dict] = []
-        for _ur in ["East", "West", "South", "Midwest"]:
-            _ureg = bracket[bracket["region"] == _ur].copy()
-            _usl: dict = {int(r["seed"]): r for _, r in _ureg.iterrows()}
-            for _usa, _usb in _MU_PAIRS:
-                if _usa not in _usl or _usb not in _usl:
-                    continue
-                _uta = _usl[_usa]  # lower seed (favorite)
-                _utb = _usl[_usb]  # higher seed (underdog)
-                _uwp_b = 1 - _win_prob(float(_uta["AdjEM"]), float(_utb["AdjEM"]))  # underdog wp
-                _uem_gap = float(_uta["AdjEM"]) - float(_utb["AdjEM"])
-                # Upset score: underdog's win probability, weighted by seed gap
-                # A 12-seed with 35% chance is juicier than a 9-seed with 45%
-                _seed_gap = _usb - _usa
-                _upset_score = _uwp_b * (1 + _seed_gap / 15.0)
-                _upset_rows.append({
-                    "region": _ur,
-                    "fav_seed": _usa, "dog_seed": _usb,
-                    "fav": _uta["Team"], "dog": _utb["Team"],
-                    "fav_em": float(_uta["AdjEM"]), "dog_em": float(_utb["AdjEM"]),
-                    "em_gap": _uem_gap,
-                    "dog_wp": round(_uwp_b * 100),
-                    "upset_score": _upset_score,
-                    "ta": _uta, "tb": _utb,
-                })
-
-        _upset_rows.sort(key=lambda x: x["upset_score"], reverse=True)
-
-        for _ur_row in _upset_rows[:9]:
-            _us_col, _ud_col = st.columns([1, 12], gap="small")
-            with _us_col:
-                # Color by tier: top 3 = fire, next 3 = warm, rest = mild
-                _tier_color = "#c62828" if _upset_rows.index(_ur_row) < 3 else (
-                    "#e65100" if _upset_rows.index(_ur_row) < 6 else "#f9a825"
-                )
-                st.markdown(
-                    f"<div style='background:{_tier_color};color:white;border-radius:8px;"
-                    f"padding:6px 4px;text-align:center;font-family:system-ui;margin-top:4px'>"
-                    f"<div style='font-size:16px;font-weight:800'>{_ur_row['dog_wp']}%</div>"
-                    f"<div style='font-size:9px;opacity:0.85'>upset</div></div>",
-                    unsafe_allow_html=True,
-                )
-            with _ud_col:
-                _bullets = generate_matchup_analysis(
-                    pd.Series({**_r_lookup.get(_ur_row["fav"], {}), "seed": _ur_row["fav_seed"], "Team": _ur_row["fav"]}),
-                    pd.Series({**_r_lookup.get(_ur_row["dog"], {}), "seed": _ur_row["dog_seed"], "Team": _ur_row["dog"]}),
-                    1 - _ur_row["dog_wp"] / 100,
-                    _n_teams,
-                )
-                # Pick the most relevant bullet (upset-angle)
-                _reason = next(
-                    (b for b in _bullets if any(k in b for k in ["upset", "gap", "toss", "Slight", "edge", "mismatch"])),
-                    _bullets[0] if _bullets else "",
-                )
-                # Strip leading emoji/bold markers for inline display
-                import re as _re2
-                _reason_clean = _re2.sub(r'[*_]{1,2}', "", _reason).strip()
-                _reason_clean = _re2.sub(r'^[⚡🏃📊📈⛏️⚔️🛡️👀⚖️❤️]+\s*', '', _reason_clean)
-                st.markdown(
-                    f"<div style='border:1px solid #dde3eb;border-radius:8px;padding:10px 14px;"
-                    f"background:#fff;font-family:system-ui,sans-serif'>"
-                    f"<div style='font-size:13px;font-weight:700'>"
-                    f"<span style='color:#78909c'>({_ur_row['dog_seed']}) {_ur_row['dog']}</span>"
-                    f" <span style='color:#aaa;font-size:11px'>over</span> "
-                    f"<span style='color:#1e2d40'>({_ur_row['fav_seed']}) {_ur_row['fav']}</span>"
-                    f" &nbsp;<span style='font-size:11px;color:#888'>{_ur_row['region']}</span></div>"
-                    f"<div style='font-size:12px;color:#555;margin-top:4px'>"
-                    f"AdjEM gap: <b>{_ur_row['em_gap']:+.1f}</b> &nbsp;·&nbsp; "
-                    f"Underdog AdjEM: <b>{_ur_row['dog_em']:+.1f}</b> &nbsp;·&nbsp; "
-                    f"{_reason_clean}</div></div>",
-                    unsafe_allow_html=True,
-                )
-                st.markdown("<div style='margin:4px 0'></div>", unsafe_allow_html=True)
+    # ── Upset Watch — data computed here, rendered in _pk_r7 My Bracket tab ──────
+    _upset_rows_cache: list[dict] = []
+    for _ur in ["East", "West", "South", "Midwest"]:
+        _ureg = bracket[bracket["region"] == _ur].copy()
+        _usl: dict = {int(r["seed"]): r for _, r in _ureg.iterrows()}
+        for _usa, _usb in _MU_PAIRS:
+            if _usa not in _usl or _usb not in _usl:
+                continue
+            _uta = _usl[_usa]
+            _utb = _usl[_usb]
+            _uwp_b = 1 - _win_prob(float(_uta["AdjEM"]), float(_utb["AdjEM"]))
+            _uem_gap = float(_uta["AdjEM"]) - float(_utb["AdjEM"])
+            _seed_gap_u = _usb - _usa
+            _upset_score = _uwp_b * (1 + _seed_gap_u / 15.0)
+            _upset_rows_cache.append({
+                "region": _ur,
+                "fav_seed": _usa, "dog_seed": _usb,
+                "fav": _uta["Team"], "dog": _utb["Team"],
+                "fav_em": float(_uta["AdjEM"]), "dog_em": float(_utb["AdjEM"]),
+                "em_gap": _uem_gap,
+                "dog_wp": round(_uwp_b * 100),
+                "upset_score": _upset_score,
+            })
+    _upset_rows_cache.sort(key=lambda x: x["upset_score"], reverse=True)
 
 
 # ---------------------------------------------------------------------------
@@ -2982,13 +2924,14 @@ with bracket_tab:
         st.divider()
 
         # ── Round tabs ────────────────────────────────────────────────────
-        _pk_r1, _pk_r2, _pk_r3, _pk_r4, _pk_r5, _pk_r6 = st.tabs([
+        _pk_r1, _pk_r2, _pk_r3, _pk_r4, _pk_r5, _pk_r6, _pk_r7 = st.tabs([
             f"1st Round ({sum(1 for s in range(32) if (0,s) in _picks)}/32)",
             f"Round of 32 ({sum(1 for s in range(16) if (1,s) in _picks)}/16)",
             f"Sweet 16 ({sum(1 for s in range(8) if (2,s) in _picks)}/8)",
             f"Elite Eight ({sum(1 for s in range(4) if (3,s) in _picks)}/4)",
             f"Final Four ({sum(1 for s in range(2) if (4,s) in _picks)}/2)",
             f"Championship ({sum(1 for s in range(1) if (5,s) in _picks)}/1)",
+            "⚡ Upset Watch",
         ])
 
         # ── Helper: render one matchup card with pick buttons ──────────────
@@ -3010,6 +2953,10 @@ with bracket_tab:
 
                 em_a = float(_pk_lu.get(ta, {}).get("AdjEM", 0))
                 em_b = float(_pk_lu.get(tb, {}).get("AdjEM", 0))
+                em_nr_a = _pk_lu.get(ta, {}).get("AdjEM_nr")
+                em_nr_b = _pk_lu.get(tb, {}).get("AdjEM_nr")
+                em_label_a = f"{em_a:+.1f} #{int(em_nr_a)}" if em_nr_a else f"{em_a:+.1f}"
+                em_label_b = f"{em_b:+.1f} #{int(em_nr_b)}" if em_nr_b else f"{em_b:+.1f}"
                 wp_a = _win_prob(em_a, em_b)
                 wp_pct_a = round(wp_a * 100)
                 wp_pct_b = 100 - wp_pct_a
@@ -3047,7 +2994,7 @@ with bracket_tab:
                     f"padding:1px 5px;font-size:9px;font-weight:700;margin-right:5px'>{sa}</span>"
                     f"<span style='font-weight:{'700' if sel_a else '400'}'>"
                     f"{'✅ ' if sel_a else ''}{ta_short}</span></div>"
-                    f"<span style='color:{em_col_a};font-size:11px;font-weight:600'>{em_a:+.1f}</span>"
+                    f"<span style='color:{em_col_a};font-size:11px;font-weight:600'>{em_label_a}</span>"
                     f"</div>"
                     # Probability bar + labels
                     f"<div style='display:flex;height:5px;border-radius:3px;overflow:hidden;margin:2px 2px'>"
@@ -3065,7 +3012,7 @@ with bracket_tab:
                     f"padding:1px 5px;font-size:9px;font-weight:700;margin-right:5px'>{sb}</span>"
                     f"<span style='font-weight:{'700' if sel_b else '400'}'>"
                     f"{'✅ ' if sel_b else ''}{tb_short}</span></div>"
-                    f"<span style='color:{em_col_b};font-size:11px;font-weight:600'>{em_b:+.1f}</span>"
+                    f"<span style='color:{em_col_b};font-size:11px;font-weight:600'>{em_label_b}</span>"
                     f"</div></div>",
                     unsafe_allow_html=True,
                 )
@@ -3098,6 +3045,29 @@ with bracket_tab:
                     ):
                         st.session_state["bp_picks"][(rnd, slot)] = tb
                         st.rerun()
+
+                # ── Analyze toggle ─────────────────────────────────────────────
+                _analyze_key = f"pk_analyze_{rnd}_{slot}"
+                if _analyze_key not in st.session_state:
+                    st.session_state[_analyze_key] = False
+                _is_analyzing = st.session_state[_analyze_key]
+                if st.button(
+                    "📊 Close Analysis" if _is_analyzing else "🔍 Analyze Matchup",
+                    key=f"bp_{rnd}_{slot}_analyze",
+                    use_container_width=True,
+                    type="primary" if _is_analyzing else "secondary",
+                ):
+                    st.session_state[_analyze_key] = not _is_analyzing
+                    st.rerun()
+                if _is_analyzing:
+                    _ta_an = pd.Series({**_pk_lu.get(ta, {}), "seed": sa, "Team": ta})
+                    _tb_an = pd.Series({**_pk_lu.get(tb, {}), "seed": sb, "Team": tb})
+                    _wp_an = _win_prob(
+                        float(_pk_lu.get(ta, {}).get("AdjEM", 0)),
+                        float(_pk_lu.get(tb, {}).get("AdjEM", 0)),
+                    )
+                    with st.container(border=True):
+                        _detail_panel(_ta_an, _tb_an, _wp_an, _n_teams)
 
         # ── Round 1 (32 games, 4 regions × 8) ──────────────────────────────
         with _pk_r1:
@@ -3183,6 +3153,57 @@ with bracket_tab:
                         f"</div>",
                         unsafe_allow_html=True,
                     )
+
+        # ── Upset Watch tab ───────────────────────────────────────────────
+        with _pk_r7:
+            st.markdown("#### ⚡ Upset Watch — First Round")
+            st.caption(
+                "Ranked by CarmPom's upset score: underdog win probability weighted by seed gap. "
+                "March is one-and-done — variance is high and the best team doesn't always win."
+            )
+            import re as _re_uw
+            for _ur_row in _upset_rows_cache[:9]:
+                _us_col, _ud_col = st.columns([1, 12], gap="small")
+                with _us_col:
+                    _tier_idx = _upset_rows_cache.index(_ur_row)
+                    _tier_color = "#c62828" if _tier_idx < 3 else (
+                        "#e65100" if _tier_idx < 6 else "#f9a825"
+                    )
+                    st.markdown(
+                        f"<div style='background:{_tier_color};color:white;border-radius:8px;"
+                        f"padding:6px 4px;text-align:center;font-family:system-ui;margin-top:4px'>"
+                        f"<div style='font-size:16px;font-weight:800'>{_ur_row['dog_wp']}%</div>"
+                        f"<div style='font-size:9px;opacity:0.85'>upset</div></div>",
+                        unsafe_allow_html=True,
+                    )
+                with _ud_col:
+                    _uw_bullets = generate_matchup_analysis(
+                        pd.Series({**_pk_lu.get(_ur_row["fav"], {}), "seed": _ur_row["fav_seed"], "Team": _ur_row["fav"]}),
+                        pd.Series({**_pk_lu.get(_ur_row["dog"], {}), "seed": _ur_row["dog_seed"], "Team": _ur_row["dog"]}),
+                        1 - _ur_row["dog_wp"] / 100,
+                        len(_pk_df),
+                    )
+                    _uw_reason = next(
+                        (b for b in _uw_bullets if any(k in b for k in ["upset", "gap", "toss", "Slight", "edge", "mismatch"])),
+                        _uw_bullets[0] if _uw_bullets else "",
+                    )
+                    _uw_clean = _re_uw.sub(r'[*_]{1,2}', "", _uw_reason).strip()
+                    _uw_clean = _re_uw.sub(r'^[⚡🏃📊📈⛏️⚔️🛡️👀⚖️❤️]+\s*', '', _uw_clean)
+                    st.markdown(
+                        f"<div style='border:1px solid #dde3eb;border-radius:8px;padding:10px 14px;"
+                        f"background:#fff;font-family:system-ui,sans-serif'>"
+                        f"<div style='font-size:13px;font-weight:700'>"
+                        f"<span style='color:#78909c'>({_ur_row['dog_seed']}) {_ur_row['dog']}</span>"
+                        f" <span style='color:#aaa;font-size:11px'>over</span> "
+                        f"<span style='color:#1e2d40'>({_ur_row['fav_seed']}) {_ur_row['fav']}</span>"
+                        f" &nbsp;<span style='font-size:11px;color:#888'>{_ur_row['region']}</span></div>"
+                        f"<div style='font-size:12px;color:#555;margin-top:4px'>"
+                        f"AdjEM gap: <b>{_ur_row['em_gap']:+.1f}</b> &nbsp;·&nbsp; "
+                        f"Underdog AdjEM: <b>{_ur_row['dog_em']:+.1f}</b> &nbsp;·&nbsp; "
+                        f"{_uw_clean}</div></div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.markdown("<div style='margin:4px 0'></div>", unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
