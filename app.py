@@ -73,7 +73,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🏀 CarmPom")
+st.title("CarmPom")
 st.markdown("#### The Ultimate Free Resource for March Madness")
 st.caption("Built by Carmen Galgano")
 
@@ -95,15 +95,15 @@ with hero_left:
 
     ---
 
-    **Our Features**
-    - 📊 Team Rankings and Metrics similar to KenPom
-    - 📈 Valuable Charts to understand team strengths and weaknesses
-    - 🏀 Team Profile Page — an in-depth look at every team in College Basketball
-    - 🏆 Bracket Creation Tab — analyze each matchup and make selections backed by data
+    **CarmPom Features**
+    - Team Rankings and Metrics similar to KenPom
+    - Valuable Charts to understand team strengths and weaknesses
+    - Team Profile Page — an in-depth look at every team in College Basketball
+    - Bracket Creation Tab — analyze each matchup and make selections backed by data
 
     ---
 
-    *Good luck to all — This is March!* 🎉
+    *Good luck to all — This is March!*
     """)
 
 with hero_right:
