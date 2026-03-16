@@ -30,6 +30,7 @@ class Team(Base):
     Populated by pipeline/fetch_teams.py in Phase 1.
     """
     __tablename__ = "teams"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)            # e.g. "Duke Blue Devils"
@@ -60,6 +61,7 @@ class Game(Base):
     where "home" is arbitrary — use neutral_site=True instead.
     """
     __tablename__ = "games"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     espn_game_id: Mapped[str] = mapped_column(String(20), nullable=True, unique=True)  # ESPN's event ID
@@ -113,6 +115,7 @@ class BoxScore(Base):
     __tablename__ = "box_scores"
     __table_args__ = (
         UniqueConstraint("game_id", "team_id", name="uq_box_score_game_team"),
+        {"extend_existing": True},
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -169,6 +172,7 @@ class CarmPomRating(Base):
     __tablename__ = "carm_pom_ratings"
     __table_args__ = (
         UniqueConstraint("team_id", "season", name="uq_rating_team_season"),
+        {"extend_existing": True},
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
