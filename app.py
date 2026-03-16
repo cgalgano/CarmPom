@@ -66,10 +66,11 @@ with hero_right:
     st.markdown("""
     | | KenPom | CarmPom |
     |---|---|---|
-    | **Ratings method** | Opponent-adjusted efficiency | Same |
+    | **Ratings method** | Opponent-adjusted efficiency | Opponent-adjusted efficiency |
     | **Data source** | Premium proprietary feeds | Public ESPN box scores |
     | **Updated** | Daily (paid) | On demand |
-    | **Tournament predictions** | Ratings only | ML model + bracket sim |
+    | **Tournament predictions** | Ratings only | ML model + bracket creator |
+    | **Tournament accuracy** | ~70% game picks (reported) | ~69% backtested (2003–2025) |
     | **Cost** | $9.99/year | Free |
     """)
     st.caption("Ratings will closely track KenPom — differences come from data source and methodology details.")
