@@ -695,6 +695,8 @@ def generate_style_profile(t: pd.Series, n: int) -> str:
     adjo_nr = int(t.get("AdjO_nr", n // 2))
     adjd = float(t.get("AdjD", 100.0))
     adjd_nr = int(t.get("AdjD_nr", n // 2))
+    adjem = float(t.get("AdjEM", 0.0))
+    sos_nr = int(t.get("SOS_nr", n // 2))
     luck = float(t.get("Luck", 0.0))
 
     # Tempo sentence
@@ -731,12 +733,62 @@ def generate_style_profile(t: pd.Series, n: int) -> str:
     else:
         def_str = f"Defense has been a liability all season (#{adjd_nr}), something opponents will look to exploit."
 
-    # Luck context
+    # Luck context — multiple alternatives keyed to team characteristics so
+    # each write-up reads differently.  We pick deterministically (hash on name)
+    # so the same team always gets the same sentence while different teams vary.
     luck_str = ""
     if luck < -0.04:
-        luck_str = " Their record actually understates how well they've played — they've been genuinely unlucky in close games."
+        _slot = hash(name) % 5
+        if _slot == 0:
+            luck_str = " Their record actually understates how well they've played — they've been genuinely unlucky in close games."
+        elif _slot == 1:
+            luck_str = (
+                f" The efficiency numbers are notably stronger than their win-loss line suggests — "
+                "late-game variance has cost them results their play deserved."
+            )
+        elif _slot == 2:
+            luck_str = (
+                f" They haven't gotten many breaks: a disproportionate share of their losses "
+                "came in games decided by a possession or two, which the adjusted numbers discount."
+            )
+        elif _slot == 3:
+            # SOS-flavoured if schedule rank available, otherwise generic
+            if sos_nr and sos_nr <= 50:
+                luck_str = (
+                    f" Playing one of the toughest schedules (SOS #{sos_nr}) and running into "
+                    "bad luck in tight games has suppressed their record — the underlying metrics "
+                    "are kinder than the standings imply."
+                )
+            else:
+                luck_str = (
+                    " Close-game results have gone against them more than chance would predict; "
+                    "expect some regression to the mean if they stay in games deep into the second half."
+                )
+        else:
+            luck_str = (
+                f" Their AdjEM ({adjem:.1f}) is meaningfully better than their record implies — "
+                "they've been on the wrong end of the variance coin in tight games."
+            )
     elif luck > 0.05:
-        luck_str = " Worth noting: they've been fortunate in close games, meaning their record may slightly flatter their real quality."
+        _slot = hash(name) % 4
+        if _slot == 0:
+            luck_str = " Worth noting: they've been fortunate in close games, meaning their record may slightly flatter their real quality."
+        elif _slot == 1:
+            luck_str = (
+                " Their win total leans on some good fortune down the stretch — "
+                "the efficiency margin alone would project a slightly lower ceiling."
+            )
+        elif _slot == 2:
+            luck_str = (
+                f" They've won a lot of coin-flip games this season. That's fine — winning tight games "
+                "is a real skill — but the adjusted numbers suggest some of those margins were thinner "
+                "than the scoreboard showed."
+            )
+        else:
+            luck_str = (
+                f" A strong record, though the luck metric flags they've been helped by close-game "
+                "variance. Opponents who push this to the wire may find a tighter contest than seeding implies."
+            )
 
     return f"{name} {tempo}, featuring {off_str}. {def_str}{luck_str}"
 
@@ -1622,12 +1674,51 @@ def generate_team_writeup(t: pd.Series, ts: pd.Series | None, n: int) -> str:
     else:
         sos_str = ""
 
-    # Luck flag
+    # Luck flag — pool of alternatives so repeated teams don't all read alike
     luck_str = ""
     if luck > 0.04:
-        luck_str = " They've also been somewhat fortunate in close games — their record slightly flatters their underlying efficiency."
+        _slot = hash(name) % 4
+        if _slot == 0:
+            luck_str = " They've also been somewhat fortunate in close games — their record slightly flatters their underlying efficiency."
+        elif _slot == 1:
+            luck_str = (
+                " Their win total has been helped by close-game variance — "
+                "the adjusted margin alone would project a slightly lower ceiling."
+            )
+        elif _slot == 2:
+            luck_str = (
+                " Worth flagging: they've won a disproportionate share of tight games. "
+                "Teams that push them to the wire may find the margin closer than expected."
+            )
+        else:
+            luck_str = (
+                f" The luck metric suggests {name} has benefited from late-game variance — "
+                "the efficiency numbers are the more reliable predictor going forward."
+            )
     elif luck < -0.04:
-        luck_str = " Notably, they've been unlucky in close games — their record undersells how good they actually are."
+        _slot = hash(name) % 5
+        if _slot == 0:
+            luck_str = " Notably, they've been unlucky in close games — their record undersells how good they actually are."
+        elif _slot == 1:
+            luck_str = (
+                f" The efficiency numbers ({adjem:+.2f} AdjEM) paint a better picture than the record alone — "
+                "late-game variance has cost them wins they played well enough to deserve."
+            )
+        elif _slot == 2:
+            luck_str = (
+                " They've been on the wrong end of several coin-flip games this year. "
+                "Expect their underlying quality to show through if this tournament goes deep."
+            )
+        elif _slot == 3 and sos_nr <= 60:
+            luck_str = (
+                f" Competing against a tough schedule (SOS #{sos_nr}) while running into bad luck in "
+                "tight spots has kept their record modest — but the adjusted numbers are significantly better."
+            )
+        else:
+            luck_str = (
+                " Close-game results have skewed against them this season; "
+                "the adjusted efficiency is a more honest reflection of their level."
+            )
 
     # Assemble — bold key numbers for scannability
     parts = [
