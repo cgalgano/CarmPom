@@ -3170,7 +3170,7 @@ with bracket_tab:
                 _ba, _bundo, _bb = st.columns([5, 1, 5])
                 with _ba:
                     if st.button(
-                        ta_short, key=f"bp_{rnd}_{slot}_a",
+                        ta, key=f"bp_{rnd}_{slot}_a",
                         use_container_width=True,
                         type="primary" if sel_a else "secondary",
                     ):
@@ -3188,7 +3188,7 @@ with bracket_tab:
                         st.rerun()
                 with _bb:
                     if st.button(
-                        tb_short, key=f"bp_{rnd}_{slot}_b",
+                        tb, key=f"bp_{rnd}_{slot}_b",
                         use_container_width=True,
                         type="primary" if sel_b else "secondary",
                     ):
