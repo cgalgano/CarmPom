@@ -1998,7 +1998,16 @@ def generate_team_writeup(t: pd.Series, ts: pd.Series | None, n: int) -> str:
 
 with team_tab:
     _all_teams = load_rankings(2026)
-    team_options = _all_teams["Team"].sort_values().tolist()
+
+    # Limit to tournament teams when the real bracket is available
+    _profile_bracket = load_real_bracket(2026)
+    if _profile_bracket is not None and "Team" in _profile_bracket.columns:
+        _tourn_names = set(_profile_bracket["Team"].tolist())
+        team_options = sorted(
+            t for t in _all_teams["Team"].tolist() if t in _tourn_names
+        )
+    else:
+        team_options = _all_teams["Team"].sort_values().tolist()
 
     # Search input filters the dropdown to matching teams
     _search_query = st.text_input(
