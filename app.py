@@ -289,6 +289,8 @@ def load_per_game_stats(season: int) -> pd.DataFrame:
         tov=("tov", "sum"),
         opp_fg3a=("opp_fg3a", "sum"),
         opp_fg3m=("opp_fg3m", "sum"),
+        stl=("stl", "sum"),
+        blk=("blk", "sum"),
     ).reset_index()
 
     g = agg["games"]
@@ -308,6 +310,8 @@ def load_per_game_stats(season: int) -> pd.DataFrame:
     s["Opp3PaPG"] = (agg["opp_fg3a"] / g).round(1)
     # Guard against divide-by-zero if opp never attempted a 3 (shouldn't happen)
     s["Opp3P%"]   = (agg["opp_fg3m"] / agg["opp_fg3a"] * 100).where(agg["opp_fg3a"] > 0, other=0.0).round(1)
+    s["StlPG"]    = (agg["stl"] / g).round(2)
+    s["BlkPG"]    = (agg["blk"] / g).round(2)
 
     # National rank for each stat (rank 1 = best); lower is better for OppPPG and TOPG.
     # Filter to rated D1 teams only before ranking so max rank = number of rated teams.
@@ -324,6 +328,8 @@ def load_per_game_stats(season: int) -> pd.DataFrame:
         "3PaPG": False, "3PmPG": False, "FT%": False, "FTmPG": False,
         # 3PT defense: lower attempts/% allowed = better → ascending rank
         "Opp3PaPG": True, "Opp3P%": True,
+        # Disruption stats: more steals/blocks = better → descending rank
+        "StlPG": False, "BlkPG": False,
     }
     for col, asc in stat_rank_cfg.items():
         s[f"{col}_nr"] = s[col].rank(ascending=asc, method="min").astype(int)
@@ -1540,9 +1546,10 @@ def load_team_games(team_id: int, season: int) -> pd.DataFrame:
 def generate_playstyle_name(t: pd.Series, ts: pd.Series | None, n: int) -> tuple[str, str]:
     """Return (playstyle_name, one-line tagline) driven by HOW the team plays.
 
-    The 8 radar-spoke attributes (pace, 3PT volume, 3PT accuracy, off. rebounding,
-    ball security, FT drawing, assists, def. rebounding) are the primary signal.
-    Efficiency-based prestige labels are reserved for the top ~10 nationally.
+    The 10 radar-spoke attributes (pace, 3PT volume, 3PT accuracy, off. rebounding,
+    ball security, FT drawing, assists, def. rebounding, forced TOs, paint defense)
+    are the primary signal. Efficiency-based prestige labels are reserved for the
+    top ~10 nationally.
     """
     adjem_nr = int(t.get("AdjEM_nr", n))
     adjt_nr  = int(t["AdjT_nr"])
@@ -1564,6 +1571,8 @@ def generate_playstyle_name(t: pd.Series, ts: pd.Series | None, n: int) -> tuple
         _to_nr   = int(ts.get("TOPG_nr",   n))
         _ft_nr   = int(ts.get("FTmPG_nr",  n))
         _ast_nr  = int(ts.get("AstPG_nr",  n))
+        _stl_nr  = int(ts.get("StlPG_nr",  n))
+        _blk_nr  = int(ts.get("BlkPG_nr",  n))
         three_heavy    = _3pa_nr  <= 60           # top ~16% by 3PA/game
         three_light    = _3pa_nr  >= 280          # bottom ~23%
         three_accurate = _3pct_nr <= 70           # top ~19% by 3P%
@@ -1574,6 +1583,8 @@ def generate_playstyle_name(t: pd.Series, ts: pd.Series | None, n: int) -> tuple
         ball_wild      = _to_nr   >= 280          # bottom ~23%
         ft_heavy       = _ft_nr   <= 60           # top ~16% by FTm/game
         pass_first     = _ast_nr  <= 60           # top ~16% by Ast/game
+        forced_to      = _stl_nr  <= 60           # top ~16% by steals/game — disruptive defense
+        rim_protector  = _blk_nr  <= 60           # top ~16% by blocks/game — paint deterrent
 
     # ── Top-10 national elite: prestige label inflected by dominant style ──
     if national_elite:
@@ -1587,6 +1598,8 @@ def generate_playstyle_name(t: pd.Series, ts: pd.Series | None, n: int) -> tuple
             return "👑 Defensive Powerhouse", "One of the toughest defensive teams in the country this season"
         if three_heavy and three_accurate:
             return "👑 Perimeter Blitz", "Elite shooting team — opens the floor and buries opponents with threes"
+        if rim_protector and forced_to:
+            return "👑 Lockdown Machine", "Elite two-way disruption — protects the rim and creates chaos with steals"
         return "👑 National Contender", "One of the most complete programs in the country"
 
     # ── Fast-pace identity ────────────────────────────────────────────────
@@ -1672,6 +1685,24 @@ def generate_playstyle_name(t: pd.Series, ts: pd.Series | None, n: int) -> tuple
         return "🧠 Ball-Control Offense", "Rarely gives it away — methodical possession-by-possession approach"
     if ball_wild:
         return "🎲 High-Turnover Risk", "Capable scorers but prone to giveaways — opponent fast breaks are the danger"
+
+    # ── Forced turnovers (steals) ─────────────────────────────────────────
+    if forced_to and fast:
+        return "🪤 Press-and-Run", "Forces turnovers and immediately converts them — defense triggers the offense"
+    if forced_to and rim_protector:
+        return "🛡️ Two-Way Disruptors", "Generates steals on the perimeter and blocks at the rim — defense is the identity"
+    if forced_to and good_dreb:
+        return "🪤 Chaos Defense", "Swarms passing lanes, crashes the glass, and turns disruption into points"
+    if forced_to:
+        return "🪤 Pickpocket Defense", "Leads the country in getting into the passing lanes — defense creates offense"
+
+    # ── Rim protection (blocks) ───────────────────────────────────────────
+    if rim_protector and slow and three_light:
+        return "🧱 Paint Fortress", "Anchors the defense at the rim, controls pace, and dares opponents to shoot over them"
+    if rim_protector and good_dreb:
+        return "🧱 Interior Anchor", "Protects the basket and wins the glass — opponents think twice before attacking the rim"
+    if rim_protector:
+        return "🧱 Shot Blocker", "Elite rim presence changes how opponents attack — keeps the defense behind them"
 
     # ── Rebounding (alone) ────────────────────────────────────────────────
     if good_dreb:
@@ -1977,25 +2008,29 @@ with team_tab:
             unsafe_allow_html=True,
         )
 
-        # ── 8-spoke playstyle radar (no Offense/Defense spokes) ─────────────
+        # ── 10-spoke playstyle radar (no Offense/Defense spokes) ─────────────
         # All spokes describe HOW the team plays, not efficiency ratings.
         _radar_labels = ["Pace", "3PT Volume", "3PT Accuracy", "Off. Rebounding",
-                         "Ball Security", "FT Drawing", "Assists", "Def. Rebounding"]
+                         "Ball Security", "FT Drawing", "Assists", "Def. Rebounding",
+                         "Forced TOs", "Paint Def."]
 
         if _ts is not None:
             _adjt_pct  = _pct(_t["AdjT_nr"])
             _3pa_pct   = _pct(_ts["3PaPG_nr"])
             _3pct_pct  = _pct(_ts["3P%_nr"])
             _oreb_pct  = _pct(_ts["OrebPG_nr"])
-            _to_pct    = _pct(_ts["TOPG_nr"])    # rank 1 = fewest TOs
+            _to_pct    = _pct(_ts["TOPG_nr"])    # rank 1 = fewest TOs → high percentile = ball safe
             _ftm_pct   = _pct(_ts["FTmPG_nr"])   # free throws drawn/made per game
             _ast_pct   = _pct(_ts["AstPG_nr"])
             _dreb_pct  = round((1 - (_ts["RebPG_nr"] - 1) / _n) * 100)
+            _stl_pct   = _pct(_ts["StlPG_nr"]) if "StlPG_nr" in _ts.index else 50
+            _blk_pct   = _pct(_ts["BlkPG_nr"]) if "BlkPG_nr" in _ts.index else 50
         else:
-            _adjt_pct = _3pa_pct = _3pct_pct = _oreb_pct = _to_pct = _ftm_pct = _ast_pct = _dreb_pct = 50
+            _adjt_pct = _3pa_pct = _3pct_pct = _oreb_pct = _to_pct = _ftm_pct = _ast_pct = _dreb_pct = _stl_pct = _blk_pct = 50
 
         _radar_vals = [_adjt_pct, _3pa_pct, _3pct_pct, _oreb_pct,
-                       _to_pct,  _ftm_pct,  _ast_pct,  _dreb_pct]
+                       _to_pct,  _ftm_pct,  _ast_pct,  _dreb_pct,
+                       _stl_pct, _blk_pct]
 
         N_spokes = len(_radar_labels)
         angles   = [n_i / N_spokes * 2 * 3.14159 for n_i in range(N_spokes)]
@@ -2018,7 +2053,7 @@ with team_tab:
         plt.tight_layout()
         st.pyplot(fig_r, use_container_width=True)
         plt.close(fig_r)
-        st.caption("Each spoke = national percentile for that playstyle dimension. Ball Security = inverted turnover rate.")
+        st.caption("Each spoke = national percentile for that playstyle dimension. Ball Security = inverted turnover rate · Forced TOs = steals/game · Paint Def. = blocks/game.")
 
     st.divider()
 
@@ -2656,15 +2691,19 @@ with bracket_tab:
                         _ftm_pct   = round((1 - (float(_ts_s["FTmPG_nr"])- 1) / _n_pg) * 100, 1)
                         _ast_pct   = round((1 - (float(_ts_s["AstPG_nr"])- 1) / _n_pg) * 100, 1)
                         _dreb_pct  = round((1 - (float(_ts_s["RebPG_nr"])- 1) / _n_pg) * 100, 1)
+                        _stl_pct_m = round((1 - (float(_ts_s["StlPG_nr"])- 1) / _n_pg) * 100, 1) if "StlPG_nr" in _ts_s.index else 50
+                        _blk_pct_m = round((1 - (float(_ts_s["BlkPG_nr"])- 1) / _n_pg) * 100, 1) if "BlkPG_nr" in _ts_s.index else 50
                     else:
-                        _adjt_pct = _3pa_pct = _3pct_pct = _oreb_pct = _to_pct = _ftm_pct = _ast_pct = _dreb_pct = 50
+                        _adjt_pct = _3pa_pct = _3pct_pct = _oreb_pct = _to_pct = _ftm_pct = _ast_pct = _dreb_pct = _stl_pct_m = _blk_pct_m = 50
 
                     _rlabels = [
                         "Pace", "3PT Volume", "3PT Accuracy", "Off. Rebounding",
                         "Ball Security", "FT Drawing", "Assists", "Def. Rebounding",
+                        "Forced TOs", "Paint Def.",
                     ]
                     _rv      = [_adjt_pct, _3pa_pct, _3pct_pct, _oreb_pct,
-                                _to_pct,  _ftm_pct,  _ast_pct,  _dreb_pct]
+                                _to_pct,  _ftm_pct,  _ast_pct,  _dreb_pct,
+                                _stl_pct_m, _blk_pct_m]
                     _N_sp    = len(_rlabels)
                     _m_ang   = [i / _N_sp * 2 * 3.14159 for i in range(_N_sp)] + [0]
                     _m_vals  = _rv + _rv[:1]
@@ -2685,7 +2724,7 @@ with bracket_tab:
                     plt.tight_layout()
                     st.pyplot(_fig_m, use_container_width=True)
                     plt.close(_fig_m)
-                    st.caption("Each spoke = national percentile for that playstyle dimension. Ball Security = inverted turnover rate.")
+                    st.caption("Each spoke = national percentile for that playstyle dimension. Ball Security = inverted turnover rate · Forced TOs = steals/game · Paint Def. = blocks/game.")
 
         # ── Matchup Narrative ──────────────────────────────────────────────
         st.markdown("<div style='margin-top:18px'></div>", unsafe_allow_html=True)
