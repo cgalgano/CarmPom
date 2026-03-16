@@ -1,0 +1,857 @@
+{
+  "fetched_at": "2026-03-16T01:17:03.884634+00:00",
+  "source": "covers.com",
+  "teams": {
+    "Duke Blue Devils": [
+      {
+        "player": "C. Foster",
+        "position": "G",
+        "status": "Out",
+        "reason": "Foot",
+        "published": "Mon, Mar 9",
+        "headline": "C. Foster (G) — Out: Foot",
+        "description": "Foster has suffered a right foot fracture and will not take the court for the Blue Devils."
+      },
+      {
+        "player": "P. Ngongba II",
+        "position": "C",
+        "status": "Out",
+        "reason": "Undisclosed",
+        "published": "Thu, Mar 5",
+        "headline": "P. Ngongba II (C) — Out: Undisclosed",
+        "description": "Ngongba is dealing with an undisclosed injury and will not take the court for the Blue Devils."
+      },
+      {
+        "player": "I. Ufochukwu",
+        "position": "C",
+        "status": "Out",
+        "reason": "Undisclosed",
+        "published": "Mon, Dec 29",
+        "headline": "I. Ufochukwu (C) — Out: Undisclosed",
+        "description": "Ufochukwu is dealing with an undisclosed injury and will not take the court for the Blue Devils. He will miss the remainder of the 2025-26 season."
+      },
+      {
+        "player": "S. Wilkins",
+        "position": "G",
+        "status": "Out",
+        "reason": "Redshirt",
+        "published": "Sun, Nov 9",
+        "headline": "S. Wilkins (G) — Out: Redshirt",
+        "description": "Wilkins will redshirt and miss the 2025-26 season."
+      }
+    ],
+    "UConn Huskies": [
+      {
+        "player": "J. Stewart",
+        "position": "F",
+        "status": "Out",
+        "reason": "Knee",
+        "published": "Tue, Feb 24",
+        "headline": "J. Stewart (F) — Out: Knee",
+        "description": "Stewart is battling a knee injury and will not take the court for the Huskies."
+      }
+    ],
+    "Michigan State Spartans": [
+      {
+        "player": "L. Cason",
+        "position": "G",
+        "status": "Out",
+        "reason": "Knee",
+        "published": "Fri, Feb 27",
+        "headline": "L. Cason (G) — Out: Knee",
+        "description": "Cason is dealing with a torn ACL in his right knee and will miss the remainder of the 2025-26 season for the Wolverines. He will also redshirt the 2026-27 season."
+      },
+      {
+        "player": "W. Grady",
+        "position": "G",
+        "status": "Questionable",
+        "reason": "Undisclosed",
+        "published": "Thu, Jan 22",
+        "headline": "W. Grady (G) — Questionable: Undisclosed",
+        "description": "Grady is dealing with an undisclosed injury and is uncertain to take the court for the Wolverines."
+      },
+      {
+        "player": "R. Liburd",
+        "position": "G",
+        "status": "Out",
+        "reason": "Redshirt",
+        "published": "Tue, Jul 8",
+        "headline": "R. Liburd (G) — Out: Redshirt",
+        "description": "Liburd is redshirting and will miss the entire 2025-26 season."
+      }
+    ],
+    "Kansas Jayhawks": [],
+    "St. John's Red Storm": [
+      {
+        "player": "K. Odih",
+        "position": "G",
+        "status": "Questionable",
+        "reason": "Leg",
+        "published": "Fri, Feb 20",
+        "headline": "K. Odih (G) — Questionable: Leg",
+        "description": "Odih is dealing with a leg injury and is uncertain to take the court for the Red Storm."
+      },
+      {
+        "player": "C. Pohto",
+        "position": "G",
+        "status": "Out",
+        "reason": "Hip",
+        "published": "Mon, Dec 8",
+        "headline": "C. Pohto (G) — Out: Hip",
+        "description": "Pohto is dealing with a hip injury and will miss the remainder of the 2025-26 season."
+      },
+      {
+        "player": "I. Suljanovic",
+        "position": "F",
+        "status": "Out",
+        "reason": "Knee",
+        "published": "Thu, Oct 16",
+        "headline": "I. Suljanovic (F) — Out: Knee",
+        "description": "Suljanovic suffered a dislocated patella and will not take the court for the Red Storm. He will miss the remainder of the 2025-26 season."
+      }
+    ],
+    "Louisville Cardinals": [
+      {
+        "player": "M. Brown Jr.",
+        "position": "G",
+        "status": "Out",
+        "reason": "Back",
+        "published": "Thu, Feb 26",
+        "headline": "M. Brown Jr. (G) — Out: Back",
+        "description": "Brown Jr. is dealing with a back injury and will not take the court for the Cardinals."
+      }
+    ],
+    "UCLA Bruins": [
+      {
+        "player": "E. Manjikian",
+        "position": "F",
+        "status": "Questionable",
+        "reason": "Undisclosed",
+        "published": "Fri, Jan 16",
+        "headline": "E. Manjikian (F) — Questionable: Undisclosed",
+        "description": "Manjikian is dealing with an undisclosed injury and is uncertain to take the court for the Bruins."
+      }
+    ],
+    "Ohio State Buckeyes": [
+      {
+        "player": "E. Elliott",
+        "position": "G",
+        "status": "Out",
+        "reason": "Undisclosed",
+        "published": "Thu, Feb 12",
+        "headline": "E. Elliott (G) — Out: Undisclosed",
+        "description": "Elliot is dealing with an undisclosed injury and will not take the court for the Bobcats. He will miss the conference tournament."
+      }
+    ],
+    "TCU Horned Frogs": [
+      {
+        "player": "M. Diallo",
+        "position": "C",
+        "status": "Out",
+        "reason": "Knee",
+        "published": "Mon, Nov 3",
+        "headline": "M. Diallo (C) — Out: Knee",
+        "description": "Diallo suffered a torn ACL and will miss the remainder of the 2025-26 season."
+      }
+    ],
+    "UCF Knights": [
+      {
+        "player": "J. Foumena",
+        "position": "C",
+        "status": "Questionable",
+        "reason": "Ankle",
+        "published": "Fri, Feb 27",
+        "headline": "J. Foumena (C) — Questionable: Ankle",
+        "description": "Foumena is dealing with an ankle injury and is uncertain to take the court for the Knights."
+      },
+      {
+        "player": "T. Jones",
+        "position": "G",
+        "status": "Out",
+        "reason": "Undisclosed",
+        "published": "Thu, Jan 1",
+        "headline": "T. Jones (G) — Out: Undisclosed",
+        "description": "Jones is dealing with an undisclosed injury and will not take the court for the Knights."
+      }
+    ],
+    "South Florida Bulls": [],
+    "Northern Iowa Panthers": [
+      {
+        "player": "P. McCollum",
+        "position": "G",
+        "status": "Out",
+        "reason": "Foot",
+        "published": "Sat, Jan 10",
+        "headline": "P. McCollum (G) — Out: Foot",
+        "description": "McCollum is dealing with a foot injury and will miss the remainder of the 2025-26 season."
+      }
+    ],
+    "California Baptist Lancers": [],
+    "North Dakota State Bison": [],
+    "Furman Paladins": [],
+    "Siena Saints": [
+      {
+        "player": "A. Chandler",
+        "position": "F",
+        "status": "Questionable",
+        "reason": "Personal",
+        "published": "Thu, Feb 26",
+        "headline": "A. Chandler (F) — Questionable: Personal",
+        "description": "Chandler is dealing with NCAA eligibility issues and is uncertain to take the court for the Saints."
+      },
+      {
+        "player": "T. Jones",
+        "position": "F",
+        "status": "Questionable",
+        "reason": "Back",
+        "published": "Sat, Jan 3",
+        "headline": "T. Jones (F) — Questionable: Back",
+        "description": "Jones is dealing with a back injury and is uncertain to take the court for the Saints."
+      },
+      {
+        "player": "T. Goodrick",
+        "position": "F",
+        "status": "Out",
+        "reason": "Knee",
+        "published": "Thu, Jan 1",
+        "headline": "T. Goodrick (F) — Out: Knee",
+        "description": "Goodrick underwent surgery on his knee injury and will not take the court for the Saints. He will miss the remainder of the 2025-26 season."
+      },
+      {
+        "player": "O. Schlager",
+        "position": "G",
+        "status": "Questionable",
+        "reason": "Upper Body",
+        "published": "Thu, Dec 4",
+        "headline": "O. Schlager (G) — Questionable: Upper Body",
+        "description": "Schlager is dealing with an upper body injury and is uncertain to take the court for the Saints."
+      },
+      {
+        "player": "R. Ducharme",
+        "position": "G",
+        "status": "Questionable",
+        "reason": "Shoulder",
+        "published": "Sun, Nov 2",
+        "headline": "R. Ducharme (G) — Questionable: Shoulder",
+        "description": "Ducharme is dealing with a shoulder injury and is uncertain to take the court for the Saints."
+      }
+    ],
+    "Arizona Wildcats": [
+      {
+        "player": "B. James",
+        "position": "G",
+        "status": "Out",
+        "reason": "Redshirt",
+        "published": "Mon, Feb 2",
+        "headline": "B. James (G) — Out: Redshirt",
+        "description": "James is redshirting and will miss the 2025-26 season."
+      }
+    ],
+    "Purdue Boilermakers": [],
+    "Gonzaga Bulldogs": [
+      {
+        "player": "B. Huff",
+        "position": "F",
+        "status": "Out",
+        "reason": "Knee",
+        "published": "Wed, Jan 14",
+        "headline": "B. Huff (F) — Out: Knee",
+        "description": "Huff is dealing with a left knee injury and will not take the court for the Bulldogs. He will miss 4-8 weeks."
+      }
+    ],
+    "Arkansas Razorbacks": [
+      {
+        "player": "K. Knox",
+        "position": "F",
+        "status": "Questionable",
+        "reason": "Undisclosed",
+        "published": "Mon, Feb 16",
+        "headline": "K. Knox (F) — Questionable: Undisclosed",
+        "description": "Knox is dealing with an undisclosed injury and is uncertain to take the court for the Razorbacks."
+      }
+    ],
+    "Wisconsin Badgers": [
+      {
+        "player": "N. Winter",
+        "position": "F",
+        "status": "Questionable",
+        "reason": "Lower Body",
+        "published": "Wed, Mar 4",
+        "headline": "N. Winter (F) — Questionable: Lower Body",
+        "description": "Winter is dealing with a lower body injury and is uncertain to take the court for the Badgers."
+      },
+      {
+        "player": "J. Janicki",
+        "position": "G",
+        "status": "Questionable",
+        "reason": "Wrist",
+        "published": "Tue, Feb 24",
+        "headline": "J. Janicki (G) — Questionable: Wrist",
+        "description": "Janicki is recovering from wrist surgery and is uncertain to take the court for the Badgers."
+      }
+    ],
+    "BYU Cougars": [
+      {
+        "player": "R. Saunders",
+        "position": "G",
+        "status": "Out",
+        "reason": "Knee",
+        "published": "Sat, Feb 14",
+        "headline": "R. Saunders (G) — Out: Knee",
+        "description": "Saunders suffered a torn ACL and will not take the court for the Cougars. He will miss the remainder of the 2025-26 season."
+      },
+      {
+        "player": "X. Staton",
+        "position": "C",
+        "status": "Questionable",
+        "reason": "Undisclosed",
+        "published": "Mon, Jan 12",
+        "headline": "X. Staton (C) — Questionable: Undisclosed",
+        "description": "Staton is dealing with an undisclosed injury and is uncertain to take the court for the Cougars."
+      },
+      {
+        "player": "K. Perry",
+        "position": "G",
+        "status": "Out",
+        "reason": "Redshirt",
+        "published": "Thu, Jan 1",
+        "headline": "K. Perry (G) — Out: Redshirt",
+        "description": "Perry will redshirt and miss the remainder of the 2025-26 season for the Cougars."
+      },
+      {
+        "player": "D. Baker",
+        "position": "G",
+        "status": "Out",
+        "reason": "Knee",
+        "published": "Sun, Nov 30",
+        "headline": "D. Baker (G) — Out: Knee",
+        "description": "Baker is dealing with a knee injury and will miss the remainder of the 2025-26 season."
+      },
+      {
+        "player": "N. Pickens",
+        "position": "G",
+        "status": "Out",
+        "reason": "Undisclosed",
+        "published": "Fri, Nov 7",
+        "headline": "N. Pickens (G) — Out: Undisclosed",
+        "description": "Pickens is dealing with an undisclosed injury and will not take the court for the Cougars. He is expected to miss the remainder of the 2025-2026 season."
+      },
+      {
+        "player": "B. Kozlowski",
+        "position": "F",
+        "status": "Out",
+        "reason": "Redshirt",
+        "published": "Sun, Nov 2",
+        "headline": "B. Kozlowski (F) — Out: Redshirt",
+        "description": "Kozlowski will redshirt and miss the remainder of the 2025-26 season for the Cougars."
+      }
+    ],
+    "Miami Hurricanes": [],
+    "Villanova Wildcats": [
+      {
+        "player": "M. Hodge",
+        "position": "F",
+        "status": "Out",
+        "reason": "Knee",
+        "published": "Fri, Feb 27",
+        "headline": "M. Hodge (F) — Out: Knee",
+        "description": "Hodge suffered a torn ACL in his right knee and will miss the remainder of the 2026-26 season."
+      }
+    ],
+    "Utah State Aggies": [
+      {
+        "player": "J. Patrick",
+        "position": "G",
+        "status": "Questionable",
+        "reason": "Undisclosed",
+        "published": "Thu, Jan 1",
+        "headline": "J. Patrick (G) — Questionable: Undisclosed",
+        "description": "Patrick is dealing with an undisclosed injury and is uncertain to take the court for the Utes."
+      },
+      {
+        "player": "B. Faye",
+        "position": "F",
+        "status": "Out",
+        "reason": "Leg",
+        "published": "Sun, Sep 21",
+        "headline": "B. Faye (F) — Out: Leg",
+        "description": "Faye is dealing with a leg injury and will not take the court for the Utes. He will miss the 2025-26 season."
+      }
+    ],
+    "Missouri Tigers": [
+      {
+        "player": "A. Boateng",
+        "position": "G",
+        "status": "Out",
+        "reason": "Leg",
+        "published": "Fri, Jan 30",
+        "headline": "A. Boateng (G) — Out: Leg",
+        "description": "Boateng is dealing with a leg injury and will miss the remainder of the 2025-26 season."
+      },
+      {
+        "player": "J. Porter",
+        "position": "F",
+        "status": "Questionable",
+        "reason": "Lower Leg",
+        "published": "Sun, Dec 21",
+        "headline": "J. Porter (F) — Questionable: Lower Leg",
+        "description": "Porter is dealing with a lower-leg injury and is uncertain to take the court for the Tigers."
+      }
+    ],
+    "NC State Wolfpack": [],
+    "High Point Panthers": [],
+    "Hawai''i Rainbow Warriors": [
+      {
+        "player": "A. Hunkin-Claytor",
+        "position": "G",
+        "status": "Out",
+        "reason": "Toe",
+        "published": "Fri, Feb 6",
+        "headline": "A. Hunkin-Claytor (G) — Out: Toe",
+        "description": "Hunkin-Claytor is dealing with turf toe and will not take the court for the Rainbow Warriors. He will miss the remainder of the 2025-26 season."
+      },
+      {
+        "player": "T. Cuff",
+        "position": "G",
+        "status": "Out",
+        "reason": "Knee",
+        "published": "Mon, Nov 17",
+        "headline": "T. Cuff (G) — Out: Knee",
+        "description": "Cuff is dealing with a knee injury and will miss the remainder of the 2025-26 season."
+      }
+    ],
+    "Kennesaw State Owls": [
+      {
+        "player": "D. Washington III",
+        "position": "G",
+        "status": "Questionable",
+        "reason": "Undisclosed",
+        "published": "Wed, Mar 4",
+        "headline": "D. Washington III (G) — Questionable: Undisclosed",
+        "description": "Washington III is dealing with an undisclosed injury and is uncertain to take the court for the Owls."
+      },
+      {
+        "player": "B. Tousignaut",
+        "position": "G",
+        "status": "Out",
+        "reason": "Undisclosed",
+        "published": "Fri, Jan 16",
+        "headline": "B. Tousignaut (G) — Out: Undisclosed",
+        "description": "Tousignaut suffered an undisclosed injury and will not take the court for the Owls. He will miss the remainder of the 2025-26 season."
+      },
+      {
+        "player": "C. Clemmons",
+        "position": "G",
+        "status": "Out",
+        "reason": "Undisclosed",
+        "published": "Tue, Dec 16",
+        "headline": "C. Clemmons (G) — Out: Undisclosed",
+        "description": "Clemmons suffered an undisclosed injury and will not take the court for the Owls. He will miss the remainder of the 2025-26 season."
+      },
+      {
+        "player": "D. Cosby Jr.",
+        "position": "G",
+        "status": "Out",
+        "reason": "Undisclosed",
+        "published": "Sat, Jul 12",
+        "headline": "D. Cosby Jr. (G) — Out: Undisclosed",
+        "description": "Cosby Jr. is recovering from undisclosed injuries and will not take the court for the Owls. He will remain out indefinitely."
+      }
+    ],
+    "Queens University Royals": [],
+    "Long Island University Sharks": [],
+    "Florida Gators": [],
+    "Houston Cougars": [
+      {
+        "player": "K. Jefferson",
+        "position": "G",
+        "status": "Out",
+        "reason": "Knee",
+        "published": "Fri, Jan 2",
+        "headline": "K. Jefferson (G) — Out: Knee",
+        "description": "Jefferson is dealing with a knee and will not take the court for the Cougars. He will miss the remainder of the 2025-26 season"
+      },
+      {
+        "player": "B. Jackson",
+        "position": "G",
+        "status": "Out",
+        "reason": "Redshirt",
+        "published": "Mon, Dec 8",
+        "headline": "B. Jackson (G) — Out: Redshirt",
+        "description": "Jackson will redshirt and miss the remainder of the 2025-26 season."
+      }
+    ],
+    "Illinois Fighting Illini": [
+      {
+        "player": "J. Jakstys",
+        "position": "C",
+        "status": "Out",
+        "reason": "Undisclosed",
+        "published": "Tue, Feb 17",
+        "headline": "J. Jakstys (C) — Out: Undisclosed",
+        "description": "Jakstys is dealing with an undisclosed injury and will not take the court for the Fighting Illini. He will miss the remainder of the 2025-26 season."
+      },
+      {
+        "player": "T. Rodgers",
+        "position": "G",
+        "status": "Questionable",
+        "reason": "Knee",
+        "published": "Sun, Oct 12",
+        "headline": "T. Rodgers (G) — Questionable: Knee",
+        "description": "Rodgers is dealing with a knee injury and is uncertain to take the court for the Fighting Illini."
+      }
+    ],
+    "Nebraska Cornhuskers": [
+      {
+        "player": "U. Jarusevicius",
+        "position": "F",
+        "status": "Questionable",
+        "reason": "Undisclosed",
+        "published": "Fri, Jan 9",
+        "headline": "U. Jarusevicius (F) — Questionable: Undisclosed",
+        "description": "Jarusevicius is battling an undisclosed injury and is uncertain to take the court for the Cornhuskers."
+      },
+      {
+        "player": "C. Essegian",
+        "position": "G",
+        "status": "Out",
+        "reason": "Ankle",
+        "published": "Fri, Nov 28",
+        "headline": "C. Essegian (G) — Out: Ankle",
+        "description": "Essegian suffered an ankle injury and will miss the remainder of the 2025-26 season."
+      },
+      {
+        "player": "H. Burt",
+        "position": "F",
+        "status": "Questionable",
+        "reason": "Undisclosed",
+        "published": "Sun, Nov 2",
+        "headline": "H. Burt (F) — Questionable: Undisclosed",
+        "description": "Burt is battling an undisclosed injury and is uncertain to take the court for the Cornhuskers."
+      }
+    ],
+    "Vanderbilt Commodores": [
+      {
+        "player": "G. Kimble III",
+        "position": "G",
+        "status": "Out",
+        "reason": "Knee",
+        "published": "Wed, Jun 4",
+        "headline": "G. Kimble III (G) — Out: Knee",
+        "description": "Kimble III is recovering from a knee injury and will not take the court for the Commodores. He is expected to miss the 2025-26 season."
+      }
+    ],
+    "North Carolina Tar Heels": [
+      {
+        "player": "C. Wilson",
+        "position": "F",
+        "status": "Out",
+        "reason": "Thumb",
+        "published": "Tue, Feb 10",
+        "headline": "C. Wilson (F) — Out: Thumb",
+        "description": "Wilson has suffered a right thumb injury and will not take the court for the Tar Heels. He will miss the remainder of the 2025-26 season."
+      },
+      {
+        "player": "J. Brown",
+        "position": "C",
+        "status": "Out",
+        "reason": "Foot",
+        "published": "Mon, Jan 19",
+        "headline": "J. Brown (C) — Out: Foot",
+        "description": "Brown underwent foot surgery and will miss the remainder of the 2025-26 season."
+      },
+      {
+        "player": "I. Matlekovic",
+        "position": "C",
+        "status": "Questionable",
+        "reason": "Hand",
+        "published": "Thu, Jan 15",
+        "headline": "I. Matlekovic (C) — Questionable: Hand",
+        "description": "Matlekovic is dealing with a hand injury and is uncertain to take the court for the Tar Heels."
+      }
+    ],
+    "Saint Mary''s Gaels": [],
+    "Clemson Tigers": [
+      {
+        "player": "T. Steinour",
+        "position": "F-C",
+        "status": "Out",
+        "reason": "Undisclosed",
+        "published": "Thu, Feb 19",
+        "headline": "T. Steinour (F-C) — Out: Undisclosed",
+        "description": "Steinour is dealing with an undisclosed injury and will not take the court for the Tigers."
+      },
+      {
+        "player": "Z. Foster",
+        "position": "G",
+        "status": "Out",
+        "reason": "Knee",
+        "published": "Mon, Dec 15",
+        "headline": "Z. Foster (G) — Out: Knee",
+        "description": "Foster suffered a torn ACL and will not take the court for the Tigers. He will miss the remainder of the 2025-26 season."
+      }
+    ],
+    "Iowa Hawkeyes": [
+      {
+        "player": "P. McCollum",
+        "position": "G",
+        "status": "Out",
+        "reason": "Foot",
+        "published": "Sat, Jan 10",
+        "headline": "P. McCollum (G) — Out: Foot",
+        "description": "McCollum is dealing with a foot injury and will miss the remainder of the 2025-26 season."
+      }
+    ],
+    "Texas A&M Aggies": [
+      {
+        "player": "L. Traore",
+        "position": "F",
+        "status": "Out",
+        "reason": "Undisclosed",
+        "published": "Thu, Feb 12",
+        "headline": "L. Traore (F) — Out: Undisclosed",
+        "description": "Traore is dealing with an undisclosed injury and will not take the court for the Longhorns."
+      }
+    ],
+    "VCU Rams": [
+      {
+        "player": "O. Okafor",
+        "position": "F",
+        "status": "Questionable",
+        "reason": "Undisclosed",
+        "published": "Tue, Feb 10",
+        "headline": "O. Okafor (F) — Questionable: Undisclosed",
+        "description": "Okafor is dealing with an undisclosed injury and is uncertain to take the court for the Rams."
+      },
+      {
+        "player": "C. Fermin",
+        "position": "F",
+        "status": "Out",
+        "reason": "Personal",
+        "published": "Fri, Nov 21",
+        "headline": "C. Fermin (F) — Out: Personal",
+        "description": "Fermin is dealing with a personal matter and will be out indefinitely."
+      }
+    ],
+    "McNeese Cowboys": [],
+    "Troy Trojans": [],
+    "Pennsylvania Quakers": [
+      {
+        "player": "D. Williams",
+        "position": "G",
+        "status": "Questionable",
+        "reason": "Undisclosed",
+        "published": "Sun, Jan 4",
+        "headline": "D. Williams (G) — Questionable: Undisclosed",
+        "description": "Williams is battling an undisclosed injury and is uncertain to take the floor for the Quakers."
+      },
+      {
+        "player": "R. Altman",
+        "position": "G",
+        "status": "Questionable",
+        "reason": "Undisclosed",
+        "published": "Sun, Jan 4",
+        "headline": "R. Altman (G) — Questionable: Undisclosed",
+        "description": "Altman is battling an undisclosed injury and is uncertain to take the floor for the Quakers."
+      }
+    ],
+    "Idaho Vandals": [],
+    "Lehigh Mountain Hawks": [],
+    "Michigan Wolverines": [
+      {
+        "player": "L. Cason",
+        "position": "G",
+        "status": "Out",
+        "reason": "Knee",
+        "published": "Fri, Feb 27",
+        "headline": "L. Cason (G) — Out: Knee",
+        "description": "Cason is dealing with a torn ACL in his right knee and will miss the remainder of the 2025-26 season for the Wolverines. He will also redshirt the 2026-27 season."
+      },
+      {
+        "player": "W. Grady",
+        "position": "G",
+        "status": "Questionable",
+        "reason": "Undisclosed",
+        "published": "Thu, Jan 22",
+        "headline": "W. Grady (G) — Questionable: Undisclosed",
+        "description": "Grady is dealing with an undisclosed injury and is uncertain to take the court for the Wolverines."
+      },
+      {
+        "player": "R. Liburd",
+        "position": "G",
+        "status": "Out",
+        "reason": "Redshirt",
+        "published": "Tue, Jul 8",
+        "headline": "R. Liburd (G) — Out: Redshirt",
+        "description": "Liburd is redshirting and will miss the entire 2025-26 season."
+      }
+    ],
+    "Iowa State Cyclones": [
+      {
+        "player": "P. McCollum",
+        "position": "G",
+        "status": "Out",
+        "reason": "Foot",
+        "published": "Sat, Jan 10",
+        "headline": "P. McCollum (G) — Out: Foot",
+        "description": "McCollum is dealing with a foot injury and will miss the remainder of the 2025-26 season."
+      }
+    ],
+    "Virginia Cavaliers": [],
+    "Alabama Crimson Tide": [
+      {
+        "player": "K. Bristow",
+        "position": "F",
+        "status": "Questionable",
+        "reason": "Undisclosed",
+        "published": "Mon, Jan 12",
+        "headline": "K. Bristow (F) — Questionable: Undisclosed",
+        "description": "Bristow is dealing with an undisclosed injury and is uncertain to take the court for the Crimson Tide."
+      },
+      {
+        "player": "D. Hannah",
+        "position": "G",
+        "status": "Questionable",
+        "reason": "Undisclosed",
+        "published": "Sun, Dec 28",
+        "headline": "D. Hannah (G) — Questionable: Undisclosed",
+        "description": "Hannah is dealing with an undisclosed injury and is uncertain to take the court for the Crimson Tide."
+      },
+      {
+        "player": "C. Onyejiaka",
+        "position": "C",
+        "status": "Out",
+        "reason": "Undisclosed",
+        "published": "Sun, Dec 28",
+        "headline": "C. Onyejiaka (C) — Out: Undisclosed",
+        "description": "Onyejiaka is recovering from an undisclosed procedure and will not take the court for the Crimson Tide. He is expected to miss an extended period of time."
+      }
+    ],
+    "Texas Tech Red Raiders": [
+      {
+        "player": "L. Traore",
+        "position": "F",
+        "status": "Out",
+        "reason": "Undisclosed",
+        "published": "Thu, Feb 12",
+        "headline": "L. Traore (F) — Out: Undisclosed",
+        "description": "Traore is dealing with an undisclosed injury and will not take the court for the Longhorns."
+      }
+    ],
+    "Tennessee Volunteers": [
+      {
+        "player": "N. Ament",
+        "position": "F",
+        "status": "Questionable",
+        "reason": "Leg",
+        "published": "Thu, Mar 5",
+        "headline": "N. Ament (F) — Questionable: Leg",
+        "description": "Ament is dealing with a leg injury and is uncertain to take the court for the Volunteers."
+      },
+      {
+        "player": "C. Phillips",
+        "position": "F",
+        "status": "Out",
+        "reason": "Shoulder",
+        "published": "Sun, Dec 7",
+        "headline": "C. Phillips (F) — Out: Shoulder",
+        "description": "Phillips will undergo shoulder surgery and miss the remainder of the 2025-26 season."
+      }
+    ],
+    "Kentucky Wildcats": [
+      {
+        "player": "B. Garrison",
+        "position": "F",
+        "status": "Probable",
+        "reason": "Undisclosed",
+        "published": "Mon, Mar 9",
+        "headline": "B. Garrison (F) — Probable: Undisclosed",
+        "description": "Garrison is dealing with an undisclosed injury but is expected to take the court for the Wildcats."
+      },
+      {
+        "player": "B. Hawthorne",
+        "position": "F",
+        "status": "Out",
+        "reason": "Redshirt",
+        "published": "Sun, Jan 25",
+        "headline": "B. Hawthorne (F) — Out: Redshirt",
+        "description": "Hawthorne is redshirting and will miss the 2025-26 season."
+      },
+      {
+        "player": "K. Williams",
+        "position": "G",
+        "status": "Probable",
+        "reason": "Foot",
+        "published": "Tue, Jan 20",
+        "headline": "K. Williams (G) — Probable: Foot",
+        "description": "Williams is dealing with a broken foot and is likely to take the court for the Wildcats."
+      },
+      {
+        "player": "J. Lowe",
+        "position": "G",
+        "status": "Out",
+        "reason": "Undisclosed",
+        "published": "Mon, Jan 12",
+        "headline": "J. Lowe (G) — Out: Undisclosed",
+        "description": "Lowe is dealing with an undisclosed injury and will not take the court for the Wildcats. He will miss the remainder of the 2025-26 season."
+      },
+      {
+        "player": "J. Quaintance",
+        "position": "F",
+        "status": "Out",
+        "reason": "Knee",
+        "published": "Thu, Jan 8",
+        "headline": "J. Quaintance (F) — Out: Knee",
+        "description": "Quaintance is dealing with a knee injury and will not take the court for the Wildcats."
+      }
+    ],
+    "Georgia Bulldogs": [],
+    "Saint Louis Billikens": [
+      {
+        "player": "K. Anya",
+        "position": "F",
+        "status": "Out",
+        "reason": "Redshirt",
+        "published": "Wed, Oct 22",
+        "headline": "K. Anya (F) — Out: Redshirt",
+        "description": "Anya is redshirting and will miss the 2025-2026 season."
+      }
+    ],
+    "Santa Clara Broncos": [],
+    "SMU Mustangs": [
+      {
+        "player": "B. Edwards",
+        "position": "G",
+        "status": "Questionable",
+        "reason": "Ankle",
+        "published": "Wed, Feb 25",
+        "headline": "B. Edwards (G) — Questionable: Ankle",
+        "description": "Edwards is dealing with an ankle injury and is uncertain to take the court for the Mustangs."
+      }
+    ],
+    "Akron Zips": [],
+    "Hofstra Pride": [],
+    "Wright State Raiders": [],
+    "Tennessee State Tigers": [
+      {
+        "player": "N. Ament",
+        "position": "F",
+        "status": "Questionable",
+        "reason": "Leg",
+        "published": "Thu, Mar 5",
+        "headline": "N. Ament (F) — Questionable: Leg",
+        "description": "Ament is dealing with a leg injury and is uncertain to take the court for the Volunteers."
+      },
+      {
+        "player": "C. Phillips",
+        "position": "F",
+        "status": "Out",
+        "reason": "Shoulder",
+        "published": "Sun, Dec 7",
+        "headline": "C. Phillips (F) — Out: Shoulder",
+        "description": "Phillips will undergo shoulder surgery and miss the remainder of the 2025-26 season."
+      }
+    ],
+    "UMBC Retrievers": []
+  }
+}
