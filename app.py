@@ -73,8 +73,43 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("CarmPom")
-st.markdown("#### The Ultimate Free Resource for March Madness")
+st.markdown("""
+<div style="
+    background: linear-gradient(135deg, #0d1117 0%, #1a2a1a 40%, #0d2b0d 70%, #1b4332 100%);
+    border: 1px solid #2d6a4f;
+    border-radius: 12px;
+    padding: 48px 40px 40px 40px;
+    margin-bottom: 8px;
+    position: relative;
+    overflow: hidden;
+">
+  <!-- subtle background texture lines -->
+  <div style="
+    position:absolute;top:0;left:0;right:0;bottom:0;
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 60px,
+      rgba(45,106,79,0.07) 60px,
+      rgba(45,106,79,0.07) 61px
+    );
+    pointer-events:none;
+  "></div>
+
+  <div style="position:relative;z-index:1;">
+    <div style="font-size:13px;letter-spacing:4px;text-transform:uppercase;color:#52b788;font-weight:600;margin-bottom:10px;">
+      NCAA Men's Basketball Analytics
+    </div>
+    <div style="font-size:52px;font-weight:900;color:#ffffff;letter-spacing:-1px;line-height:1;margin-bottom:12px;">
+      CarmPom
+    </div>
+    <div style="font-size:18px;color:#b7e4c7;font-weight:400;max-width:540px;line-height:1.5;">
+      Ultimate March Madness Resource
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
 st.caption("Built by Carmen Galgano")
 
 st.divider()
