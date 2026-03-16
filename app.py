@@ -993,16 +993,16 @@ def generate_clash_narrative(ta: pd.Series, tb: pd.Series, wp_a: float, n: int) 
             f"{easier} built theirs in softer conditions (#{er} SOS) — the ratings adjust for this, but "
             "tournament experience under pressure carries its own kind of value."
         )
-    elif luck_b < -0.04 and seed_b > seed_a:
+    elif luck_b < -0.09 and seed_b > seed_a:
         parts.append(
             f"One overlooked angle: {name_b} has been genuinely unlucky in close games all season — "
             "their record undersells how well they've competed, and a neutral floor is exactly when "
             "that bad-luck tax tends to even out."
         )
-    elif luck_a > 0.05 and seed_a < seed_b:
+    elif luck_a > 0.10 and seed_a < seed_b:
         parts.append(
-            f"One caveat: {name_a} has been fortune-favored in tight situations this year, meaning "
-            "their record modestly overstates what the underlying efficiency would project."
+            f"One caveat: {name_a} has been exceptionally fortunate in clutch situations this year, "
+            "meaning their record overstates what the underlying efficiency alone would project."
         )
 
     return " ".join(parts[:4])
@@ -1128,89 +1128,8 @@ def _generate_single_game_bullets(
 
     bullets.append(
         f"📐 **Projected score** (AdjEM/AdjT model): {name_a} **{pts_a}** – {name_b} **{pts_b}**. "
-        f"{fav_name} is expected to win by ~{dog_deficit} points — but that's one game, and margins like these flip routinely."
+        f"{fav_name} is expected to win by ~{dog_deficit} points."
     )
-
-    # ── Path to upset ─────────────────────────────────────────────────────
-    if dog_deficit >= 3:
-        # How much suppression does the underdog need?
-        # Dog needs: fav_new_score ≤ dog_pts → fav efficiency needs to drop by X%
-        suppress_pct = round((dog_deficit / fav_pts) * 100)
-        # OR: dog needs to score X% more than projected
-        boost_pct = round((dog_deficit / dog_pts) * 100)
-        bullets.append(
-            f"🔑 **Path to upset for {dog_name}**: They need to either hold {fav_name} to ≤ "
-            f"**{dog_pts} pts** (a {suppress_pct}% efficiency reduction vs projection), "
-            f"or score ≥ **{fav_pts} pts** themselves (a {boost_pct}% offensive boost). "
-            "In a single game, both are possible — that's the whole point."
-        )
-    else:
-        bullets.append(
-            f"🎲 **Dead heat**: Expected margin is just {dog_deficit} pts — this game is genuinely decided by "
-            "execution, not talent gap. Any advantage (hot shooter, key foul call, transition bucket) wins it."
-        )
-
-    # ── Three-point variance ───────────────────────────────────────────────
-    for tname, pg in [(name_a, pg_a), (name_b, pg_b)]:
-        three_pa = float(pg.get("3PaPG", 0) or 0) if pg else 0
-        three_pct = float(pg.get("3P%", 35) or 35) / 100 if pg else 0.35
-        if three_pa >= 18:
-            # ±8 percentage point swing in one game is normal (1 standard deviation ≈ 7-8%)
-            swing_pts = round(0.08 * three_pa * 3, 1)
-            hot_pts = round(three_pct * three_pa * 3 + swing_pts, 1)
-            cold_pts = round(max(0, three_pct * three_pa * 3 - swing_pts), 1)
-            tier = "elite" if three_pa >= 25 else "heavy"
-            bullets.append(
-                f"🌐 **Three-point variance — {tname}**: They attempt **{three_pa:.0f} threes/game** ({tier} volume). "
-                f"A normal cold shooting night ({round((three_pct - 0.08)*100)}% from three) costs them ~{swing_pts:.0f} pts. "
-                f"A hot night ({round((three_pct + 0.08)*100)}%) adds ~{swing_pts:.0f} pts. "
-                "One-game swings like this are decisive."
-            )
-            break  # only show the more three-heavy team to keep it concise
-
-    # ── Market vs Model ───────────────────────────────────────────────────
-    line_a, line_b = _odds_for_matchup(name_a, name_b, odds_lu)
-    if line_a and line_a.get("impl_prob") is not None:
-        book_prob_a = float(line_a["impl_prob"])
-        book_prob_b = 1.0 - book_prob_a
-        model_pct_a = round(wp_a * 100)
-        book_pct_a  = round(book_prob_a * 100)
-        gap = model_pct_a - book_pct_a
-        ml_str = f"{int(line_a['ml']):+d}" if line_a.get("ml") else "N/A"
-        spread_str = (
-            f"spread: {line_a['spread']:+.1f}" if line_a.get("spread") is not None else "no spread available"
-        )
-        if abs(gap) >= 5:
-            if gap > 0:
-                # CarmPom likes name_a more than market
-                bullets.append(
-                    f"📊 **Model vs Market edge — {name_a}**: CarmPom gives them **{model_pct_a}%** vs Vegas **{book_pct_a}%** "
-                    f"(ML {ml_str}, {spread_str}). That's a {abs(gap)}-pt gap — CarmPom sees more here than the market does."
-                )
-            else:
-                # Market likes name_a more than CarmPom
-                bullets.append(
-                    f"📊 **Model vs Market divergence — {name_b}**: CarmPom gives the underdog **{100 - model_pct_a}%** "
-                    f"vs Vegas **{100 - book_pct_a}%** (ML {ml_str}, {spread_str}). "
-                    f"The market is giving {name_b} {abs(gap)} more percentage points than CarmPom — "
-                    "something the oddsmakers know that pure efficiency doesn't capture."
-                )
-        else:
-            bullets.append(
-                f"📊 **Market alignment** (ML {ml_str}, {spread_str}): CarmPom ({model_pct_a}%) and Vegas ({book_pct_a}%) "
-                "are within 5 percentage points of each other — both models see roughly the same game."
-            )
-    else:
-        if odds_lu:
-            bullets.append(
-                f"📊 **Betting lines**: No odds posted yet for this matchup — likely a winner-pending game. "
-                "Re-run `uv run python pipeline/fetch_odds.py` once both teams are confirmed."
-            )
-        else:
-            bullets.append(
-                "📊 **Betting lines**: Run `uv run python pipeline/fetch_odds.py` to pull live ESPN odds, "
-                "then refresh the page — market vs model comparison will appear here automatically."
-            )
 
     return bullets
 # ---------------------------------------------------------------------------
@@ -2953,15 +2872,6 @@ with bracket_tab:
         # ── Single-Game Reality Check ──────────────────────────────────────
         st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
         with st.expander("🎲 Single-Game Reality Check", expanded=True):
-            st.markdown(
-                "<div style='background:#1e2d40;color:white;border-radius:6px;padding:8px 14px;"
-                "font-size:13px;margin-bottom:10px'>"
-                "The win probability above averages thousands of simulations. "
-                "This section explains what can actually flip <b>one game</b> — "
-                "because March is decided by individual possessions, not projections."
-                "</div>",
-                unsafe_allow_html=True,
-            )
             _pg_a_data = _pg_lu.get(name_a, {})
             _pg_b_data = _pg_lu.get(name_b, {})
             _sg_bullets = _generate_single_game_bullets(
