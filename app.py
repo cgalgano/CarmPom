@@ -2869,9 +2869,9 @@ with bracket_tab:
                         icon="ℹ️",
                     )
 
-        # ── Single-Game Reality Check ──────────────────────────────────────
+        # ── Projected Score ────────────────────────────────────────────────
         st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
-        with st.expander("🎲 Single-Game Reality Check", expanded=True):
+        with st.expander("📐 Projected Score", expanded=True):
             _pg_a_data = _pg_lu.get(name_a, {})
             _pg_b_data = _pg_lu.get(name_b, {})
             _sg_bullets = _generate_single_game_bullets(
