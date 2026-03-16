@@ -254,6 +254,8 @@ def load_per_game_stats(season: int) -> pd.DataFrame:
                 BoxScore.dreb,
                 BoxScore.ast,
                 BoxScore.tov,
+                BoxScore.stl,
+                BoxScore.blk,
             )
             .join(Game, Game.id == BoxScore.game_id)
             .filter(Game.season == season)
@@ -262,7 +264,7 @@ def load_per_game_stats(season: int) -> pd.DataFrame:
 
     bs = pd.DataFrame(rows, columns=[
         "team_id", "game_id", "pts", "fgm", "fga",
-        "fg3m", "fg3a", "ftm", "fta", "oreb", "dreb", "ast", "tov",
+        "fg3m", "fg3a", "ftm", "fta", "oreb", "dreb", "ast", "tov", "stl", "blk",
     ])
 
     # Self-join on game_id to get the opponent's pts and 3PT stats for each game.
@@ -2257,8 +2259,8 @@ with team_tab:
 with scatter_tab:
     st.markdown("### 📈 Tournament Team Scatter Plots")
     st.markdown(
-        "Visual breakdowns across key dimensions — each dot is a tournament team, "
-        "labeled with its logo."
+        "Visual breakdowns across key dimensions — each logo is a tournament team. "
+        "Hover for details."
     )
 
     _sc_ratings = load_rankings(2026)
@@ -2279,30 +2281,7 @@ with scatter_tab:
     )
     _sc_merged["seed"] = pd.to_numeric(_sc_merged["seed"], errors="coerce")
 
-    # No seed-color column needed — logos replace color coding
-    import io as _io
-    import urllib.request as _urlreq
-    from matplotlib.offsetbox import AnnotationBbox, OffsetImage
-    from PIL import Image as _PILImage
-
-    @st.cache_data(show_spinner=False, ttl=3600)
-    def _fetch_logo_arr(url: str):
-        """Download an ESPN logo PNG and return a 28x28 RGBA numpy array, or None."""
-        try:
-            with _urlreq.urlopen(url, timeout=4) as _r:
-                _img = _PILImage.open(_io.BytesIO(_r.read())).convert("RGBA").resize((28, 28), _PILImage.LANCZOS)
-            return np.array(_img)
-        except Exception:
-            return None
-
-    # Build logo array lookup for all tournament teams
-    _logo_arrays: dict[str, Any] = {}
-    for _, _lr in _sc_merged.iterrows():
-        _lurl = _lr.get("logo_url")
-        if _lurl and pd.notna(_lurl):
-            _arr = _fetch_logo_arr(str(_lurl))
-            if _arr is not None:
-                _logo_arrays[str(_lr["Team"])] = _arr
+    import altair as _alt
 
     def _scatter_chart(
         df: pd.DataFrame,
@@ -2310,57 +2289,78 @@ with scatter_tab:
         y_col: str,
         x_label: str,
         y_label: str,
-        title: str,
         invert_x: bool = False,
         invert_y: bool = False,
         x_ref: float | None = None,
         y_ref: float | None = None,
     ):
-        """Build a logo-labeled scatter plot for tournament teams and return the figure."""
+        """Build an Altair logo scatter chart (logos rendered client-side)."""
         df = df.dropna(subset=[x_col, y_col]).copy()
-        fig, ax = plt.subplots(figsize=(6.8, 5.2))
-        ax.set_facecolor("#f9f9f9")
-        fig.patch.set_facecolor("#ffffff")
 
-        # Median reference lines drawn first so dots sit on top
+        x_scale = _alt.Scale(reverse=invert_x)
+        y_scale = _alt.Scale(reverse=invert_y)
+
+        layers: list = []
+
+        # Median reference lines
         if x_ref is not None:
-            ax.axvline(x_ref, color="#ccc", linewidth=0.9, zorder=1, linestyle="--")
+            layers.append(
+                _alt.Chart(pd.DataFrame({"v": [x_ref]}))
+                .mark_rule(strokeDash=[4, 4], color="#bbb", strokeWidth=1)
+                .encode(x=_alt.X("v:Q", scale=x_scale))
+            )
         if y_ref is not None:
-            ax.axhline(y_ref, color="#ccc", linewidth=0.9, zorder=1, linestyle="--")
+            layers.append(
+                _alt.Chart(pd.DataFrame({"v": [y_ref]}))
+                .mark_rule(strokeDash=[4, 4], color="#bbb", strokeWidth=1)
+                .encode(y=_alt.Y("v:Q", scale=y_scale))
+            )
 
-        # Ghost dots at each point so axes scale correctly before logos are placed
-        ax.scatter(
-            df[x_col], df[y_col],
-            c="none", s=4, zorder=2, alpha=0,
-        )
+        # Split: teams with a logo URL vs without
+        _df_logo   = df[df["logo_url"].notna() & (df["logo_url"].astype(str).str.strip() != "")].copy()
+        _df_nologo = df[~(df["logo_url"].notna() & (df["logo_url"].astype(str).str.strip() != ""))].copy()
 
-        # Team logos via AnnotationBbox — fall back to a small colored dot
-        for _, row in df.iterrows():
-            x_val, y_val = row[x_col], row[y_col]
-            logo_arr = _logo_arrays.get(str(row["Team"]))
-            if logo_arr is not None:
-                oi = OffsetImage(logo_arr, zoom=0.55, alpha=0.92)
-                ab = AnnotationBbox(
-                    oi, (x_val, y_val),
-                    frameon=False, zorder=5,
-                    box_alignment=(0.5, 0.5),
+        _tt = [
+            _alt.Tooltip("Team:N", title="Team"),
+            _alt.Tooltip("seed:Q", title="Seed"),
+            _alt.Tooltip(f"{x_col}:Q", title=x_label, format=".2f"),
+            _alt.Tooltip(f"{y_col}:Q", title=y_label, format=".2f"),
+        ]
+
+        if not _df_logo.empty:
+            layers.append(
+                _alt.Chart(_df_logo)
+                .mark_image(width=28, height=28)
+                .encode(
+                    x=_alt.X(f"{x_col}:Q", title=x_label, scale=x_scale),
+                    y=_alt.Y(f"{y_col}:Q", title=y_label, scale=y_scale),
+                    url="logo_url:N",
+                    tooltip=_tt,
                 )
-                ax.add_artist(ab)
-            else:
-                # fallback dot when logo unavailable
-                ax.scatter(x_val, y_val, c="#4a90d9", s=40, zorder=4,
-                           edgecolors="white", linewidths=0.6)
+            )
 
-        if invert_x: ax.invert_xaxis()
-        if invert_y: ax.invert_yaxis()
+        if not _df_nologo.empty:
+            layers.append(
+                _alt.Chart(_df_nologo)
+                .mark_point(size=90, color="#4a90d9", filled=True, opacity=0.85)
+                .encode(
+                    x=_alt.X(f"{x_col}:Q", scale=x_scale),
+                    y=_alt.Y(f"{y_col}:Q", scale=y_scale),
+                    tooltip=_tt,
+                )
+            )
 
-        ax.set_xlabel(x_label, fontsize=9, color="#444")
-        ax.set_ylabel(y_label, fontsize=9, color="#444")
-        # Title is rendered as a Streamlit markdown header above the figure
-        ax.grid(True, linestyle="--", linewidth=0.35, color="#ddd", zorder=0)
-        ax.spines[["top", "right"]].set_visible(False)
-        plt.tight_layout()
-        return fig
+        return (
+            _alt.layer(*layers)
+            .properties(height=380)
+            .configure_axis(
+                gridColor="#eeeeee", gridWidth=0.5,
+                domainColor="#cccccc", tickColor="#cccccc",
+                labelColor="#555555", titleColor="#444444",
+                titleFontSize=11, labelFontSize=10,
+            )
+            .configure_view(strokeWidth=0)
+        )
 
     _sc_col1, _sc_col2 = st.columns(2, gap="large")
 
@@ -2368,17 +2368,17 @@ with scatter_tab:
         # Chart 1: Efficiency Landscape (AdjO vs AdjD)
         st.markdown("**⚡ Efficiency Landscape**")
         if not _sc_merged.empty and "AdjO" in _sc_merged.columns:
-            _fig_eff = _scatter_chart(
-                _sc_merged, "AdjO", "AdjD",
-                "Adjusted Offense (pts/100 possessions)",
-                "Adjusted Defense (pts/100 possessions)",
-                "Efficiency Landscape",
-                invert_y=True,  # lower AdjD = fewer pts allowed → up
-                x_ref=_sc_merged["AdjO"].median(),
-                y_ref=_sc_merged["AdjD"].median(),
+            st.altair_chart(
+                _scatter_chart(
+                    _sc_merged, "AdjO", "AdjD",
+                    "Adjusted Offense (pts/100 possessions)",
+                    "Adjusted Defense (pts/100 possessions)",
+                    invert_y=True,
+                    x_ref=float(_sc_merged["AdjO"].median()),
+                    y_ref=float(_sc_merged["AdjD"].median()),
+                ),
+                use_container_width=True,
             )
-            st.pyplot(_fig_eff, use_container_width=True)
-            plt.close(_fig_eff)
             st.markdown(
                 "<small>CarmPom's AdjEM is built from these two ingredients. "
                 "Teams in the **top-right** dominate on both ends — historically the profile of "
@@ -2394,17 +2394,17 @@ with scatter_tab:
         # Chart 2: Ball Security vs FT Drawing
         st.markdown("**🔒 Ball Security vs Free-Throw Drawing**")
         if not _sc_merged.empty and "TOPG" in _sc_merged.columns and "FTmPG" in _sc_merged.columns:
-            _fig_ball = _scatter_chart(
-                _sc_merged, "TOPG", "FTmPG",
-                "Turnovers per Game (fewer = better →)",
-                "Free Throws Made per Game",
-                "Ball Security vs FT Drawing",
-                invert_x=True,  # fewer TOs = better → rightward
-                x_ref=_sc_merged["TOPG"].median(),
-                y_ref=_sc_merged["FTmPG"].median(),
+            st.altair_chart(
+                _scatter_chart(
+                    _sc_merged, "TOPG", "FTmPG",
+                    "Turnovers per Game (fewer = better →)",
+                    "Free Throws Made per Game",
+                    invert_x=True,
+                    x_ref=float(_sc_merged["TOPG"].median()),
+                    y_ref=float(_sc_merged["FTmPG"].median()),
+                ),
+                use_container_width=True,
             )
-            st.pyplot(_fig_ball, use_container_width=True)
-            plt.close(_fig_ball)
             st.markdown(
                 "<small>Turnovers are magnified in elimination games — one late giveaway can end a season. "
                 "Teams in the **top-right** take care of the ball *and* draw fouls, giving them two reliable "
@@ -2419,20 +2419,20 @@ with scatter_tab:
 
     with _sc_col3:
         # Chart 3: 3PT Defense landscape
-        st.markdown("**🛡 3PT Defense Landscape**")
+        st.markdown("**3PT Defense Landscape**")
         if not _sc_merged.empty and "Opp3PaPG" in _sc_merged.columns and "Opp3P%" in _sc_merged.columns:
-            _fig_3d = _scatter_chart(
-                _sc_merged, "Opp3PaPG", "Opp3P%",
-                "Opp 3PT Attempts Allowed per Game",
-                "Opp 3PT % Allowed",
-                "3PT Defense Landscape",
-                invert_x=True,  # fewer attempts allowed = better
-                invert_y=True,  # lower % allowed = better
-                x_ref=_sc_merged["Opp3PaPG"].median(),
-                y_ref=_sc_merged["Opp3P%"].median(),
+            st.altair_chart(
+                _scatter_chart(
+                    _sc_merged, "Opp3PaPG", "Opp3P%",
+                    "Opp 3PT Attempts Allowed per Game",
+                    "Opp 3PT % Allowed",
+                    invert_x=True,
+                    invert_y=True,
+                    x_ref=float(_sc_merged["Opp3PaPG"].median()),
+                    y_ref=float(_sc_merged["Opp3P%"].median()),
+                ),
+                use_container_width=True,
             )
-            st.pyplot(_fig_3d, use_container_width=True)
-            plt.close(_fig_3d)
             st.markdown(
                 "<small>The three-pointer is the biggest equalizer in March — a hot-shooting "
                 "mid-major can beat anyone if left open. This chart identifies teams that **both** "
@@ -2448,16 +2448,16 @@ with scatter_tab:
         # Chart 4: 3PT Offense — volume vs accuracy
         st.markdown("**🎯 3PT Offense — Volume vs Accuracy**")
         if not _sc_merged.empty and "3PaPG" in _sc_merged.columns and "3P%" in _sc_merged.columns:
-            _fig_3o = _scatter_chart(
-                _sc_merged, "3PaPG", "3P%",
-                "3PT Attempts per Game",
-                "3PT % Made",
-                "3PT Offense — Volume vs Accuracy",
-                x_ref=_sc_merged["3PaPG"].median(),
-                y_ref=_sc_merged["3P%"].median(),
+            st.altair_chart(
+                _scatter_chart(
+                    _sc_merged, "3PaPG", "3P%",
+                    "3PT Attempts per Game",
+                    "3PT % Made",
+                    x_ref=float(_sc_merged["3PaPG"].median()),
+                    y_ref=float(_sc_merged["3P%"].median()),
+                ),
+                use_container_width=True,
             )
-            st.pyplot(_fig_3o, use_container_width=True)
-            plt.close(_fig_3o)
             st.markdown(
                 "<small>Our model uses pre-tournament efficiency, but bracket predictors know "
                 "that variance is highest for teams relying on the arc. "
