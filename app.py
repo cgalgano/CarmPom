@@ -124,7 +124,7 @@ with hero_left:
     - I trained my model on **20+ years of tournament data** to create one of the most accurate and
       predictive metrics available: **Adjusted Efficiency Margin (AdjEM)**, the difference between
       Offensive and Defensive Adjusted Efficiency, measured in points per 100 possessions after
-      adjusting for strength of schedule. A team that goes 25-5 beating cupcakes will have a much
+      adjusting for strength of schedule. A team that goes 25-5 beating bad teams will have a much
       lower AdjEM than one that went 22-8 in a brutal conference. It's the most honest single-number
       summary of how good a team actually is, and the backbone of every prediction on this site.
 
