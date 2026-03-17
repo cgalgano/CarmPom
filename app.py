@@ -2118,7 +2118,7 @@ with team_tab:
         pass
 
     # ── Header ──────────────────────────────────────────────────────────────
-    espn_url  = _t["ESPN"]     if pd.notna(_t.get("ESPN"))     else None
+    espn_url  = _t["Player Stats"] if pd.notna(_t.get("Player Stats")) else None
     logo_url  = _t["logo_url"] if pd.notna(_t.get("logo_url")) else None
 
     logo_col, name_col, h2, h3, h4 = st.columns([0.7, 3.5, 1, 1, 1])
