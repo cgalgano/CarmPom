@@ -135,6 +135,8 @@ with hero_left:
     - Valuable Charts to understand team strengths and weaknesses
     - Team Profile Page — an in-depth look at every team in College Basketball
     - Bracket Creation Tab — analyze each matchup and make selections backed by data
+    - Upset Value Picks in the CarmPom Model
+    - CarmPom's tournament picks, including which teams look poised to make a run
 
     ---
 
