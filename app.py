@@ -2039,16 +2039,31 @@ def generate_team_writeup(t: pd.Series, ts: pd.Series | None, n: int) -> str:
 
 
 # ---------------------------------------------------------------------------
+# First Four play-in games
+# Teams still competing for a bracket slot (today / tomorrow).
+# Key   = bracket CSV team name (winner goes to that bracket slot)
+# Value = (full challenger name for team-profile lookup, short display label)
+# ---------------------------------------------------------------------------
+_FIRST_FOUR: dict[str, tuple[str, str]] = {
+    "SMU Mustangs": ("Miami (OH) RedHawks", "SMU / Miami OH"),
+    # Add further play-in matchups here as needed, e.g.:
+    # "North Carolina Tar Heels": ("Some Challenger", "UNC / Challenger"),
+}
+
+
+# ---------------------------------------------------------------------------
 # Team Profile tab
 # ---------------------------------------------------------------------------
 
 with team_tab:
     _all_teams = load_rankings(2026)
 
-    # Limit to tournament teams when the real bracket is available
+    # Limit to tournament teams when the real bracket is available.
+    # Also include First Four challengers (teams playing today/tomorrow for a spot).
     _profile_bracket = load_real_bracket(2026)
+    _ff_challenger_names = {v[0] for v in _FIRST_FOUR.values()}
     if _profile_bracket is not None and "Team" in _profile_bracket.columns:
-        _tourn_names = set(_profile_bracket["Team"].tolist())
+        _tourn_names = set(_profile_bracket["Team"].tolist()) | _ff_challenger_names
         team_options = sorted(
             t for t in _all_teams["Team"].tolist() if t in _tourn_names
         )
@@ -3047,8 +3062,15 @@ with bracket_tab:
             ta: str, tb: str, sa, sb,
             em_a: float, em_b: float, wp_a: float,
             logo_a: str, logo_b: str, picked: str | None,
+            disp_ta: str | None = None, disp_tb: str | None = None,
         ) -> str:
-            """Return a clean HTML card for one matchup (no pick buttons)."""
+            """Return a clean HTML card for one matchup (no pick buttons).
+
+            disp_ta / disp_tb override the visual label only (e.g. 'SMU / Miami OH')
+            without affecting pick-selection logic which still uses ta/tb.
+            """
+            show_ta = disp_ta or ta
+            show_tb = disp_tb or tb
             wp_pct_a = round(wp_a * 100)
             wp_pct_b = 100 - wp_pct_a
             sel_a, sel_b = picked == ta, picked == tb
@@ -3080,7 +3102,7 @@ with bracket_tab:
                 f"padding:1px 5px;font-size:10px;font-weight:700;flex-shrink:0;margin-right:5px'>{sa}</span>"
                 f"{img(logo_a)}"
                 f"<span style='font-size:12px;font-weight:{fw_a};color:#111111;overflow:hidden;"
-                f"text-overflow:ellipsis;white-space:nowrap'>{chk_a}{ta}</span></div>"
+                f"text-overflow:ellipsis;white-space:nowrap'>{chk_a}{show_ta}</span></div>"
                 f"<span style='color:{em_col_a};font-size:11px;font-weight:600;"
                 f"flex-shrink:0;margin-left:6px'>{em_a:+.1f}</span></div>"
                 # Win prob bar
@@ -3100,7 +3122,7 @@ with bracket_tab:
                 f"padding:1px 5px;font-size:10px;font-weight:700;flex-shrink:0;margin-right:5px'>{sb}</span>"
                 f"{img(logo_b)}"
                 f"<span style='font-size:12px;font-weight:{fw_b};color:#111111;overflow:hidden;"
-                f"text-overflow:ellipsis;white-space:nowrap'>{chk_b}{tb}</span></div>"
+                f"text-overflow:ellipsis;white-space:nowrap'>{chk_b}{show_tb}</span></div>"
                 f"<span style='color:{em_col_b};font-size:11px;font-weight:600;"
                 f"flex-shrink:0;margin-left:6px'>{em_b:+.1f}</span></div></div>"
             )
@@ -3129,15 +3151,24 @@ with bracket_tab:
             sa = int(_sa_rows["seed"].values[0]) if len(_sa_rows) else "?"
             sb = int(_sb_rows["seed"].values[0]) if len(_sb_rows) else "?"
 
+            # First Four detection — show combined label if game hasn't been played yet
+            _ff_info_a = _FIRST_FOUR.get(ta)
+            _ff_info_b = _FIRST_FOUR.get(tb)
+            _ff_disp_a = _ff_info_a[1] if _ff_info_a else None  # e.g. "SMU / Miami OH"
+            _ff_disp_b = _ff_info_b[1] if _ff_info_b else None
+            _is_first_four = bool(_ff_disp_a or _ff_disp_b)
+
             st.markdown(
                 _dev_card_html(ta, tb, sa, sb, em_a, em_b, wp_a,
-                               _pk_logo_lu.get(ta, ""), _pk_logo_lu.get(tb, ""), picked),
+                               _pk_logo_lu.get(ta, ""), _pk_logo_lu.get(tb, ""), picked,
+                               disp_ta=_ff_disp_a, disp_tb=_ff_disp_b),
                 unsafe_allow_html=True,
             )
 
             _cb, _cx, _cc = st.columns([5, 1, 5])
             with _cb:
-                if st.button(ta, key=f"dv_{rnd}_{slot}_a", use_container_width=True,
+                _btn_label_a = _ff_disp_a or ta
+                if st.button(_btn_label_a, key=f"dv_{rnd}_{slot}_a", use_container_width=True,
                              type="primary" if picked == ta else "secondary"):
                     st.session_state["bp_picks"][(rnd, slot)] = ta
                     st.rerun()
@@ -3150,28 +3181,37 @@ with bracket_tab:
                         st.session_state["bp_picks"].pop((_cr, _cs), None)
                     st.rerun()
             with _cc:
-                if st.button(tb, key=f"dv_{rnd}_{slot}_b", use_container_width=True,
+                _btn_label_b = _ff_disp_b or tb
+                if st.button(_btn_label_b, key=f"dv_{rnd}_{slot}_b", use_container_width=True,
                              type="primary" if picked == tb else "secondary"):
                     st.session_state["bp_picks"][(rnd, slot)] = tb
                     st.rerun()
 
-            _ak = f"dv_az_{rnd}_{slot}"
-            if _ak not in st.session_state:
-                st.session_state[_ak] = False
-            _open = st.session_state[_ak]
-            if st.button(
-                "✖ Close" if _open else "📊 Analyze",
-                key=f"dv_{rnd}_{slot}_az",
-                use_container_width=True,
-                type="primary" if _open else "secondary",
-            ):
-                _nv = not _open
-                if _nv:  # close all others first
-                    for _k in list(st.session_state.keys()):
-                        if _k.startswith("dv_az_") and _k != _ak:
-                            st.session_state[_k] = False
-                st.session_state[_ak] = _nv
-                st.rerun()
+            if _is_first_four:
+                # Play-in game pending — analysis unavailable until winner is decided
+                st.markdown(
+                    "<div style='text-align:center;font-size:11px;color:#f57c00;"
+                    "padding:4px 0'>⏳ Play-in game pending — matchup analysis available after tonight</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                _ak = f"dv_az_{rnd}_{slot}"
+                if _ak not in st.session_state:
+                    st.session_state[_ak] = False
+                _open = st.session_state[_ak]
+                if st.button(
+                    "✖ Close" if _open else "📊 Analyze",
+                    key=f"dv_{rnd}_{slot}_az",
+                    use_container_width=True,
+                    type="primary" if _open else "secondary",
+                ):
+                    _nv = not _open
+                    if _nv:  # close all others first
+                        for _k in list(st.session_state.keys()):
+                            if _k.startswith("dv_az_") and _k != _ak:
+                                st.session_state[_k] = False
+                    st.session_state[_ak] = _nv
+                    st.rerun()
 
         # ── Inline analysis renderer ───────────────────────────────────────
         def _dev_analyses(rnd: int, slots) -> None:
