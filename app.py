@@ -798,7 +798,7 @@ def generate_matchup_analysis(
             "than the seed gap suggests. Don't sleep on this one."
         )
 
-    return bullets
+    return [b.replace("\u2014", ", ") for b in bullets]
 
 
 def generate_style_profile(t: pd.Series, n: int) -> str:
@@ -1102,7 +1102,7 @@ def generate_clash_narrative(ta: pd.Series, tb: pd.Series, wp_a: float, n: int) 
             "meaning their record overstates what the underlying efficiency alone would project."
         )
 
-    return " ".join(parts[:4])
+    return " ".join(parts[:4]).replace("\u2014", ", ")
 
 
 # ---------------------------------------------------------------------------
@@ -1228,10 +1228,8 @@ def _generate_single_game_bullets(
         f"{fav_name} is expected to win by ~{dog_deficit} points."
     )
 
-    return bullets
-# ---------------------------------------------------------------------------
-
-_BP_MU_PAIRS   = [(1, 16), (8, 9), (5, 12), (4, 13), (6, 11), (3, 14), (7, 10), (2, 15)]
+    return [b.replace("\u2014", ", ") for b in bullets]
+# ---------------------------------------------------------------------------   = [(1, 16), (8, 9), (5, 12), (4, 13), (6, 11), (3, 14), (7, 10), (2, 15)]
 _BP_REGIONS    = ["East", "West", "South", "Midwest"]
 # Light background + border accent per region for visual differentiation
 _BP_REGION_BG: dict[str, str]     = {"East": "#dbeafe", "West": "#fee2e2", "South": "#dcfce7", "Midwest": "#fef3c7"}
@@ -2034,7 +2032,7 @@ def generate_team_writeup(t: pd.Series, ts: pd.Series | None, n: int) -> str:
     if luck_str:
         parts[-1] = parts[-1].rstrip(".?") + luck_str
 
-    return "  \n\n".join(parts)
+    return "  \n\n".join(parts).replace("\u2014", ", ")
 
 
 # ---------------------------------------------------------------------------
