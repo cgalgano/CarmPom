@@ -2780,11 +2780,6 @@ with bracket_tab:
             f"padding:14px 18px;font-size:14px;color:#e8eaf0;line-height:1.75;font-weight:400'>{_clash}</div>",
             unsafe_allow_html=True,
         )
-        st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
-        with st.expander("\U0001f4cb Key Factors", expanded=True):
-            for bullet in generate_matchup_analysis(_ta_full, _tb_full, wp_a, n):
-                st.markdown(f"- {bullet}")
-
         # ── Playstyle Profiles ─────────────────────────────────────────────
         st.markdown("<div style='margin-top:22px'></div>", unsafe_allow_html=True)
         st.markdown("#### 🎨 Playstyle Profiles")
@@ -2856,6 +2851,11 @@ with bracket_tab:
         _radar_for_team(_ta_full, _ps_col_a)
         _radar_for_team(_tb_full, _ps_col_b)
         st.caption("Each spoke = national percentile. Ball Sec. = inverted TO rate · Forced TO = steals/game · Paint Def. = opp 2PT% allowed (lower = better).")
+
+        st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
+        with st.expander("\U0001f4cb Key Factors", expanded=True):
+            for bullet in generate_matchup_analysis(_ta_full, _tb_full, wp_a, n):
+                st.markdown(f"- {bullet}")
 
         # Injury Intel
         _notes_a = _inj_lu.get(name_a, [])
