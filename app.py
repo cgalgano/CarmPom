@@ -122,11 +122,11 @@ with hero_left:
       Being a numbers guy, I just want a straightforward, data-driven approach to each team and matchup.
 
     - I trained my model on **20+ years of tournament data** to create one of the most accurate and
-      predictive metrics available: **Adjusted Efficiency Margin (AdjEM)** — the difference between
+      predictive metrics available: **Adjusted Efficiency Margin (AdjEM)**, the difference between
       Offensive and Defensive Adjusted Efficiency, measured in points per 100 possessions after
       adjusting for strength of schedule. A team that goes 25-5 beating cupcakes will have a much
       lower AdjEM than one that went 22-8 in a brutal conference. It's the most honest single-number
-      summary of how good a team actually is — and the backbone of every prediction on this site.
+      summary of how good a team actually is, and the backbone of every prediction on this site.
 
     ---
 
@@ -1229,7 +1229,8 @@ def _generate_single_game_bullets(
     )
 
     return [b.replace("\u2014", ", ") for b in bullets]
-# ---------------------------------------------------------------------------   = [(1, 16), (8, 9), (5, 12), (4, 13), (6, 11), (3, 14), (7, 10), (2, 15)]
+# ---------------------------------------------------------------------------
+_BP_MU_PAIRS   = [(1, 16), (8, 9), (5, 12), (4, 13), (6, 11), (3, 14), (7, 10), (2, 15)]
 _BP_REGIONS    = ["East", "West", "South", "Midwest"]
 # Light background + border accent per region for visual differentiation
 _BP_REGION_BG: dict[str, str]     = {"East": "#dbeafe", "West": "#fee2e2", "South": "#dcfce7", "Midwest": "#fef3c7"}
@@ -1351,8 +1352,8 @@ def _bp_autofill(
 # Tabs
 # ---------------------------------------------------------------------------
 
-rankings_tab, team_tab, scatter_tab, bracket_tab, upset_tab, about_tab = st.tabs(
-    ["📊 Team Rankings", "🏀 Team Profile", "📈 Valuable Charts", "🏆 Bracket", "💡 Upset Value", "ℹ️ About"]
+rankings_tab, team_tab, scatter_tab, bracket_tab, upset_tab, picks_tab, about_tab = st.tabs(
+    ["📊 Team Rankings", "🏀 Team Profile", "📈 Valuable Charts", "🏆 Bracket", "💡 Upset Value", "🎯 CarmPom Picks", "ℹ️ About"]
 )
 
 # ---------------------------------------------------------------------------
@@ -3687,6 +3688,507 @@ with upset_tab:
             "\u26a0\ufe0f CarmPom probabilities are derived from adjusted efficiency ratings only. "
             "They do not account for injuries, recent form, or situational factors. "
             "Vegas lines reflect the market consensus incorporating all available information."
+        )
+
+
+# ---------------------------------------------------------------------------
+# CarmPom Picks tab
+# ---------------------------------------------------------------------------
+
+with picks_tab:
+    st.markdown(
+        "<h2 style='font-family:system-ui,sans-serif;margin-bottom:2px'>🎯 CarmPom Tournament Picks</h2>"
+        "<p style='color:#666;font-size:13px;margin-top:0'>"
+        "CarmPom's bracket predictions powered by 50,000 Monte Carlo simulations. "
+        "Highlights teams positioned to exceed seed expectations, whether through a favorable "
+        "bracket path, a mismatch in efficiency vs. seeding, or structural advantages "
+        "over their projected opponents. One bad game ends anyone's run — this surfaces "
+        "where <b>the model sees opportunity the bracket doesn't price in</b>.</p>",
+        unsafe_allow_html=True,
+    )
+
+    _pkl_brkt = load_real_bracket(2026)
+    if _pkl_brkt is None:
+        st.warning(
+            "Bracket data not fully loaded — fill in `data/bracket_2026.csv` with all 64 teams.",
+            icon="⚠️",
+        )
+    else:
+        # Run simulation — heavy, so cache in session state to avoid re-running on every interaction
+        if "pkl_sim_results" not in st.session_state:
+            with st.spinner("Running 50,000 bracket simulations…"):
+                st.session_state["pkl_sim_results"] = simulate_bracket(
+                    _pkl_brkt, n_sims=50_000, rng_seed=42
+                )
+        _pkl_sim: pd.DataFrame = st.session_state["pkl_sim_results"]
+
+        # -----------------------------------------------------------------------
+        # Historical seed advancement rates (all-time NCAA tournament data).
+        # Used as a baseline to find teams where CarmPom exceeds seed expectations.
+        # -----------------------------------------------------------------------
+        _SEED_HIST: dict[int, dict[str, float]] = {
+            1:  {"R32%": 99.0, "S16%": 79.0, "E8%": 48.0, "F4%": 28.0, "Champ%": 16.0},
+            2:  {"R32%": 95.0, "S16%": 58.0, "E8%": 35.0, "F4%": 19.0, "Champ%":  9.0},
+            3:  {"R32%": 85.0, "S16%": 51.0, "E8%": 28.0, "F4%": 13.0, "Champ%":  6.0},
+            4:  {"R32%": 79.0, "S16%": 41.0, "E8%": 20.0, "F4%": 10.0, "Champ%":  4.0},
+            5:  {"R32%": 65.0, "S16%": 28.0, "E8%": 13.0, "F4%":  6.0, "Champ%":  2.5},
+            6:  {"R32%": 63.0, "S16%": 24.0, "E8%": 11.0, "F4%":  5.0, "Champ%":  2.0},
+            7:  {"R32%": 60.0, "S16%": 22.0, "E8%":  9.0, "F4%":  4.0, "Champ%":  1.5},
+            8:  {"R32%": 51.0, "S16%": 22.0, "E8%":  9.0, "F4%":  4.0, "Champ%":  1.0},
+            9:  {"R32%": 49.0, "S16%": 19.0, "E8%":  8.0, "F4%":  3.0, "Champ%":  1.0},
+            10: {"R32%": 40.0, "S16%": 17.0, "E8%":  7.0, "F4%":  3.0, "Champ%":  0.8},
+            11: {"R32%": 37.0, "S16%": 13.0, "E8%":  5.0, "F4%":  2.0, "Champ%":  0.5},
+            12: {"R32%": 35.0, "S16%": 13.0, "E8%":  5.0, "F4%":  2.0, "Champ%":  0.3},
+            13: {"R32%": 21.0, "S16%":  6.0, "E8%":  2.0, "F4%":  0.5, "Champ%":  0.1},
+            14: {"R32%": 16.0, "S16%":  4.0, "E8%":  1.0, "F4%":  0.2, "Champ%":  0.0},
+            15: {"R32%":  6.0, "S16%":  1.0, "E8%":  0.3, "F4%":  0.1, "Champ%":  0.0},
+            16: {"R32%":  1.0, "S16%":  0.1, "E8%":  0.0, "F4%":  0.0, "Champ%":  0.0},
+        }
+
+        # -----------------------------------------------------------------------
+        # NCAA bracket seed pairing structure within a 16-team region.
+        # seed → (r64_opponent_seed, r32_pod_seeds, s16_half_seeds, e8_other_half_seeds)
+        # Left half of region:  1,16,8,9 | 5,12,4,13
+        # Right half of region: 6,11,3,14 | 7,10,2,15
+        # -----------------------------------------------------------------------
+        _SEED_STRUCTURE: dict[int, tuple[int, list[int], list[int], list[int]]] = {
+            1:  (16, [8, 9],      [4, 5, 12, 13],    [2, 3, 6, 7, 10, 11, 14, 15]),
+            16: (1,  [8, 9],      [4, 5, 12, 13],    [2, 3, 6, 7, 10, 11, 14, 15]),
+            8:  (9,  [1, 16],     [4, 5, 12, 13],    [2, 3, 6, 7, 10, 11, 14, 15]),
+            9:  (8,  [1, 16],     [4, 5, 12, 13],    [2, 3, 6, 7, 10, 11, 14, 15]),
+            5:  (12, [4, 13],     [1, 8, 9, 16],     [2, 3, 6, 7, 10, 11, 14, 15]),
+            12: (5,  [4, 13],     [1, 8, 9, 16],     [2, 3, 6, 7, 10, 11, 14, 15]),
+            4:  (13, [5, 12],     [1, 8, 9, 16],     [2, 3, 6, 7, 10, 11, 14, 15]),
+            13: (4,  [5, 12],     [1, 8, 9, 16],     [2, 3, 6, 7, 10, 11, 14, 15]),
+            6:  (11, [3, 14],     [2, 7, 10, 15],    [1, 4, 5, 8, 9, 12, 13, 16]),
+            11: (6,  [3, 14],     [2, 7, 10, 15],    [1, 4, 5, 8, 9, 12, 13, 16]),
+            3:  (14, [6, 11],     [2, 7, 10, 15],    [1, 4, 5, 8, 9, 12, 13, 16]),
+            14: (3,  [6, 11],     [2, 7, 10, 15],    [1, 4, 5, 8, 9, 12, 13, 16]),
+            7:  (10, [2, 15],     [3, 6, 11, 14],    [1, 4, 5, 8, 9, 12, 13, 16]),
+            10: (7,  [2, 15],     [3, 6, 11, 14],    [1, 4, 5, 8, 9, 12, 13, 16]),
+            2:  (15, [7, 10],     [3, 6, 11, 14],    [1, 4, 5, 8, 9, 12, 13, 16]),
+            15: (2,  [7, 10],     [3, 6, 11, 14],    [1, 4, 5, 8, 9, 12, 13, 16]),
+        }
+
+        def _pkl_avg_adjem(region: str, seeds: list[int], brkt: pd.DataFrame) -> float:
+            """Average AdjEM of teams in a region whose seed is in the given list."""
+            sub = brkt[(brkt["region"] == region) & (brkt["seed"].isin(seeds))]
+            return float(sub["AdjEM"].mean()) if not sub.empty else 0.0
+
+        def _pkl_path_score(row: pd.Series, brkt: pd.DataFrame) -> dict[str, float]:
+            """Compute projected path difficulty for a team.
+
+            Returns the average AdjEM of teams in each round's projected opponent pool,
+            plus a composite weighted score (later rounds weighted more heavily).
+            Lower composite = easier path.
+            """
+            seed = int(row["Seed"])
+            region = str(row["Region"])
+            if seed not in _SEED_STRUCTURE:
+                return {"path_r64": 0.0, "path_r32": 0.0, "path_s16": 0.0, "path_e8": 0.0, "path_score": 0.0}
+            r64_seed, r32_seeds, s16_seeds, e8_seeds = _SEED_STRUCTURE[seed]
+            p64 = _pkl_avg_adjem(region, [r64_seed], brkt)
+            p32 = _pkl_avg_adjem(region, r32_seeds,  brkt)
+            p16 = _pkl_avg_adjem(region, s16_seeds,  brkt)
+            p8  = _pkl_avg_adjem(region, e8_seeds,   brkt)
+            # Weight later rounds more — that's where runs are made or broken
+            composite = 0.10 * p64 + 0.20 * p32 + 0.30 * p16 + 0.40 * p8
+            return {
+                "path_r64":   round(p64,       2),
+                "path_r32":   round(p32,       2),
+                "path_s16":   round(p16,       2),
+                "path_e8":    round(p8,        2),
+                "path_score": round(composite, 2),
+            }
+
+        def _pkl_run_score(sim_row: pd.Series) -> float:
+            """Weighted edge over historical seed baseline across S16–Champ.
+
+            A positive score means CarmPom projects this team above what their seed
+            has historically produced. Emphasises E8+ since that's where identifiable
+            upsets become structurally predictable.
+            """
+            seed = int(sim_row["Seed"])
+            hist = _SEED_HIST.get(seed, {"S16%": 20.0, "E8%": 10.0, "F4%": 5.0, "Champ%": 2.0})
+            d_s16   = float(sim_row["S16%"])   - hist["S16%"]
+            d_e8    = float(sim_row["E8%"])    - hist["E8%"]
+            d_f4    = float(sim_row["F4%"])    - hist["F4%"]
+            d_champ = float(sim_row["Champ%"]) - hist["Champ%"]
+            return round(0.20 * d_s16 + 0.30 * d_e8 + 0.30 * d_f4 + 0.20 * d_champ, 2)
+
+        # Build enriched simulation table with path and run metrics
+        _pkl_enriched = _pkl_sim.copy()
+        _path_records = [_pkl_path_score(r, _pkl_brkt) for _, r in _pkl_enriched.iterrows()]
+        _pkl_enriched["path_score"] = [p["path_score"] for p in _path_records]
+        _pkl_enriched["path_r64"]   = [p["path_r64"]   for p in _path_records]
+        _pkl_enriched["path_r32"]   = [p["path_r32"]   for p in _path_records]
+        _pkl_enriched["path_s16"]   = [p["path_s16"]   for p in _path_records]
+        _pkl_enriched["path_e8"]    = [p["path_e8"]    for p in _path_records]
+        _pkl_enriched["run_score"]  = _pkl_enriched.apply(_pkl_run_score, axis=1)
+        # seed_gap > 0 means seed is higher number than CP rank implies — undervalued by committee
+        _pkl_enriched["seed_gap"] = (
+            _pkl_enriched["Seed"] - (_pkl_enriched["CarmPomRk"] / 3.5).round(0).astype(int)
+        )
+
+        # Rankings lookup for logos
+        _pkl_rank_lu: dict[str, dict] = {
+            row["Team"]: row.to_dict()
+            for _, row in load_rankings(2026).iterrows()
+        }
+
+        def _pkl_logo(team: str) -> str:
+            """Return ESPN CDN logo URL for a team, or empty string."""
+            url = _pkl_rank_lu.get(team, {}).get("logo_url", "")
+            return str(url) if url else ""
+
+        def _pkl_team_badge(team: str, seed: int, cp_rank: int) -> str:
+            """Inline HTML: team logo + name + seed badge + CP rank pill."""
+            logo = _pkl_logo(team)
+            img = (
+                f"<img src='{logo}' style='width:20px;height:20px;object-fit:contain;"
+                f"vertical-align:middle;margin-right:4px'>"
+                if logo else ""
+            )
+            return (
+                f"{img}<span style='font-weight:700;font-size:13px'>{team}</span>"
+                f"&nbsp;<span style='background:#1e2d40;color:white;border-radius:4px;"
+                f"padding:1px 5px;font-size:10px;font-weight:700'>#{seed} seed</span>"
+                f"&nbsp;<span style='background:#e3f2fd;color:#1565c0;border-radius:4px;"
+                f"padding:1px 5px;font-size:10px;font-weight:700'>CP #{cp_rank}</span>"
+            )
+
+        def _pkl_bar(pct: float, hist_pct: float, color: str = "#1565c0") -> str:
+            """Horizontal progress bar with an orange baseline tick for historical seed average."""
+            w  = min(max(pct,      0.0), 100.0)
+            hw = min(max(hist_pct, 0.0), 100.0)
+            return (
+                f"<div style='position:relative;height:7px;background:#e0e0e0;border-radius:4px;width:100%;margin:2px 0'>"
+                f"<div style='position:absolute;left:0;top:0;height:7px;width:{w:.1f}%;"
+                f"background:{color};border-radius:4px;opacity:0.85'></div>"
+                f"<div style='position:absolute;top:-2px;left:{hw:.1f}%;width:2px;height:11px;"
+                f"background:#e65100;border-radius:1px' title='Seed avg {hist_pct:.1f}%'></div>"
+                f"</div>"
+            )
+
+        # -----------------------------------------------------------------------
+        # Section 1 — Championship prediction + Final Four picks
+        # -----------------------------------------------------------------------
+        _pkl_champ = _pkl_sim.iloc[0]
+        _pkl_f4    = _pkl_sim.nlargest(4, "F4%")
+
+        st.markdown(
+            "<h3 style='font-family:system-ui,sans-serif;margin-top:18px;margin-bottom:6px'>"
+            "🏆 CarmPom Champion Pick</h3>",
+            unsafe_allow_html=True,
+        )
+        _pc1, _pc2, _pc3 = st.columns([1, 1, 1])
+
+        with _pc1:
+            _ch_logo = _pkl_logo(_pkl_champ["Team"])
+            _ch_img  = (
+                f"<img src='{_ch_logo}' style='width:56px;height:56px;object-fit:contain;"
+                f"display:block;margin:0 auto 8px'>"
+                if _ch_logo else ""
+            )
+            st.markdown(
+                f"<div style='border:2px solid #ffd700;border-radius:12px;padding:16px 12px;"
+                f"text-align:center;font-family:system-ui,sans-serif;"
+                f"background:linear-gradient(135deg,#fffde7,#fff8e1)'>"
+                f"{_ch_img}"
+                f"<div style='font-size:18px;font-weight:800;color:#1e2d40'>{_pkl_champ['Team']}</div>"
+                f"<div style='font-size:12px;color:#666;margin:2px 0'>"
+                f"({int(_pkl_champ['Seed'])} seed · {_pkl_champ['Region']})</div>"
+                f"<div style='font-size:26px;font-weight:900;color:#e65100;margin:6px 0'>"
+                f"{_pkl_champ['Champ%']:.1f}%</div>"
+                f"<div style='font-size:10px;color:#888'>champion probability</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+        with _pc2:
+            st.markdown(
+                "<div style='font-size:12px;font-weight:700;color:#888;font-family:system-ui,sans-serif;"
+                "margin-bottom:6px'>FINAL FOUR PICKS</div>",
+                unsafe_allow_html=True,
+            )
+            for _, _fr in _pkl_f4.iterrows():
+                _fl    = _pkl_logo(str(_fr["Team"]))
+                _fi    = (
+                    f"<img src='{_fl}' style='width:16px;height:16px;object-fit:contain;"
+                    f"vertical-align:middle;margin-right:4px'>"
+                    if _fl else ""
+                )
+                _is_ch = _fr["Team"] == _pkl_champ["Team"]
+                st.markdown(
+                    f"<div style='display:flex;align-items:center;justify-content:space-between;"
+                    f"padding:5px 8px;margin-bottom:4px;border-radius:7px;"
+                    f"background:{'#fff8e1' if _is_ch else '#f5f5f5'};"
+                    f"border:{'1px solid #ffd700' if _is_ch else '1px solid #e0e0e0'}'>"
+                    f"<span style='font-size:12px;font-weight:{'700' if _is_ch else '500'};"
+                    f"color:#1e2d40'>{_fi}({int(_fr['Seed'])}) {_fr['Team']}</span>"
+                    f"<span style='font-size:11px;font-weight:700;color:#1565c0'>{_fr['F4%']:.1f}%</span>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
+        with _pc3:
+            _ch_seed      = int(_pkl_champ["Seed"])
+            _ch_hist_champ = _SEED_HIST.get(_ch_seed, {}).get("Champ%", 10.0)
+            _ch_delta      = _pkl_champ["Champ%"] - _ch_hist_champ
+            _ch_delta_col  = "#2e7d32" if _ch_delta > 0 else "#c62828"
+            st.markdown(
+                f"<div style='background:#f5f5f5;border-radius:10px;padding:14px 12px;"
+                f"font-family:system-ui,sans-serif'>"
+                f"<div style='font-size:11px;font-weight:700;color:#888;margin-bottom:8px'>CHAMPION CONTEXT</div>"
+                f"<div style='display:flex;justify-content:space-between;margin-bottom:5px'>"
+                f"<span style='font-size:12px;color:#555'>CarmPom AdjEM</span>"
+                f"<span style='font-size:12px;font-weight:700;color:#1e2d40'>{_pkl_champ['AdjEM']:+.2f}</span></div>"
+                f"<div style='display:flex;justify-content:space-between;margin-bottom:5px'>"
+                f"<span style='font-size:12px;color:#555'>CP Rank</span>"
+                f"<span style='font-size:12px;font-weight:700;color:#1e2d40'>#{int(_pkl_champ['CarmPomRk'])}</span></div>"
+                f"<div style='display:flex;justify-content:space-between;margin-bottom:5px'>"
+                f"<span style='font-size:12px;color:#555'>Seed baseline</span>"
+                f"<span style='font-size:12px;color:#888'>{_ch_hist_champ:.1f}%</span></div>"
+                f"<div style='display:flex;justify-content:space-between'>"
+                f"<span style='font-size:12px;color:#555'>Model edge</span>"
+                f"<span style='font-size:12px;font-weight:700;color:{_ch_delta_col}'>{_ch_delta:+.1f}pp</span></div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("<hr style='border:none;border-top:1px solid #eee;margin:22px 0'>", unsafe_allow_html=True)
+
+        # -----------------------------------------------------------------------
+        # Section 2 — Run Candidates by round
+        # -----------------------------------------------------------------------
+        st.markdown(
+            "<h3 style='font-family:system-ui,sans-serif;margin-bottom:4px'>📈 Run Candidates</h3>"
+            "<p style='color:#666;font-size:12px;margin-top:0'>"
+            "Teams where CarmPom's efficiency model projects meaningfully better tournament odds "
+            "than their seed historically delivers. Ranked by how far the model exceeds the seed "
+            "baseline for that specific round. The orange tick on each bar = historical seed average. "
+            "Variance is high in single-elimination — these are structural edges, not guarantees.</p>",
+            unsafe_allow_html=True,
+        )
+
+        # (section label, pct column, min seed for candidates, n to show, bar color)
+        _pkl_round_cfgs: list[tuple[str, str, int, int, str]] = [
+            ("🏀 Round of 64 Upset Picks",  "R32%",   8,  5, "#c62828"),
+            ("🏀 Sweet 16 Sleepers",         "S16%",  10,  6, "#1565c0"),
+            ("🏀 Elite Eight Dark Horses",   "E8%",   13,  5, "#1b5e20"),
+            ("🏀 Final Four Sleepers",        "F4%",   16,  4, "#4a148c"),
+        ]
+
+        for _pkl_sec_lbl, _pkl_pct_col, _pkl_min_seed, _pkl_n_show, _pkl_color in _pkl_round_cfgs:
+            st.markdown(
+                f"<div style='background:#1e2d40;color:white;border-radius:8px;"
+                f"padding:8px 14px;margin:18px 0 10px;font-family:system-ui,sans-serif;"
+                f"font-size:14px;font-weight:700'>{_pkl_sec_lbl}</div>",
+                unsafe_allow_html=True,
+            )
+
+            # Filter teams with seed >= threshold and positive run score for this round
+            _pkl_cands = _pkl_enriched[_pkl_enriched["Seed"] >= _pkl_min_seed].copy()
+
+            def _round_boost(r: pd.Series, col: str = _pkl_pct_col) -> float:
+                """How many percentage points above the historical seed average for this round."""
+                return float(r[col]) - _SEED_HIST.get(int(r["Seed"]), {}).get(col, 0.0)
+
+            _pkl_cands = _pkl_cands.assign(_rnd_boost=_pkl_cands.apply(_round_boost, axis=1))
+            _pkl_cands = _pkl_cands[_pkl_cands["_rnd_boost"] > 2.0].nlargest(_pkl_n_show, "_rnd_boost")
+
+            if _pkl_cands.empty:
+                st.caption("No significant candidates found for this round.")
+                continue
+
+            for _, _pr in _pkl_cands.iterrows():
+                _ps     = int(_pr["Seed"])
+                _pcr    = int(_pr["CarmPomRk"])
+                _pem    = float(_pr["AdjEM"])
+                _pteam  = str(_pr["Team"])
+                _preg   = str(_pr["Region"])
+                _hist   = _SEED_HIST.get(_ps, {})
+                _boost  = float(_pr["_rnd_boost"])
+
+                # Path difficulty context
+                _pth = {k: float(_pr[k]) for k in ["path_r64", "path_r32", "path_s16", "path_e8", "path_score"]}
+                all_path_scores = _pkl_enriched["path_score"].dropna()
+                _path_pctile = (all_path_scores < _pth["path_score"]).sum() / len(all_path_scores) * 100
+                if _path_pctile < 30:
+                    _path_lbl, _path_col = "✅ Easy path", "#2e7d32"
+                elif _path_pctile < 55:
+                    _path_lbl, _path_col = "〰️ Average path", "#555"
+                else:
+                    _path_lbl, _path_col = "⛰️ Tough path", "#c62828"
+
+                # First-round opponent
+                _r64_opp_seed = _SEED_STRUCTURE.get(_ps, (0, [], [], []))[0]
+                _r64_opp_rows = _pkl_brkt[(_pkl_brkt["region"] == _preg) & (_pkl_brkt["seed"] == _r64_opp_seed)]
+                _r64_opp_name = str(_r64_opp_rows["Team"].values[0]) if len(_r64_opp_rows) else "?"
+
+                # CP rank → seed gap (positive = CP rates them better than their seed)
+                _sg = _ps - max(int(round(_pcr / 3.5)), 1)
+                _sg_badge = (
+                    f"<span style='background:#fff3e0;color:#e65100;border-radius:6px;"
+                    f"padding:2px 8px;font-size:10px;font-weight:700'>{_sg:+d} seed gap</span>"
+                    if _sg >= 2 else ""
+                )
+
+                # Round progression bars: (label, model pct, hist pct)
+                _rounds_display = [
+                    ("R32", float(_pr["R32%"]), _hist.get("R32%", 50.0)),
+                    ("S16", float(_pr["S16%"]), _hist.get("S16%", 25.0)),
+                    ("E8",  float(_pr["E8%"]),  _hist.get("E8%",  12.0)),
+                    ("F4",  float(_pr["F4%"]),  _hist.get("F4%",   5.0)),
+                ]
+                _bars_html = "".join(
+                    f"<div style='display:flex;align-items:center;gap:6px;margin-bottom:3px'>"
+                    f"<div style='width:28px;font-size:9px;font-weight:700;color:#888;flex-shrink:0'>{rl}</div>"
+                    f"<div style='flex:1'>{_pkl_bar(rp, hp, _pkl_color)}</div>"
+                    f"<div style='width:38px;text-align:right;font-size:10px;font-weight:700;color:{_pkl_color}'>{rp:.1f}%</div>"
+                    f"<div style='width:32px;text-align:right;font-size:9px;color:#aaa'>{hp:.1f}%</div>"
+                    f"</div>"
+                    for rl, rp, hp in _rounds_display
+                )
+
+                st.markdown(
+                    f"<div style='border:1px solid #e0e0e0;border-radius:10px;padding:13px 15px;"
+                    f"margin-bottom:9px;font-family:system-ui,sans-serif;background:#ffffff'>"
+                    # Header row: badge + boost pill
+                    f"<div style='display:flex;align-items:center;justify-content:space-between;"
+                    f"margin-bottom:8px;flex-wrap:wrap;gap:6px'>"
+                    f"<div>{_pkl_team_badge(_pteam, _ps, _pcr)}</div>"
+                    f"<div style='display:flex;gap:6px;align-items:center;flex-wrap:wrap'>"
+                    f"<span style='background:#e8f5e9;color:#2e7d32;border-radius:6px;padding:2px 8px;"
+                    f"font-size:11px;font-weight:700'>+{_boost:.1f}pp above seed avg ({_pkl_pct_col})</span>"
+                    f"{_sg_badge}"
+                    f"</div></div>"
+                    # Two-column body: probability bars left, path analysis right
+                    f"<div style='display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px'>"
+                    f"<div>"
+                    f"<div style='font-size:9px;font-weight:700;color:#aaa;margin-bottom:3px'>"
+                    f"ROUND PROBABILITIES &nbsp;(orange tick = seed average)</div>"
+                    f"{_bars_html}"
+                    f"</div>"
+                    f"<div style='background:#f8f9fa;border-radius:7px;padding:9px'>"
+                    f"<div style='font-size:9px;font-weight:700;color:#aaa;margin-bottom:6px'>BRACKET PATH ANALYSIS</div>"
+                    f"<div style='display:flex;justify-content:space-between;margin-bottom:4px'>"
+                    f"<span style='font-size:11px;color:#555'>R64 opponent</span>"
+                    f"<span style='font-size:11px;font-weight:700;color:#1e2d40'>({_r64_opp_seed}) {_r64_opp_name}</span></div>"
+                    f"<div style='display:flex;justify-content:space-between;margin-bottom:4px'>"
+                    f"<span style='font-size:11px;color:#555'>Avg R32 opp AdjEM</span>"
+                    f"<span style='font-size:11px;font-weight:700;color:#1e2d40'>{_pth['path_r32']:+.1f}</span></div>"
+                    f"<div style='display:flex;justify-content:space-between;margin-bottom:4px'>"
+                    f"<span style='font-size:11px;color:#555'>Avg S16 opp AdjEM</span>"
+                    f"<span style='font-size:11px;font-weight:700;color:#1e2d40'>{_pth['path_s16']:+.1f}</span></div>"
+                    f"<div style='display:flex;justify-content:space-between;margin-bottom:6px'>"
+                    f"<span style='font-size:11px;color:#555'>Avg E8 opp AdjEM</span>"
+                    f"<span style='font-size:11px;font-weight:700;color:#1e2d40'>{_pth['path_e8']:+.1f}</span></div>"
+                    f"<div style='display:flex;justify-content:space-between'>"
+                    f"<span style='font-size:11px;color:#555'>Path difficulty</span>"
+                    f"<span style='font-size:11px;font-weight:700;color:{_path_col}'>{_path_lbl}</span></div>"
+                    f"</div></div>"
+                    # Stat badges footer
+                    f"<div style='display:flex;gap:8px;flex-wrap:wrap'>"
+                    f"<div style='background:#e3f2fd;border-radius:6px;padding:4px 10px;text-align:center'>"
+                    f"<div style='font-size:14px;font-weight:800;color:#1565c0'>{_pem:+.2f}</div>"
+                    f"<div style='font-size:9px;color:#1976d2'>AdjEM</div></div>"
+                    f"<div style='background:#f3e5f5;border-radius:6px;padding:4px 10px;text-align:center'>"
+                    f"<div style='font-size:14px;font-weight:800;color:#7b1fa2'>{float(_pr['R32%']):.1f}%</div>"
+                    f"<div style='font-size:9px;color:#8e24aa'>Win R64</div></div>"
+                    f"<div style='background:#e8f5e9;border-radius:6px;padding:4px 10px;text-align:center'>"
+                    f"<div style='font-size:14px;font-weight:800;color:#2e7d32'>{float(_pr['S16%']):.1f}%</div>"
+                    f"<div style='font-size:9px;color:#388e3c'>Reach S16</div></div>"
+                    f"<div style='background:#fff8e1;border-radius:6px;padding:4px 10px;text-align:center'>"
+                    f"<div style='font-size:14px;font-weight:800;color:#f57f17'>{float(_pr['E8%']):.1f}%</div>"
+                    f"<div style='font-size:9px;color:#f9a825'>Reach E8</div></div>"
+                    f"</div>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
+        st.markdown("<hr style='border:none;border-top:1px solid #eee;margin:22px 0'>", unsafe_allow_html=True)
+
+        # -----------------------------------------------------------------------
+        # Section 3 — Full simulation results table
+        # -----------------------------------------------------------------------
+        st.markdown(
+            "<h3 style='font-family:system-ui,sans-serif;margin-bottom:4px'>📋 Full Simulation Results</h3>"
+            "<p style='color:#666;font-size:12px;margin-top:0'>"
+            "All 64 teams sorted by CarmPom champion probability from 50,000 simulations. "
+            "<b>Run Score</b> = model edge vs historical seed baseline across S16–Champ (positive = CarmPom likes this "
+            "team more than history implies for their seed). "
+            "<b>Path Score</b> = composite weighted-average AdjEM of projected opponents — "
+            "lower means an easier bracket draw.</p>",
+            unsafe_allow_html=True,
+        )
+
+        _pkl_col_order = [
+            "Team", "Region", "Seed", "CarmPomRk", "AdjEM",
+            "R32%", "S16%", "E8%", "F4%", "Champ%",
+            "run_score", "path_score",
+        ]
+        _pkl_display = _pkl_enriched[_pkl_col_order].copy()
+        _pkl_display.columns = [
+            "Team", "Region", "Seed", "CP Rank", "AdjEM",
+            "R32%", "S16%", "E8%", "F4%", "Champ%",
+            "Run Score", "Path Score",
+        ]
+        _pkl_display = _pkl_display.reset_index(drop=True)
+        _pkl_display.index = _pkl_display.index + 1
+
+        _pkl_styler = (
+            _pkl_display.style
+            .format({
+                "AdjEM":      "{:+.2f}",
+                "R32%":       "{:.1f}%",
+                "S16%":       "{:.1f}%",
+                "E8%":        "{:.1f}%",
+                "F4%":        "{:.1f}%",
+                "Champ%":     "{:.1f}%",
+                "Run Score":  "{:+.2f}",
+                "Path Score": "{:.2f}",
+            })
+            .background_gradient(subset=["R32%", "S16%", "E8%", "F4%", "Champ%"], cmap="Blues")
+            .background_gradient(subset=["Run Score"], cmap="RdYlGn", vmin=-5, vmax=15)
+            .background_gradient(subset=["AdjEM"], cmap="RdYlGn", vmin=-10, vmax=35)
+        )
+        st.dataframe(_pkl_styler, use_container_width=True, height=600)
+
+        # Easiest / hardest draws summary
+        _pkl_draw_a, _pkl_draw_b = st.columns(2)
+        with _pkl_draw_a:
+            _easiest = _pkl_enriched.nsmallest(5, "path_score")[["Team", "Seed", "Region", "path_score", "Champ%"]]
+            st.markdown("**🟢 Easiest Bracket Draws**")
+            for _, _er in _easiest.iterrows():
+                st.markdown(
+                    f"<div style='display:flex;justify-content:space-between;padding:4px 8px;"
+                    f"background:#e8f5e9;border-radius:6px;margin-bottom:3px;font-size:12px'>"
+                    f"<span><b>({int(_er['Seed'])}) {_er['Team']}</b> — {_er['Region']}</span>"
+                    f"<span style='color:#2e7d32;font-weight:700'>"
+                    f"Path: {_er['path_score']:.2f} | Champ: {_er['Champ%']:.1f}%</span>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+        with _pkl_draw_b:
+            _hardest = _pkl_enriched.nlargest(5, "path_score")[["Team", "Seed", "Region", "path_score", "Champ%"]]
+            st.markdown("**🔴 Hardest Bracket Draws**")
+            for _, _hr in _hardest.iterrows():
+                st.markdown(
+                    f"<div style='display:flex;justify-content:space-between;padding:4px 8px;"
+                    f"background:#ffebee;border-radius:6px;margin-bottom:3px;font-size:12px'>"
+                    f"<span><b>({int(_hr['Seed'])}) {_hr['Team']}</b> — {_hr['Region']}</span>"
+                    f"<span style='color:#c62828;font-weight:700'>"
+                    f"Path: {_hr['path_score']:.2f} | Champ: {_hr['Champ%']:.1f}%</span>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
+        st.caption(
+            "⚠️ All probabilities are model-based (AdjEM / efficiency ratings only). "
+            "They do not account for injuries, momentum, coaching, or situational factors. "
+            "Run Score > 0 = model projects this team above their historical seed average. "
+            "Path Score: lower = easier projected bracket draw."
         )
 
 
