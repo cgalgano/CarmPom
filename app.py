@@ -661,10 +661,11 @@ def simulate_bracket(
             f4_contestants.extend(survivors)
 
         # Final Four (round_idx 4)
+        # Pairings: East (idx 0) vs South (idx 2), West (idx 1) vs Midwest (idx 3)
         semi_winners: list[tuple[int, float]] = []
-        for i in range(0, 4, 2):
-            a_tid, a_em = f4_contestants[i]
-            b_tid, b_em = f4_contestants[i + 1]
+        for a_idx, b_idx in [(0, 2), (1, 3)]:
+            a_tid, a_em = f4_contestants[a_idx]
+            b_tid, b_em = f4_contestants[b_idx]
             advance[a_tid][4] += 1
             advance[b_tid][4] += 1
             winner = a_tid if rng.random() < _win_prob(a_em, b_em) else b_tid
@@ -1253,6 +1254,15 @@ def _bp_candidates(rnd: int, slot: int, picks: dict, brkt: pd.DataFrame) -> tupl
     """The two teams that play in (rnd, slot), determined by prior picks."""
     if rnd == 0:
         return _bp_r1_teams(slot, brkt)
+    # Final Four: East (E8 slot 0) vs South (E8 slot 2), West (E8 slot 1) vs Midwest (E8 slot 3)
+    if rnd == 4:
+        if slot == 0:
+            ta = picks.get((3, 0)) or "TBD"  # East
+            tb = picks.get((3, 2)) or "TBD"  # South
+        else:
+            ta = picks.get((3, 1)) or "TBD"  # West
+            tb = picks.get((3, 3)) or "TBD"  # Midwest
+        return ta, tb
     ta = picks.get((rnd - 1, 2 * slot)) or "TBD"
     tb = picks.get((rnd - 1, 2 * slot + 1)) or "TBD"
     return ta, tb
@@ -3274,8 +3284,8 @@ with bracket_tab:
             st.markdown("### 🏆 Final Four & Championship")
             _f4c1, _f4c2 = st.columns(2, gap="medium")
             for _f4i, (_ra, _rb, _lbl) in enumerate([
-                ("East", "West", "East vs West"),
-                ("South", "Midwest", "South vs Midwest"),
+                ("East", "South", "East vs South"),
+                ("West", "Midwest", "West vs Midwest"),
             ]):
                 with (_f4c1 if _f4i == 0 else _f4c2):
                     st.markdown(f"**{_lbl}**")
