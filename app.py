@@ -2784,6 +2784,79 @@ with bracket_tab:
         with st.expander("\U0001f4cb Key Factors", expanded=True):
             for bullet in generate_matchup_analysis(_ta_full, _tb_full, wp_a, n):
                 st.markdown(f"- {bullet}")
+
+        # ── Playstyle Profiles ─────────────────────────────────────────────
+        st.markdown("<div style='margin-top:22px'></div>", unsafe_allow_html=True)
+        st.markdown("#### 🎨 Playstyle Profiles")
+        _ps_col_a, _ps_col_b = st.columns(2, gap="large")
+
+        def _pct_dp(nr: int | float, n_total: int) -> float:
+            return round((1 - (nr - 1) / n_total) * 100)
+
+        def _radar_for_team(t_ser: pd.Series, col) -> None:
+            """Render playstyle badge + radar in the given column."""
+            tname = t_ser["Team"]
+            ts_rows = pd.DataFrame()
+            try:
+                _pg_rows = _pg_lu.get(tname)
+                if _pg_rows:
+                    ts_rows = pd.Series(_pg_rows)
+            except Exception:
+                ts_rows = None
+
+            _ts_r: pd.Series | None = ts_rows if (ts_rows is not None and len(ts_rows) > 0) else None
+            _style_name_d, _style_tag_d = generate_playstyle_name(t_ser, _ts_r, n)
+
+            with col:
+                st.markdown(
+                    f"<div style='background:#1e2d40;color:white;border-radius:8px;"
+                    f"padding:9px 14px;margin-bottom:8px;font-family:system-ui'>"
+                    f"<div style='font-size:15px;font-weight:700'>{_style_name_d}</div>"
+                    f"<div style='font-size:11px;opacity:0.72;margin-top:2px'>{_style_tag_d}</div></div>",
+                    unsafe_allow_html=True,
+                )
+                _radar_labels = ["Pace", "3PT Vol.", "3PT Acc.", "Off. Reb.",
+                                 "Ball Sec.", "FT Draw", "Assists", "Def. Reb.",
+                                 "Forced TO", "Paint Def."]
+                if _ts_r is not None:
+                    _vals_r = [
+                        _pct_dp(t_ser["AdjT_nr"], n),
+                        _pct_dp(_ts_r.get("3PaPG_nr", n), n),
+                        _pct_dp(_ts_r.get("3P%_nr", n), n),
+                        _pct_dp(_ts_r.get("OrebPG_nr", n), n),
+                        _pct_dp(_ts_r.get("TOPG_nr", n), n),
+                        _pct_dp(_ts_r.get("FTmPG_nr", n), n),
+                        _pct_dp(_ts_r.get("AstPG_nr", n), n),
+                        _pct_dp(_ts_r.get("RebPG_nr", n), n),
+                        _pct_dp(_ts_r.get("StlPG_nr", n) if "StlPG_nr" in _ts_r.index else n, n),
+                        _pct_dp(_ts_r.get("Opp2P%_nr", n) if "Opp2P%_nr" in _ts_r.index else n, n),
+                    ]
+                else:
+                    _vals_r = [50] * 10
+
+                N_sp = len(_radar_labels)
+                _angles = [i / N_sp * 2 * 3.14159 for i in range(N_sp)] + [0]
+                _vals_r = _vals_r + _vals_r[:1]
+                fig_dp, ax_dp = plt.subplots(figsize=(3.5, 3.5), subplot_kw=dict(polar=True))
+                ax_dp.set_theta_offset(3.14159 / 2)
+                ax_dp.set_theta_direction(-1)
+                ax_dp.set_xticks(_angles[:-1])
+                ax_dp.set_xticklabels(_radar_labels, size=6.5, color="#333")
+                ax_dp.set_yticks([20, 40, 60, 80, 100])
+                ax_dp.set_yticklabels([], size=0)
+                ax_dp.set_ylim(0, 100)
+                ax_dp.plot(_angles, _vals_r, color="#1e2d40", linewidth=1.8)
+                ax_dp.fill(_angles, _vals_r, color="#4a90d9", alpha=0.35)
+                ax_dp.spines["polar"].set_visible(False)
+                ax_dp.grid(color="#ccc", linestyle="--", linewidth=0.5)
+                plt.tight_layout()
+                st.pyplot(fig_dp, use_container_width=True)
+                plt.close(fig_dp)
+
+        _radar_for_team(_ta_full, _ps_col_a)
+        _radar_for_team(_tb_full, _ps_col_b)
+        st.caption("Each spoke = national percentile. Ball Sec. = inverted TO rate · Forced TO = steals/game · Paint Def. = opp 2PT% allowed (lower = better).")
+
         # Injury Intel
         _notes_a = _inj_lu.get(name_a, [])
         _notes_b = _inj_lu.get(name_b, [])
