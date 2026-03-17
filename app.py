@@ -2937,6 +2937,8 @@ with bracket_tab:
                 impl_a = float(_line_a["impl_prob"])
                 impl_b = 1 - impl_a
                 ml_a = _line_a.get("ml"); ml_b = _line_b.get("ml") if _line_b else None
+                ml_a = int(ml_a) if ml_a is not None else None
+                ml_b = int(ml_b) if ml_b is not None else None
                 spread_a = _line_a.get("spread"); spread_b = _line_b.get("spread") if _line_b else None
                 _mc1, _mc2, _mc3 = st.columns(3)
                 with _mc1: st.metric("Vegas: " + name_a, f"{round(impl_a*100)}%", f"ML: {ml_a:+d}" if ml_a else "")
