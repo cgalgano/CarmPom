@@ -303,7 +303,7 @@ def load_rankings(season: int) -> pd.DataFrame:
         columns=["team_id", "Rank", "Team", "Conf", "espn_id", "AdjEM", "AdjO", "AdjD", "AdjT", "Luck", "SOS", "W", "L"],
     )
     # Build ESPN team stats page URL — works without the slug, just the numeric ID
-    df["ESPN"] = df["team_id"].map(
+    df["Player Stats"] = df["team_id"].map(
         lambda tid: _ESPN_ID_MAP.get(int(tid), None)
     )
     # Logo URL from ESPN CDN
@@ -1405,7 +1405,41 @@ with rankings_tab:
 
     # Build display DataFrame — efficiency cols get inline national rank, stat cols are plain numbers.
     # gmap= feeds raw numeric values to the gradient so colors work on string cells.
-    display_df = filtered[["Rank", "Team", "Conf", "Record", "ESPN"]].copy()
+    # ── KenPom comparison: badge teams CarmPom rates higher ─────────────────
+    _kp_compare = load_kenpom_comparison(season)
+    _kp_diff: dict[int, int] = dict(zip(
+        _kp_compare["team_id"].astype(int),
+        _kp_compare["rank_diff"].astype(int),
+    ))
+
+    def _vs_kp_badge(team_id: int) -> str:
+        """Return HTML badge showing CarmPom vs KenPom rank gap."""
+        diff = _kp_diff.get(int(team_id), None)
+        if diff is None:
+            return "—"
+        if diff >= 5:
+            # CarmPom meaningfully higher — green badge
+            return (
+                f"<span style='background:#1b5e20;color:#e8f5e9;border-radius:4px;"
+                f"padding:2px 7px;font-weight:700;font-size:11px;white-space:nowrap'>"
+                f"▲ +{diff}</span>"
+            )
+        if diff <= -5:
+            # KenPom meaningfully higher — muted red
+            return (
+                f"<span style='background:#4a1010;color:#ffcdd2;border-radius:4px;"
+                f"padding:2px 7px;font-weight:700;font-size:11px;white-space:nowrap'>"
+                f"▼ {diff}</span>"
+            )
+        # Within 4 spots — neutral
+        sign = "+" if diff > 0 else ""
+        return (
+            f"<span style='background:#37474f;color:#cfd8dc;border-radius:4px;"
+            f"padding:2px 7px;font-size:11px;white-space:nowrap'>{sign}{diff}</span>"
+        )
+
+    display_df = filtered[["Rank", "Team", "Conf", "Record", "Player Stats"]].copy()
+    display_df["vs KP"] = filtered["team_id"].apply(_vs_kp_badge)
     display_df["AdjEM"] = filtered.apply(lambda r: f"{r['AdjEM']:+.2f}  {r['AdjEM_nr']}", axis=1)
     display_df["AdjO"]  = filtered.apply(lambda r: f"{r['AdjO']:.2f}  {r['AdjO_nr']}", axis=1)
     display_df["AdjD"]  = filtered.apply(lambda r: f"{r['AdjD']:.2f}  {r['AdjD_nr']}", axis=1)
@@ -1421,11 +1455,11 @@ with rankings_tab:
         )
 
     _PLAIN_COLS = [
-        "Rank", "Team", "Conf", "Record", "ESPN",
+        "Rank", "Team", "Conf", "Record", "Player Stats", "vs KP",
         "PPG", "OppPPG", "RebPG", "AstPG", "OrebPG", "TOPG",
         "FG%", "3P%", "3PaPG", "3PmPG", "FT%", "FTmPG",
     ]
-    # Only include cols that are actually present (ESPN may be absent if espn_id is missing)
+    # Only include cols that are actually present (Player Stats may be absent if espn_id is missing)
     plain_present = [c for c in _PLAIN_COLS if c in display_df.columns]
 
     styled = (
@@ -1446,7 +1480,7 @@ with rankings_tab:
 
     import re
 
-    # Convert styled df to HTML. escape=False lets us inject anchor tags for ESPN links.
+    # Convert styled df to HTML. escape=False lets badge HTML and anchor tags render correctly.
     _table_html = styled.hide(axis="index").to_html(escape=False)
 
     # Replace raw ESPN URLs in td cells with clickable anchor tags.
@@ -1455,7 +1489,7 @@ with rankings_tab:
         lambda m: (
             m.group(1).rstrip('>') + ' style="background-color:#f4f6f8;padding:7px 14px">'
             f'<a href="{m.group(2)}" target="_blank" '
-            'style="color:#1565C0;text-decoration:none;font-size:12px;font-weight:500">ESPN</a></td>'
+            'style="color:#1565C0;text-decoration:none;font-size:12px;font-weight:500">Stats ↗</a></td>'
         ),
         _table_html,
     )
@@ -1519,7 +1553,8 @@ with rankings_tab:
         'Team':   'Team name',
         'Conf':   'Conference',
         'Record': 'Win-loss record (includes conference tournament)',
-        'ESPN':   'Link to ESPN team stats page',
+        'Player Stats': 'Link to ESPN player stats page for this team',
+        'vs KP':  'CarmPom rank vs KenPom rank. ▲ = CarmPom rates this team higher. ▼ = KenPom rates them higher. Number = spots difference.',
         'AdjEM':  'Adjusted Efficiency Margin — points scored minus allowed per 100 possessions, adjusted for opponent strength. The headline ranking stat.',
         'AdjO':   'Adjusted Offensive Efficiency — points scored per 100 possessions, adjusted for opponent defense. Higher is better.',
         'AdjD':   'Adjusted Defensive Efficiency — points allowed per 100 possessions, adjusted for opponent offense. Lower is better.',
