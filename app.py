@@ -2147,13 +2147,46 @@ with team_tab:
         if _seed_line:
             _subline += f"  ·  {_seed_line}"
         st.markdown(_subline)
-    with h2:
-        adjem_pct = round((1 - (_t['AdjEM_nr'] - 1) / _n) * 100)
-        st.metric("AdjEM", f"{_t['AdjEM']:+.2f}", delta=f"#{int(_t['AdjEM_nr'])} · top {100-adjem_pct+1}%", delta_color="off")
-    with h3:
-        st.metric("AdjO", f"{_t['AdjO']:.1f}", delta=f"#{int(_t['AdjO_nr'])} off.", delta_color="off")
-    with h4:
-        st.metric("AdjD", f"{_t['AdjD']:.1f}", delta=f"#{int(_t['AdjD_nr'])} def.", delta_color="off")
+    try:
+        _brk_for_cf = load_real_bracket(2026)
+        _tourn_cf = _all_teams[_all_teams["Team"].isin(set(_brk_for_cf["Team"].tolist()))] if _brk_for_cf is not None else _all_teams
+    except Exception:
+        _tourn_cf = _all_teams
+    _tf_n_cf = max(len(_tourn_cf), 1)
+
+    def _stat_card(col, label: str, value: str, nat_rank: int, stat_col: str) -> None:
+        """Render a color-coded stat card. Color based on tournament-field percentile; text shows national rank."""
+        _t_vals = _tourn_cf[stat_col].dropna()
+        _team_val = float(_t[stat_col])
+        # AdjD: lower is better (rank ascending), all others higher is better
+        if stat_col == "AdjD":
+            _pct = round((_t_vals >= _team_val).sum() / _tf_n_cf * 100)
+        else:
+            _pct = round((_t_vals <= _team_val).sum() / _tf_n_cf * 100)
+        _pct = max(1, min(100, _pct))
+        if _pct >= 75:
+            bg, fg = "#1b5e20", "#e8f5e9"
+        elif _pct >= 50:
+            bg, fg = "#1a3a1a", "#c8e6c9"
+        elif _pct >= 25:
+            bg, fg = "#4a3800", "#fff8e1"
+        else:
+            bg, fg = "#4a1010", "#ffebee"
+        with col:
+            st.markdown(
+                f"<div style='background:{bg};border-radius:10px;padding:12px 14px;"
+                f"font-family:system-ui;text-align:center'>"
+                f"<div style='font-size:11px;color:{fg};opacity:0.7;font-weight:600;"
+                f"letter-spacing:0.5px;text-transform:uppercase'>{label}</div>"
+                f"<div style='font-size:24px;font-weight:800;color:{fg};margin:4px 0'>{value}</div>"
+                f"<div style='font-size:11px;color:{fg};opacity:0.75'>#{nat_rank} nationally</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+    _stat_card(h2, "AdjEM", f"{_t['AdjEM']:+.2f}", int(_t['AdjEM_nr']), "AdjEM")
+    _stat_card(h3, "AdjO",  f"{_t['AdjO']:.1f}",  int(_t['AdjO_nr']),  "AdjO")
+    _stat_card(h4, "AdjD",  f"{_t['AdjD']:.1f}",  int(_t['AdjD_nr']),  "AdjD")
     if espn_url:
         st.markdown(f"**ESPN Player Stats Page:** [View on ESPN ↗]({espn_url})")
 
@@ -2284,6 +2317,31 @@ with team_tab:
     # ── Efficiency metrics (compact row) ────────────────────────────────────
     st.markdown("#### Full Efficiency Breakdown")
     m1, m2, m3, m4, m5, m6 = st.columns(6)
+
+    def _eff_card(col, label: str, value: str, nat_rank: int, help_txt: str) -> None:
+        """Metric card with conditionally-colored rank/percentile delta text."""
+        pct_val = _pct(nat_rank)
+        if pct_val >= 80:
+            rank_color = "#43a047"   # bright green
+        elif pct_val >= 60:
+            rank_color = "#66bb6a"   # light green
+        elif pct_val >= 40:
+            rank_color = "#ffa726"   # amber
+        elif pct_val >= 20:
+            rank_color = "#ef5350"   # red
+        else:
+            rank_color = "#b71c1c"   # dark red
+        with col:
+            st.markdown(
+                f"<div style='font-family:system-ui;padding:4px 0' title='{help_txt}'>"
+                f"<div style='font-size:12px;color:#9aa5b4;font-weight:500'>{label}</div>"
+                f"<div style='font-size:26px;font-weight:700;color:#ffffff;margin:2px 0'>{value}</div>"
+                f"<div style='font-size:12px;font-weight:600;color:{rank_color}'>"
+                f"↑ #{nat_rank} · {pct_val}th pct</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
     for _col_ui, _metric, _label, _val_fmt, _help in [
         (m1, "AdjEM", "Adj. Efficiency Margin", f"{_t['AdjEM']:+.2f}",
          "Adjusted Efficiency Margin — pts/100 margin vs an average D1 opponent. The headline ranking number."),
@@ -2298,47 +2356,48 @@ with team_tab:
         (m6, "SOS",   "Strength of Schedule",   f"{_t['SOS']:+.2f}",
          "Average AdjEM of all opponents faced. Higher = tougher schedule."),
     ]:
-        with _col_ui:
-            _nr = int(_t[f"{_metric}_nr"])
-            st.metric(
-                _label, _val_fmt,
-                delta=f"#{_nr} · {_pct(_nr)}th pct",
-                delta_color="off",
-                help=_help,
-            )
+        _eff_card(_col_ui, _label, _val_fmt, int(_t[f"{_metric}_nr"]), _help)
 
     if _ts is not None:
         st.divider()
         st.markdown("#### Per-Game Stats")
-        _STAT_DISPLAY = [
+        _STAT_OFFENSE = [
             ("PPG",      "Points per game",             False),
-            ("OppPPG",   "Opp. pts per game",           True),
             ("FG%",      "Field goal %",                False),
             ("3P%",      "Three-point %",               False),
+            ("3PaPG",    "3PA per game",                False),
+            ("3PmPG",    "3PM per game",                False),
             ("FT%",      "Free throw %",                False),
+            ("FTmPG",    "FTM per game",                False),
             ("RebPG",    "Rebounds per game",           False),
             ("OrebPG",   "Off. rebounds per game",      False),
             ("AstPG",    "Assists per game",            False),
             ("TOPG",     "Turnovers per game",          True),
-            ("3PaPG",    "3PA per game",                False),
-            ("3PmPG",    "3PM per game",                False),
-            ("FTmPG",    "FTM per game",                False),
-            ("Opp3PaPG", "Opp 3PT attempts/game",         True),
-            ("Opp3P%",   "Opp three-point %",             True),
-            ("Opp2P%",   "Opp 2PT FG% (interior def.)",   True),
-            ("StlPG",    "Steals per game (forced TOs)",  False),
-            ("BlkPG",    "Blocks per game",               False),
         ]
-        stat_rows = []
-        for col, label, _ in _STAT_DISPLAY:
-            nr = int(_ts[f"{col}_nr"]) if pd.notna(_ts.get(f"{col}_nr")) else None
-            pct_s = round((1 - (nr - 1) / _n) * 100) if nr else None
-            stat_rows.append({
-                "Stat": label,
-                "Value": f"{float(_ts[col]):.1f}" if pd.notna(_ts[col]) else "—",
-                "Nat'l Rank": f"#{nr}" if nr else "—",
-                "Percentile": pct_s if pct_s else 0,
-            })
+        _STAT_DEFENSE = [
+            ("OppPPG",   "Opp. pts per game",           True),
+            ("Opp3PaPG", "Opp 3PT attempts/game",       True),
+            ("Opp3P%",   "Opp three-point %",           True),
+            ("Opp2P%",   "Opp 2PT FG% (interior def.)", True),
+            ("StlPG",    "Steals per game (forced TOs)", False),
+            ("BlkPG",    "Blocks per game",              False),
+        ]
+
+        def _build_stat_rows(stat_defs):
+            rows = []
+            for col, label, _ in stat_defs:
+                nr = int(_ts[f"{col}_nr"]) if pd.notna(_ts.get(f"{col}_nr")) else None
+                pct_s = round((1 - (nr - 1) / _n) * 100) if nr else None
+                rows.append({
+                    "Stat": label,
+                    "Value": f"{float(_ts[col]):.1f}" if pd.notna(_ts[col]) else "—",
+                    "Nat'l Rank": f"#{nr}" if nr else "—",
+                    "Percentile": pct_s if pct_s else 0,
+                })
+            return rows
+
+        off_rows = _build_stat_rows(_STAT_OFFENSE)
+        def_rows = _build_stat_rows(_STAT_DEFENSE)
 
         def _stat_bar_html(rows: list[dict]) -> str:
             """Render a list of stat rows as color-coded HTML bars.
@@ -2371,11 +2430,12 @@ with team_tab:
             return "".join(parts)
 
         _sc_a, _sc_b = st.columns(2)
-        _half = len(stat_rows) // 2
         with _sc_a:
-            st.markdown(_stat_bar_html(stat_rows[:_half]), unsafe_allow_html=True)
+            st.markdown("**⚔️ Offense**")
+            st.markdown(_stat_bar_html(off_rows), unsafe_allow_html=True)
         with _sc_b:
-            st.markdown(_stat_bar_html(stat_rows[_half:]), unsafe_allow_html=True)
+            st.markdown("**🛡️ Defense**")
+            st.markdown(_stat_bar_html(def_rows), unsafe_allow_html=True)
 
     st.divider()
 
