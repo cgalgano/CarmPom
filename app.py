@@ -3468,6 +3468,7 @@ with upset_tab:
         _line, _ = _odds_for_matchup(ta, tb, odds)
         dog_book_wp: float | None = None
         dog_ml: int | None = None
+        fav_spread: float | None = None
         if _line and _line.get("impl_prob") is not None:
             impl_a = float(_line["impl_prob"])
             dog_book_wp = (1 - impl_a) if fav == ta else impl_a
@@ -3478,6 +3479,13 @@ with upset_tab:
                     round(-impl_a / (1 - impl_a) * 100) if impl_a < 0.5
                     else round((1 - impl_a) / impl_a * 100)
                 )
+            _spread_raw = _line.get("spread")
+            if _spread_raw is not None:
+                # spread is from ta's perspective; convert to fav's perspective
+                fav_spread = float(_spread_raw) if fav == ta else -float(_spread_raw)
+
+        # CarmPom projected margin: AdjEM diff * ~0.68 (68 possessions/game)
+        cp_margin = (em_fav - em_dog) * 0.68
 
         edge = (wp_dog - dog_book_wp) * 100 if dog_book_wp is not None else None
         return {
@@ -3490,6 +3498,8 @@ with upset_tab:
             "dog_ml": dog_ml,
             "edge": edge,
             "cp_favors_dog": cp_favors_dog,
+            "cp_margin": round(cp_margin, 1),
+            "fav_spread": fav_spread,
         }
 
     def _uv_render_card(rank: int, r: dict) -> None:
@@ -3504,14 +3514,21 @@ with upset_tab:
         img_f = f"<img src='{logo_f}' style='width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:3px'>" if logo_f else ""
         img_d = f"<img src='{logo_d}' style='width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:3px'>" if logo_d else ""
         cp_favors = r.get("cp_favors_dog", False)
+        cp_margin = r.get("cp_margin", 0)
+        fav_spread = r.get("fav_spread", None)
+
+        # Badge: CarmPom projected margin vs Vegas spread
         if cp_favors:
-            ec, eb, es = "#6a1b9a", "#f3e5f5", "⭐ CarmPom favors upset"
-        elif edge is not None:
-            ec = "#1b5e20" if edge >= 8 else ("#2e7d32" if edge >= 4 else "#616161")
-            eb = "#e8f5e9" if edge >= 8 else ("#f1f8e9" if edge >= 4 else "#f5f5f5")
-            es = f"+{edge:.1f}pp vs Vegas"
+            ec, eb = "#6a1b9a", "#f3e5f5"
+            es = "⭐ CarmPom favors upset"
         else:
-            ec, eb, es = "#616161", "#f5f5f5", "No odds yet"
+            ec, eb = "#1e2d40", "#e8eaf6"
+            cp_margin_str = f"{fav} by {cp_margin:.1f}"
+            if fav_spread is not None:
+                spread_str = f"{fav_spread:+.1f}" if fav_spread != 0 else "PK"
+                es = f"CP: {cp_margin:.1f} · Line: {spread_str}"
+            else:
+                es = f"CP projects {cp_margin:.1f} pt margin"
         ml_disp = f" &nbsp;(ML: {r['dog_ml']:+d})" if r.get("dog_ml") is not None else ""
         _ta_s = pd.Series({**_uv_lu.get(fav, {}), "seed": sf, "Team": fav})
         _tb_s = pd.Series({**_uv_lu.get(dog, {}), "seed": sd, "Team": dog})
