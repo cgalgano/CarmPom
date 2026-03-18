@@ -1473,7 +1473,7 @@ def _bp_autofill(
 # ---------------------------------------------------------------------------
 
 rankings_tab, team_tab, scatter_tab, bracket_tab, upset_tab, picks_tab, official_tab, about_tab = st.tabs(
-    ["📊 Team Rankings", "🏀 Team Profile", "📈 Valuable Charts", "🏆 Bracket", "💡 Upset Value", "🎯 CarmPom Picks", "📋 Official Picks", "ℹ️ About"]
+    ["📊 Team Rankings", "🏀 Team Profile", "📈 Valuable Charts", "🏆 Bracket", "💡 Upset Value", "� Runs to Watch", "📋 Official Picks", "ℹ️ About"]
 )
 
 # ---------------------------------------------------------------------------
@@ -4068,95 +4068,7 @@ with picks_tab:
             )
 
         # -----------------------------------------------------------------------
-        # Section 1 — Championship prediction + Final Four picks
-        # -----------------------------------------------------------------------
-        _pkl_champ = _pkl_sim.iloc[0]
-        _pkl_f4    = _pkl_sim.nlargest(4, "F4%")
-
-        st.markdown(
-            "<h3 style='font-family:system-ui,sans-serif;margin-top:18px;margin-bottom:6px;color:#f0f0f0'>"
-            "🏆 CarmPom Champion Pick</h3>",
-            unsafe_allow_html=True,
-        )
-        _pc1, _pc2, _pc3 = st.columns([1, 1, 1])
-
-        with _pc1:
-            _ch_logo = _pkl_logo(_pkl_champ["Team"])
-            _ch_img  = (
-                f"<img src='{_ch_logo}' style='width:56px;height:56px;object-fit:contain;"
-                f"display:block;margin:0 auto 8px'>"
-                if _ch_logo else ""
-            )
-            st.markdown(
-                f"<div style='border:2px solid #ffd700;border-radius:12px;padding:16px 12px;"
-                f"text-align:center;font-family:system-ui,sans-serif;"
-                f"background:linear-gradient(135deg,#fffde7,#fff8e1)'>"
-                f"{_ch_img}"
-                f"<div style='font-size:18px;font-weight:800;color:#1e2d40'>{_pkl_champ['Team']}</div>"
-                f"<div style='font-size:12px;color:#666;margin:2px 0'>"
-                f"({int(_pkl_champ['Seed'])} seed · {_pkl_champ['Region']})</div>"
-                f"<div style='font-size:26px;font-weight:900;color:#e65100;margin:6px 0'>"
-                f"{_pkl_champ['Champ%']:.1f}%</div>"
-                f"<div style='font-size:10px;color:#888'>champion probability</div>"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
-
-        with _pc2:
-            st.markdown(
-                "<div style='font-size:12px;font-weight:700;color:#888;font-family:system-ui,sans-serif;"
-                "margin-bottom:6px'>FINAL FOUR PICKS</div>",
-                unsafe_allow_html=True,
-            )
-            for _, _fr in _pkl_f4.iterrows():
-                _fl    = _pkl_logo(str(_fr["Team"]))
-                _fi    = (
-                    f"<img src='{_fl}' style='width:16px;height:16px;object-fit:contain;"
-                    f"vertical-align:middle;margin-right:4px'>"
-                    if _fl else ""
-                )
-                _is_ch = _fr["Team"] == _pkl_champ["Team"]
-                st.markdown(
-                    f"<div style='display:flex;align-items:center;justify-content:space-between;"
-                    f"padding:5px 8px;margin-bottom:4px;border-radius:7px;"
-                    f"background:{'#fff8e1' if _is_ch else '#f5f5f5'};"
-                    f"border:{'1px solid #ffd700' if _is_ch else '1px solid #e0e0e0'}'>"
-                    f"<span style='font-size:12px;font-weight:{'700' if _is_ch else '500'};"
-                    f"color:#1e2d40'>{_fi}({int(_fr['Seed'])}) {_fr['Team']}</span>"
-                    f"<span style='font-size:11px;font-weight:700;color:#1565c0'>{_fr['F4%']:.1f}%</span>"
-                    f"</div>",
-                    unsafe_allow_html=True,
-                )
-
-        with _pc3:
-            _ch_seed      = int(_pkl_champ["Seed"])
-            _ch_hist_champ = _SEED_HIST.get(_ch_seed, {}).get("Champ%", 10.0)
-            _ch_delta      = _pkl_champ["Champ%"] - _ch_hist_champ
-            _ch_delta_col  = "#2e7d32" if _ch_delta > 0 else "#c62828"
-            st.markdown(
-                f"<div style='background:#f5f5f5;border-radius:10px;padding:14px 12px;"
-                f"font-family:system-ui,sans-serif'>"
-                f"<div style='font-size:11px;font-weight:700;color:#888;margin-bottom:8px'>CHAMPION CONTEXT</div>"
-                f"<div style='display:flex;justify-content:space-between;margin-bottom:5px'>"
-                f"<span style='font-size:12px;color:#555'>CarmPom AdjEM</span>"
-                f"<span style='font-size:12px;font-weight:700;color:#1e2d40'>{_pkl_champ['AdjEM']:+.2f}</span></div>"
-                f"<div style='display:flex;justify-content:space-between;margin-bottom:5px'>"
-                f"<span style='font-size:12px;color:#555'>CP Rank</span>"
-                f"<span style='font-size:12px;font-weight:700;color:#1e2d40'>#{int(_pkl_champ['CarmPomRk'])}</span></div>"
-                f"<div style='display:flex;justify-content:space-between;margin-bottom:5px'>"
-                f"<span style='font-size:12px;color:#555'>Seed baseline</span>"
-                f"<span style='font-size:12px;color:#888'>{_ch_hist_champ:.1f}%</span></div>"
-                f"<div style='display:flex;justify-content:space-between'>"
-                f"<span style='font-size:12px;color:#555'>Model edge</span>"
-                f"<span style='font-size:12px;font-weight:700;color:{_ch_delta_col}'>{_ch_delta:+.1f}pp</span></div>"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
-
-        st.markdown("<hr style='border:none;border-top:1px solid #eee;margin:22px 0'>", unsafe_allow_html=True)
-
-        # -----------------------------------------------------------------------
-        # Section 2 — March Madness Runs to Watch (collapsible per-team writeups)
+        # Runs to Watch (collapsible per-team writeups)
         # -----------------------------------------------------------------------
         st.markdown(
             "<h3 style='font-family:system-ui,sans-serif;margin-bottom:4px;color:#f0f0f0'>"
