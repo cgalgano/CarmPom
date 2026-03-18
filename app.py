@@ -2046,6 +2046,7 @@ def generate_team_writeup(t: pd.Series, ts: pd.Series | None, n: int) -> str:
 # ---------------------------------------------------------------------------
 _FIRST_FOUR: dict[str, tuple[str, str]] = {
     "SMU Mustangs": ("Miami (OH) RedHawks", "SMU / Miami OH"),
+    "VCU Rams":     ("Texas Longhorns",     "VCU / Texas"),
     # Add further play-in matchups here as needed, e.g.:
     # "North Carolina Tar Heels": ("Some Challenger", "UNC / Challenger"),
 }
