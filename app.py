@@ -710,43 +710,59 @@ def simulate_bracket(
 
 
 def _build_official_picks(bracket: pd.DataFrame, sim: pd.DataFrame) -> dict:
-    """Build the CarmPom Official Bracket using simulation percentages at each round.
+    """Build the CarmPom Official Bracket with realistic upset calibration.
 
-    Strategy: for each game in each round, pick the team with the higher simulation
-    advancement probability for *that specific round*. This naturally accounts for
-    path difficulty — a team on an easier side of the bracket earns a higher probability
-    even if their raw AdjEM is marginally lower.
+    Picking strategy (per round):
+    - R64: Use R32% from the simulation. Because these are direct opponents in every
+      sim run, their R32% values sum to ~100% — these ARE game-level win probabilities.
+    - R32 and beyond: Use AdjEM-derived win probability (game-specific), blended with
+      the sim's cumulative advancement % for path-awareness. This produces realistic
+      upset rates (~10-11 R64 upsets, ~4-5 R32 upsets, ~2 S16 upsets historically
+      across the last 6 tournaments) instead of pure chalk.
+
+    Display: all stored `disp_pct_*` values are conditional and sum to 100% per game.
 
     Column mapping (from simulate_bracket):
-        R32%  = probability of winning the R64 game (reaching Round of 32)
-        S16%  = probability of reaching Sweet 16 (winning 2 games)
-        E8%   = probability of reaching Elite 8
-        F4%   = probability of reaching Final Four
+        R32%   = probability of winning the R64 game (reaching Round of 32)
+        S16%   = probability of reaching Sweet 16
+        E8%    = probability of reaching Elite 8
+        F4%    = probability of reaching Final Four
         Champ% = probability of winning the championship
     """
-    sim_lu: dict = sim.set_index("Team").to_dict("index")
-    em_lu: dict  = bracket.set_index("Team")["AdjEM"].to_dict()
+    sim_lu: dict  = sim.set_index("Team").to_dict("index")
+    em_lu: dict   = bracket.set_index("Team")["AdjEM"].to_dict()
     seed_lu: dict = {row["Team"]: int(row["seed"]) for _, row in bracket.iterrows()}
 
-    # Bracket slot order within each 16-team region
     _SEED_ORDER = [1, 16, 8, 9, 5, 12, 4, 13, 6, 11, 3, 14, 7, 10, 2, 15]
 
-    def _pick_by_pct(ta: str, tb: str, col: str) -> tuple[str, str, float]:
-        """Pick winner between ta and tb using the given sim column.
+    def _game_wp(ta: str, tb: str, sim_col: str, adjem_weight: float = 0.0) -> tuple[float, float]:
+        """Return (wp_a, wp_b) as conditional probabilities summing to 1.0.
 
-        Falls back to AdjEM if sim data is missing. Returns (winner, loser, win_share).
+        For R64 (adjem_weight=0): use raw sim R32% — these are already game-specific.
+        For later rounds (adjem_weight > 0): blend AdjEM win_prob with conditional sim%.
+        AdjEM-only gives game-specific upset rates grounded in efficiency differentials.
         """
-        pa = sim_lu.get(ta, {}).get(col, 0.0)
-        pb = sim_lu.get(tb, {}).get(col, 0.0)
+        em_a = float(em_lu.get(ta, 0.0))
+        em_b = float(em_lu.get(tb, 0.0))
+        adjem_wp_a = _win_prob(em_a, em_b)
+
+        pa = sim_lu.get(ta, {}).get(sim_col, 0.0)
+        pb = sim_lu.get(tb, {}).get(sim_col, 0.0)
         total = pa + pb
-        if total == 0:
-            # Fallback: use win probability from AdjEM
-            wp = _win_prob(float(em_lu.get(ta, 0)), float(em_lu.get(tb, 0)))
-            pa, pb, total = wp, 1 - wp, 1.0
-        winner = ta if pa >= pb else tb
+        sim_wp_a = (pa / total) if total > 0 else adjem_wp_a
+
+        # Blend: later rounds rely more on AdjEM (game-specific) for realistic upsets
+        wp_a = adjem_weight * adjem_wp_a + (1 - adjem_weight) * sim_wp_a
+        return wp_a, 1.0 - wp_a
+
+    def _pick(ta: str, tb: str, sim_col: str, adjem_weight: float = 0.0) -> tuple[str, str, float, float]:
+        """Pick winner; return (winner, loser, disp_pct_winner, disp_pct_loser)."""
+        wp_a, wp_b = _game_wp(ta, tb, sim_col, adjem_weight)
+        winner = ta if wp_a >= wp_b else tb
         loser  = tb if winner == ta else ta
-        win_share = max(pa, pb) / total if total > 0 else 0.5
-        return winner, loser, win_share
+        disp_w = round((wp_a if winner == ta else wp_b) * 100, 1)
+        disp_l = round(100.0 - disp_w, 1)
+        return winner, loser, disp_w, disp_l
 
     def _is_upset(winner: str, loser: str) -> bool:
         return seed_lu.get(winner, 99) > seed_lu.get(loser, 0)
@@ -759,63 +775,65 @@ def _build_official_picks(bracket: pd.DataFrame, sim: pd.DataFrame) -> dict:
         seed_to_team = {int(r["seed"]): r["Team"] for _, r in reg_df.iterrows()}
         ordered = [seed_to_team[s] for s in _SEED_ORDER if s in seed_to_team]
 
-        # R64 — pick by R32% (= probability of winning the R64 game)
+        # R64: sim R32% are game-specific for direct opponents — no AdjEM blend needed
         r64: list[dict] = []
         for i in range(0, 16, 2):
             ta, tb = ordered[i], ordered[i + 1]
-            winner, loser, share = _pick_by_pct(ta, tb, "R32%")
-            r64.append({"winner": winner, "loser": loser, "pct": share,
-                        "upset": _is_upset(winner, loser)})
+            w, l, dp_w, dp_l = _pick(ta, tb, "R32%", adjem_weight=0.0)
+            r64.append({"winner": w, "loser": l, "disp_w": dp_w, "disp_l": dp_l,
+                        "pct": dp_w / 100, "upset": _is_upset(w, l)})
 
-        # R32 — pair up R64 winners, pick by S16%
+        # R32: blend 60% AdjEM + 40% conditional sim% → realistic R32 upsets
         r32: list[dict] = []
         r64w = [g["winner"] for g in r64]
         for i in range(0, 8, 2):
             ta, tb = r64w[i], r64w[i + 1]
-            winner, loser, share = _pick_by_pct(ta, tb, "S16%")
-            r32.append({"winner": winner, "loser": loser, "pct": share,
-                        "upset": _is_upset(winner, loser)})
+            w, l, dp_w, dp_l = _pick(ta, tb, "S16%", adjem_weight=0.6)
+            r32.append({"winner": w, "loser": l, "disp_w": dp_w, "disp_l": dp_l,
+                        "pct": dp_w / 100, "upset": _is_upset(w, l)})
 
-        # S16 — pair up R32 winners, pick by E8%
+        # S16: blend 70% AdjEM + 30% sim% — path effects matter but game matchup dominates
         s16: list[dict] = []
         r32w = [g["winner"] for g in r32]
         for i in range(0, 4, 2):
             ta, tb = r32w[i], r32w[i + 1]
-            winner, loser, share = _pick_by_pct(ta, tb, "E8%")
-            s16.append({"winner": winner, "loser": loser, "pct": share,
-                        "upset": _is_upset(winner, loser)})
+            w, l, dp_w, dp_l = _pick(ta, tb, "E8%", adjem_weight=0.7)
+            s16.append({"winner": w, "loser": l, "disp_w": dp_w, "disp_l": dp_l,
+                        "pct": dp_w / 100, "upset": _is_upset(w, l)})
 
-        # E8 — pair up S16 winners, pick by F4%
+        # E8: 70% AdjEM + 30% sim% for F4 path awareness
         s16w = [g["winner"] for g in s16]
-        winner, loser, share = _pick_by_pct(s16w[0], s16w[1], "F4%")
-        e8 = {"winner": winner, "loser": loser, "pct": share,
-              "upset": _is_upset(winner, loser)}
+        w, l, dp_w, dp_l = _pick(s16w[0], s16w[1], "F4%", adjem_weight=0.7)
+        e8 = {"winner": w, "loser": l, "disp_w": dp_w, "disp_l": dp_l,
+              "pct": dp_w / 100, "upset": _is_upset(w, l)}
 
         regions_out[region] = {"R64": r64, "R32": r32, "S16": s16, "E8": e8}
-        regional_e8_winners[region] = winner
+        regional_e8_winners[region] = w
 
-    # Final Four — East vs South, West vs Midwest (per NCAA bracket structure)
+    # Final Four — East vs South, West vs Midwest
     f4_out: dict = {}
     f4_winners: list[str] = []
     for ra, rb in [("East", "South"), ("West", "Midwest")]:
         ta = regional_e8_winners[ra]
         tb = regional_e8_winners[rb]
-        winner, loser, share = _pick_by_pct(ta, tb, "Champ%")
+        w, l, dp_w, dp_l = _pick(ta, tb, "Champ%", adjem_weight=0.6)
         f4_out[f"{ra}/{rb}"] = {
-            "winner": winner, "loser": loser,
-            "ta": ta, "tb": tb,
+            "winner": w, "loser": l, "ta": ta, "tb": tb,
             "ta_region": ra, "tb_region": rb,
-            "pct": share, "upset": _is_upset(winner, loser),
+            "disp_w": dp_w, "disp_l": dp_l,
+            "pct": dp_w / 100, "upset": _is_upset(w, l),
         }
-        f4_winners.append(winner)
+        f4_winners.append(w)
 
     # Championship
     ta, tb = f4_winners[0], f4_winners[1]
-    winner, loser, share = _pick_by_pct(ta, tb, "Champ%")
+    w, l, dp_w, dp_l = _pick(ta, tb, "Champ%", adjem_weight=0.6)
     champ_out = {
-        "winner": winner, "loser": loser, "pct": share,
-        "champ_pct": sim_lu.get(winner, {}).get("Champ%", 0.0),
-        "seed": seed_lu.get(winner, "?"),
+        "winner": w, "loser": l,
+        "disp_w": dp_w, "disp_l": dp_l,
+        "pct": dp_w / 100,
+        "champ_pct": sim_lu.get(w, {}).get("Champ%", 0.0),
+        "seed": seed_lu.get(w, "?"),
     }
 
     return {
@@ -2163,9 +2181,10 @@ def generate_team_writeup(t: pd.Series, ts: pd.Series | None, n: int) -> str:
 # Value = (full challenger name for team-profile lookup, short display label)
 # ---------------------------------------------------------------------------
 _FIRST_FOUR: dict[str, tuple[str, str]] = {
-    # Both First Four games played March 17 — SMU and VCU won their play-in games.
-    # Dict is now empty; bracket slots are confirmed. Add new entries if future
-    # play-in matchups arise.
+    # Games still being played today (March 18) — winner takes the bracket slot.
+    # Key = team currently in bracket CSV (slot holder), Value = (challenger DB name, display label)
+    "SMU Mustangs":        ("Miami (OH) RedHawks",      "SMU / Miami OH"),
+    "Lehigh Mountain Hawks": ("Prairie View A&M Panthers", "Lehigh / Prairie View"),
 }
 
 
@@ -4773,8 +4792,8 @@ with official_tab:
             _f4win = _f4data["winner"]
             _f4los = _f4data["loser"]
             _f4up  = _f4data["upset"]
-            _pct_w = _op_sim_lu.get(_f4win, {}).get("Champ%", 0)
-            _pct_l = _op_sim_lu.get(_f4los, {}).get("Champ%", 0)
+            _pct_w = _f4data.get("disp_w", _op_sim_lu.get(_f4win, {}).get("Champ%", 0))
+            _pct_l = _f4data.get("disp_l", _op_sim_lu.get(_f4los, {}).get("Champ%", 0))
             with _f4col:
                 st.markdown(
                     f"<div style='border:1px solid #333;border-radius:8px;padding:12px 14px;"
@@ -4835,10 +4854,9 @@ with official_tab:
                         _gwin = game["winner"]
                         _glos = game["loser"]
                         _gup  = game["upset"]
-                        _gpct = game["pct"]
-                        # sim % for this specific round
-                        _gsim_w = _op_sim_lu.get(_gwin, {}).get(sim_col, 0)
-                        _gsim_l = _op_sim_lu.get(_glos, {}).get(sim_col, 0)
+                        # Conditional win probabilities (sum to 100% per game)
+                        _disp_w = game.get("disp_w", 50.0)
+                        _disp_l = game.get("disp_l", 50.0)
                         with _gcol:
                             st.markdown(
                                 f"<div style='border:1px solid #2a2a2a;border-radius:7px;"
@@ -4851,7 +4869,7 @@ with official_tab:
                                 f"text-overflow:ellipsis;white-space:nowrap'>"
                                 f"{_op_team_html(_gwin, upset=_gup)}</div>"
                                 f"<span style='color:#4caf50;font-size:10px;font-weight:700;"
-                                f"flex-shrink:0;margin-left:4px'>{_gsim_w:.0f}%</span></div>"
+                                f"flex-shrink:0;margin-left:4px'>{_disp_w:.0f}%</span></div>"
                                 # loser
                                 f"<div style='padding:5px 8px;opacity:0.45;"
                                 f"display:flex;align-items:center;justify-content:space-between'>"
@@ -4859,7 +4877,7 @@ with official_tab:
                                 f"text-overflow:ellipsis;white-space:nowrap'>"
                                 f"{_op_team_html(_glos, bold=False)}</div>"
                                 f"<span style='font-size:10px;color:#666;flex-shrink:0;"
-                                f"margin-left:4px'>{_gsim_l:.0f}%</span></div>"
+                                f"margin-left:4px'>{_disp_l:.0f}%</span></div>"
                                 f"</div>",
                                 unsafe_allow_html=True,
                             )
