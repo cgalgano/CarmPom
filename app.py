@@ -710,24 +710,18 @@ def simulate_bracket(
 
 
 def _build_official_picks(bracket: pd.DataFrame, sim: pd.DataFrame) -> dict:
-    """Build the CarmPom Official Bracket with realistic upset calibration.
+    """Build the CarmPom Official Bracket with historically calibrated upset picks.
 
-    Picking strategy (per round):
-    - R64: Use R32% from the simulation. Because these are direct opponents in every
-      sim run, their R32% values sum to ~100% — these ARE game-level win probabilities.
-    - R32 and beyond: Use AdjEM-derived win probability (game-specific), blended with
-      the sim's cumulative advancement % for path-awareness. This produces realistic
-      upset rates (~10-11 R64 upsets, ~4-5 R32 upsets, ~2 S16 upsets historically
-      across the last 6 tournaments) instead of pure chalk.
+    Upset calibration targets (last 6 NCAA tournaments average):
+        R64:  ~10 upsets / 32 games  → pick underdog if wp >= 33%
+        R32:  ~4  upsets / 16 games  → pick underdog if wp >= 40%
+        S16:  ~2  upsets /  8 games  → pick underdog if wp >= 43%
+        E8:   ~1  upset  /  4 games  → pick underdog if wp >= 46%
+        F4/Champ: pure AdjEM (1-2 upsets possible)
 
-    Display: all stored `disp_pct_*` values are conditional and sum to 100% per game.
-
-    Column mapping (from simulate_bracket):
-        R32%   = probability of winning the R64 game (reaching Round of 32)
-        S16%   = probability of reaching Sweet 16
-        E8%    = probability of reaching Elite 8
-        F4%    = probability of reaching Final Four
-        Champ% = probability of winning the championship
+    For R64, uses the simulation R32% column — these are game-specific win
+    probabilities because R64 opponents are always directly paired. For later
+    rounds, uses AdjEM-based win probability (game-specific, path-independent).
     """
     sim_lu: dict  = sim.set_index("Team").to_dict("index")
     em_lu: dict   = bracket.set_index("Team")["AdjEM"].to_dict()
@@ -735,37 +729,46 @@ def _build_official_picks(bracket: pd.DataFrame, sim: pd.DataFrame) -> dict:
 
     _SEED_ORDER = [1, 16, 8, 9, 5, 12, 4, 13, 6, 11, 3, 14, 7, 10, 2, 15]
 
-    def _game_wp(ta: str, tb: str, sim_col: str, adjem_weight: float = 0.0) -> tuple[float, float]:
-        """Return (wp_a, wp_b) as conditional probabilities summing to 1.0.
-
-        For R64 (adjem_weight=0): use raw sim R32% — these are already game-specific.
-        For later rounds (adjem_weight > 0): blend AdjEM win_prob with conditional sim%.
-        AdjEM-only gives game-specific upset rates grounded in efficiency differentials.
-        """
-        em_a = float(em_lu.get(ta, 0.0))
-        em_b = float(em_lu.get(tb, 0.0))
-        adjem_wp_a = _win_prob(em_a, em_b)
-
-        pa = sim_lu.get(ta, {}).get(sim_col, 0.0)
-        pb = sim_lu.get(tb, {}).get(sim_col, 0.0)
-        total = pa + pb
-        sim_wp_a = (pa / total) if total > 0 else adjem_wp_a
-
-        # Blend: later rounds rely more on AdjEM (game-specific) for realistic upsets
-        wp_a = adjem_weight * adjem_wp_a + (1 - adjem_weight) * sim_wp_a
-        return wp_a, 1.0 - wp_a
-
-    def _pick(ta: str, tb: str, sim_col: str, adjem_weight: float = 0.0) -> tuple[str, str, float, float]:
-        """Pick winner; return (winner, loser, disp_pct_winner, disp_pct_loser)."""
-        wp_a, wp_b = _game_wp(ta, tb, sim_col, adjem_weight)
-        winner = ta if wp_a >= wp_b else tb
-        loser  = tb if winner == ta else ta
-        disp_w = round((wp_a if winner == ta else wp_b) * 100, 1)
-        disp_l = round(100.0 - disp_w, 1)
-        return winner, loser, disp_w, disp_l
-
     def _is_upset(winner: str, loser: str) -> bool:
         return seed_lu.get(winner, 99) > seed_lu.get(loser, 0)
+
+    def _game_wp_adjem(ta: str, tb: str) -> tuple[float, float]:
+        """Return (wp_a, wp_b) from AdjEM — conditional, sums to 1.0."""
+        em_a = float(em_lu.get(ta, 0.0))
+        em_b = float(em_lu.get(tb, 0.0))
+        wp_a = _win_prob(em_a, em_b)
+        return wp_a, 1.0 - wp_a
+
+    def _game_wp_sim_r64(ta: str, tb: str) -> tuple[float, float]:
+        """R64-specific: use sim R32% which are already game-level probs."""
+        pa = sim_lu.get(ta, {}).get("R32%", 0.0)
+        pb = sim_lu.get(tb, {}).get("R32%", 0.0)
+        total = pa + pb
+        if total == 0:
+            return _game_wp_adjem(ta, tb)
+        return pa / total, pb / total
+
+    def _pick(ta: str, tb: str, wp_fn, upset_threshold: float) -> tuple[str, str, float, float]:
+        """Pick winner with upset calibration.
+
+        upset_threshold: if the underdog (higher seed number) has win prob >=
+        this value, pick them. Produces historically realistic upset rates.
+        Returns (winner, loser, disp_pct_winner, disp_pct_loser).
+        """
+        wp_a, wp_b = wp_fn(ta, tb)
+        seed_a = seed_lu.get(ta, 0)
+        seed_b = seed_lu.get(tb, 0)
+        # Identify favorite (lower seed #) and underdog (higher seed #)
+        if seed_a <= seed_b:
+            fav, und, wp_fav, wp_und = ta, tb, wp_a, wp_b
+        else:
+            fav, und, wp_fav, wp_und = tb, ta, wp_b, wp_a
+        # Pick underdog if their win probability clears the threshold
+        winner = und if wp_und >= upset_threshold else fav
+        loser  = fav if winner == und else und
+        disp_w = round((wp_und if winner == und else wp_fav) * 100, 1)
+        disp_l = round(100.0 - disp_w, 1)
+        return winner, loser, disp_w, disp_l
 
     regions_out: dict = {}
     regional_e8_winners: dict[str, str] = {}
@@ -775,35 +778,36 @@ def _build_official_picks(bracket: pd.DataFrame, sim: pd.DataFrame) -> dict:
         seed_to_team = {int(r["seed"]): r["Team"] for _, r in reg_df.iterrows()}
         ordered = [seed_to_team[s] for s in _SEED_ORDER if s in seed_to_team]
 
-        # R64: sim R32% are game-specific for direct opponents — no AdjEM blend needed
+        # R64: upset if underdog sim wp >= 33%
+        # (historically ~10/32 upsets; 9v8 almost always, 10v7 and 11v6 often, 12v5 sometimes)
         r64: list[dict] = []
         for i in range(0, 16, 2):
             ta, tb = ordered[i], ordered[i + 1]
-            w, l, dp_w, dp_l = _pick(ta, tb, "R32%", adjem_weight=0.0)
+            w, l, dp_w, dp_l = _pick(ta, tb, _game_wp_sim_r64, upset_threshold=0.33)
             r64.append({"winner": w, "loser": l, "disp_w": dp_w, "disp_l": dp_l,
                         "pct": dp_w / 100, "upset": _is_upset(w, l)})
 
-        # R32: blend 60% AdjEM + 40% conditional sim% → realistic R32 upsets
+        # R32: upset if underdog AdjEM wp >= 40%
         r32: list[dict] = []
         r64w = [g["winner"] for g in r64]
         for i in range(0, 8, 2):
             ta, tb = r64w[i], r64w[i + 1]
-            w, l, dp_w, dp_l = _pick(ta, tb, "S16%", adjem_weight=0.6)
+            w, l, dp_w, dp_l = _pick(ta, tb, _game_wp_adjem, upset_threshold=0.40)
             r32.append({"winner": w, "loser": l, "disp_w": dp_w, "disp_l": dp_l,
                         "pct": dp_w / 100, "upset": _is_upset(w, l)})
 
-        # S16: blend 70% AdjEM + 30% sim% — path effects matter but game matchup dominates
+        # S16: upset if underdog AdjEM wp >= 43%
         s16: list[dict] = []
         r32w = [g["winner"] for g in r32]
         for i in range(0, 4, 2):
             ta, tb = r32w[i], r32w[i + 1]
-            w, l, dp_w, dp_l = _pick(ta, tb, "E8%", adjem_weight=0.7)
+            w, l, dp_w, dp_l = _pick(ta, tb, _game_wp_adjem, upset_threshold=0.43)
             s16.append({"winner": w, "loser": l, "disp_w": dp_w, "disp_l": dp_l,
                         "pct": dp_w / 100, "upset": _is_upset(w, l)})
 
-        # E8: 70% AdjEM + 30% sim% for F4 path awareness
+        # E8: upset if underdog AdjEM wp >= 46%
         s16w = [g["winner"] for g in s16]
-        w, l, dp_w, dp_l = _pick(s16w[0], s16w[1], "F4%", adjem_weight=0.7)
+        w, l, dp_w, dp_l = _pick(s16w[0], s16w[1], _game_wp_adjem, upset_threshold=0.46)
         e8 = {"winner": w, "loser": l, "disp_w": dp_w, "disp_l": dp_l,
               "pct": dp_w / 100, "upset": _is_upset(w, l)}
 
@@ -816,7 +820,7 @@ def _build_official_picks(bracket: pd.DataFrame, sim: pd.DataFrame) -> dict:
     for ra, rb in [("East", "South"), ("West", "Midwest")]:
         ta = regional_e8_winners[ra]
         tb = regional_e8_winners[rb]
-        w, l, dp_w, dp_l = _pick(ta, tb, "Champ%", adjem_weight=0.6)
+        w, l, dp_w, dp_l = _pick(ta, tb, _game_wp_adjem, upset_threshold=0.47)
         f4_out[f"{ra}/{rb}"] = {
             "winner": w, "loser": l, "ta": ta, "tb": tb,
             "ta_region": ra, "tb_region": rb,
@@ -827,7 +831,7 @@ def _build_official_picks(bracket: pd.DataFrame, sim: pd.DataFrame) -> dict:
 
     # Championship
     ta, tb = f4_winners[0], f4_winners[1]
-    w, l, dp_w, dp_l = _pick(ta, tb, "Champ%", adjem_weight=0.6)
+    w, l, dp_w, dp_l = _pick(ta, tb, _game_wp_adjem, upset_threshold=0.48)
     champ_out = {
         "winner": w, "loser": l,
         "disp_w": dp_w, "disp_l": dp_l,
