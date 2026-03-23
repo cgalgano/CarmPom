@@ -4713,6 +4713,15 @@ with picks_tab:
 # simulation advancement probabilities rather than raw AdjEM chalk.
 # ---------------------------------------------------------------------------
 
+# Hardcoded actual results — updated as the tournament progresses.
+# Sweet 16 is now set (as of March 23, 2026).
+_ACTUAL_SWEET_16: dict[str, set[str]] = {
+    "East":    {"Duke Blue Devils", "UConn Huskies", "Michigan State Spartans", "St. John's Red Storm"},
+    "West":    {"Arizona Wildcats", "Purdue Boilermakers", "Arkansas Razorbacks", "Texas Longhorns"},
+    "South":   {"Houston Cougars", "Illinois Fighting Illini", "Nebraska Cornhuskers", "Iowa Hawkeyes"},
+    "Midwest": {"Michigan Wolverines", "Iowa State Cyclones", "Tennessee Volunteers", "Alabama Crimson Tide"},
+}
+
 with official_tab:
     _op_brkt = load_real_bracket(2026)
     if _op_brkt is None:
@@ -4757,12 +4766,96 @@ with official_tab:
             "<h2 style='font-family:system-ui,sans-serif;margin-bottom:2px'>"
             "📋 CarmPom Official 2026 Bracket Picks</h2>"
             "<p style='color:#ccc;font-size:13px;margin-top:0'>"
-            "Picks generated round-by-round using Monte Carlo simulation probabilities "
-            "(50,000 runs). Each game is decided by which team has the higher simulated "
-            "advancement probability for <em>that specific round</em> — accounting for "
-            "bracket position and path difficulty, not just raw AdjEM.</p>",
+            "Picks generated round-by-round using AdjEM efficiency ratings and "
+            "50,000 Monte Carlo simulations. Progress tracker updated as results come in.</p>",
             unsafe_allow_html=True,
         )
+
+        # ── Progress tracker ──────────────────────────────────────────────
+        # CarmPom's predicted S16 = the 4 R32 winners per region
+        _carmpom_s16: dict[str, list[str]] = {
+            region: [g["winner"] for g in _op_picks["regions"][region]["R32"]]
+            for region in _REGIONS
+        }
+        # F4 picks: E8 winners (still alive check)
+        _carmpom_f4: set[str] = {
+            _op_picks["regions"][r]["E8"]["winner"] for r in _REGIONS
+        }
+        _f4_still_alive = sum(
+            1 for t in _carmpom_f4 if any(t in v for v in _ACTUAL_SWEET_16.values())
+        )
+        _s16_total_correct = sum(
+            sum(1 for t in _carmpom_s16[r] if t in _ACTUAL_SWEET_16.get(r, set()))
+            for r in _REGIONS
+        )
+
+        # Summary bar
+        _pct = _s16_total_correct / 16 * 100
+        _bar_color = "#4caf50" if _pct >= 65 else "#ff9800" if _pct >= 50 else "#ef5350"
+        st.markdown(
+            f"<div style='display:flex;gap:12px;margin:10px 0 18px;flex-wrap:wrap'>"
+            # S16 correct
+            f"<div style='flex:1;min-width:160px;background:#1a1a2e;border:1px solid {_bar_color};"
+            f"border-radius:10px;padding:12px 16px;text-align:center'>"
+            f"<div style='font-size:32px;font-weight:800;color:{_bar_color}'>{_s16_total_correct}/16</div>"
+            f"<div style='font-size:11px;color:#aaa;margin-top:2px'>Sweet 16 picks correct</div>"
+            f"<div style='background:#222;border-radius:4px;height:6px;margin-top:8px;overflow:hidden'>"
+            f"<div style='background:{_bar_color};width:{_pct:.0f}%;height:100%'></div></div>"
+            f"<div style='font-size:10px;color:#666;margin-top:4px'>{_pct:.0f}% accuracy</div>"
+            f"</div>"
+            # F4 still alive
+            f"<div style='flex:1;min-width:160px;background:#1a1a2e;border:1px solid #4caf50;"
+            f"border-radius:10px;padding:12px 16px;text-align:center'>"
+            f"<div style='font-size:32px;font-weight:800;color:#4caf50'>{_f4_still_alive}/4</div>"
+            f"<div style='font-size:11px;color:#aaa;margin-top:2px'>Final Four picks still alive</div>"
+            f"<div style='font-size:22px;margin-top:6px'>{'✅' * _f4_still_alive}{'⬜' * (4 - _f4_still_alive)}</div>"
+            f"</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+        # Per-region grid
+        _reg_cols = st.columns(4, gap="small")
+        _region_colors = {"East": "#1565c0", "West": "#6a1b9a", "South": "#b71c1c", "Midwest": "#1b5e20"}
+        for _rc_col, region in zip(_reg_cols, _REGIONS):
+            _reg_picks = _carmpom_s16[region]
+            _actual_set = _ACTUAL_SWEET_16.get(region, set())
+            _reg_correct = sum(1 for t in _reg_picks if t in _actual_set)
+            _reg_missed   = [t for t in _actual_set if t not in _reg_picks]  # teams in S16 CarmPom missed
+            _rc = _region_colors.get(region, "#333")
+            _rows_html = ""
+            for _pick in _reg_picks:
+                _hit = _pick in _actual_set
+                _icon = "✅" if _hit else "❌"
+                _seed = _op_seed_lu.get(_pick, "?")
+                _name_short = _pick.split()[-2] if len(_pick.split()) >= 2 else _pick  # e.g. "Blue Devils" → drop mascot? Use last word
+                # Use first meaningful word(s) of team name — trim mascot to keep it short
+                _parts = _pick.split()
+                _name_short = " ".join(_parts[:-1]) if len(_parts) > 2 else _pick  # "Duke Blue Devils" → "Duke Blue"
+                _clr = "#c8e6c9" if _hit else "#ffcdd2"
+                _rows_html += (
+                    f"<div style='display:flex;align-items:center;gap:6px;padding:4px 0;"
+                    f"border-bottom:1px solid #222;font-size:11px'>"
+                    f"<span style='flex-shrink:0'>{_icon}</span>"
+                    f"<span style='color:#888;font-size:10px;flex-shrink:0'>(#{_seed})</span>"
+                    f"<span style='color:{_clr};white-space:nowrap;overflow:hidden;"
+                    f"text-overflow:ellipsis'>{_pick}</span>"
+                    f"</div>"
+                )
+            with _rc_col:
+                st.markdown(
+                    f"<div style='background:#111;border:1px solid {_rc};"
+                    f"border-radius:8px;padding:10px 12px;font-family:system-ui,sans-serif'>"
+                    f"<div style='font-size:10px;font-weight:700;color:{_rc};"
+                    f"text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px'>"
+                    f"{region} <span style='background:{_rc};color:white;border-radius:3px;"
+                    f"padding:1px 5px;font-size:9px;margin-left:4px'>{_reg_correct}/4</span></div>"
+                    f"{_rows_html}"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
         # ── Champion card ────────────────────────────────────────────────
         _ch = _op_picks["champ"]
@@ -4887,68 +4980,6 @@ with official_tab:
                             )
 
         st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-
-        # ── Upset picks summary ───────────────────────────────────────────
-        _all_upsets: list[dict] = []
-        for region, rdata in _op_picks["regions"].items():
-            for rnd_key, _, rnd_label, _ in _round_cfg:
-                games = rdata[rnd_key] if rnd_key != "E8" else [rdata["E8"]]
-                for game in games:
-                    if game["upset"]:
-                        _all_upsets.append({
-                            "round": rnd_label, "region": region,
-                            "winner": game["winner"], "loser": game["loser"],
-                            "winner_seed": _op_seed_lu.get(game["winner"], "?"),
-                            "loser_seed":  _op_seed_lu.get(game["loser"], "?"),
-                            "champ_pct": _op_sim_lu.get(game["winner"], {}).get("Champ%", 0),
-                        })
-        # Also check F4
-        for f4v in _op_picks["f4"].values():
-            if f4v["upset"]:
-                _all_upsets.append({
-                    "round": "Final Four", "region": f4v["ta_region"] + "/" + f4v["tb_region"],
-                    "winner": f4v["winner"], "loser": f4v["loser"],
-                    "winner_seed": _op_seed_lu.get(f4v["winner"], "?"),
-                    "loser_seed":  _op_seed_lu.get(f4v["loser"], "?"),
-                    "champ_pct": _op_sim_lu.get(f4v["winner"], {}).get("Champ%", 0),
-                })
-
-        if _all_upsets:
-            st.markdown(
-                "<h3 style='font-family:system-ui,sans-serif;margin-bottom:6px;color:#f0f0f0'>"
-                "⚡ CarmPom's Upset Picks</h3>"
-                "<p style='color:#ccc;font-size:12px;margin-top:0'>"
-                "Games where the model picks the lower seed to advance.</p>",
-                unsafe_allow_html=True,
-            )
-            for _up in _all_upsets:
-                _up_adjem_w = float(_op_brkt[_op_brkt["Team"] == _up["winner"]]["AdjEM"].values[0]) if len(_op_brkt[_op_brkt["Team"] == _up["winner"]]) else 0
-                _up_adjem_l = float(_op_brkt[_op_brkt["Team"] == _up["loser"]]["AdjEM"].values[0])  if len(_op_brkt[_op_brkt["Team"] == _up["loser"]]) else 0
-                _up_wp = _win_prob(_up_adjem_w, _up_adjem_l)
-                st.markdown(
-                    f"<div style='background:#1e1a00;border:1px solid #e65100;"
-                    f"border-radius:8px;padding:9px 14px;margin-bottom:6px;"
-                    f"font-family:system-ui,sans-serif;display:flex;"
-                    f"align-items:center;justify-content:space-between'>"
-                    f"<div>"
-                    f"<span style='color:#ff9800;font-size:10px;font-weight:700;"
-                    f"text-transform:uppercase;letter-spacing:0.5px'>"
-                    f"{_up['round']} · {_up['region']}</span><br>"
-                    f"<span style='font-weight:700;font-size:13px'>"
-                    f"({_up['winner_seed']}) {_up['winner']}</span>"
-                    f"<span style='color:#888;font-size:12px'> over "
-                    f"({_up['loser_seed']}) {_up['loser']}</span>"
-                    f"</div>"
-                    f"<div style='text-align:right;flex-shrink:0;margin-left:12px'>"
-                    f"<div style='color:#ff9800;font-size:12px;font-weight:700'>"
-                    f"{_up_wp:.0%} win prob</div>"
-                    f"<div style='color:#aaa;font-size:11px'>"
-                    f"Champ {_up['champ_pct']:.1f}%</div>"
-                    f"</div></div>",
-                    unsafe_allow_html=True,
-                )
-        else:
-            st.info("No upset picks — the model favors all higher seeds this year.", icon="ℹ️")
 
         st.caption(
             "⚠️ Model-based picks only. Does not account for injuries, coaching decisions, "
