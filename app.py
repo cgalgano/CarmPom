@@ -2287,7 +2287,7 @@ with team_tab:
             if not _brk_row.empty:
                 _rs = int(_brk_row.iloc[0]["seed"])
                 _rr = _brk_row.iloc[0]["region"]
-                _real_seed_str = f"#{_rs} seed Â· {_rr}"
+                _real_seed_str = f"#{_rs} seed · {_rr}"
     except Exception:
         pass
 
@@ -2306,10 +2306,10 @@ with team_tab:
             _seed_parts.append(f"🏆 {_real_seed_str}")
         if _cp_seed_str:
             _seed_parts.append(_cp_seed_str)
-        _seed_line = "  Â·  ".join(_seed_parts)
-        _subline = f"**{_t['Conf']}** Â· {_t['Record']} Â· CarmPom rank **#{_cp_rank}**"
+        _seed_line = "  ·  ".join(_seed_parts)
+        _subline = f"**{_t['Conf']}** · {_t['Record']} · CarmPom rank **#{_cp_rank}**"
         if _seed_line:
-            _subline += f"  Â·  {_seed_line}"
+            _subline += f"  ·  {_seed_line}"
         st.markdown(_subline)
     try:
         _brk_for_cf = load_real_bracket(_SEASON)
@@ -2425,7 +2425,7 @@ with team_tab:
         plt.tight_layout()
         st.pyplot(fig_r, use_container_width=True)
         plt.close(fig_r)
-        st.caption("Each spoke = national percentile for that playstyle dimension. Ball Security = inverted turnover rate Â· Forced TOs = steals/game Â· Paint Def. = opp 2PT FG% (lower allowed = better).")
+        st.caption("Each spoke = national percentile for that playstyle dimension. Ball Security = inverted turnover rate · Forced TOs = steals/game · Paint Def. = opp 2PT FG% (lower allowed = better).")
 
     st.divider()
 
@@ -2501,7 +2501,7 @@ with team_tab:
                 f"<div style='font-size:12px;color:#9aa5b4;font-weight:500'>{label}</div>"
                 f"<div style='font-size:26px;font-weight:700;color:#ffffff;margin:2px 0'>{value}</div>"
                 f"<div style='font-size:12px;font-weight:600;color:{rank_color}'>"
-                f"↑ #{nat_rank} Â· {pct_val}th pct</div>"
+                f"↑ #{nat_rank} · {pct_val}th pct</div>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
@@ -3119,7 +3119,7 @@ with bracket_tab:
 
         _radar_for_team(_ta_full, _ps_col_a)
         _radar_for_team(_tb_full, _ps_col_b)
-        st.caption("Each spoke = national percentile. Ball Sec. = inverted TO rate Â· Forced TO = steals/game Â· Paint Def. = opp 2PT% allowed (lower = better).")
+        st.caption("Each spoke = national percentile. Ball Sec. = inverted TO rate · Forced TO = steals/game · Paint Def. = opp 2PT% allowed (lower = better).")
 
         st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
         with st.expander("\U0001f4cb Key Factors", expanded=True):
@@ -3775,7 +3775,7 @@ with upset_tab:
             cp_margin_str = f"{fav} by {cp_margin:.1f}"
             if fav_spread is not None:
                 spread_str = f"{fav_spread:+.1f}" if fav_spread != 0 else "PK"
-                es = f"CP: {cp_margin:.1f} Â· Line: {spread_str}"
+                es = f"CP: {cp_margin:.1f} · Line: {spread_str}"
             else:
                 es = f"CP projects {cp_margin:.1f} pt margin"
         ml_disp = f" &nbsp;(ML: {r['dog_ml']:+d})" if r.get("dog_ml") is not None else ""
@@ -4480,7 +4480,7 @@ with picks_tab:
                         f"{_pimg.replace('width:22px;height:22px', 'width:32px;height:32px')}"
                         f"<div>"
                         f"<div style='font-size:21px;font-weight:800;color:inherit'>{_pteam}</div>"
-                        f"<div style='font-size:14px;color:inherit;opacity:0.85'>{_preg} region Â· "
+                        f"<div style='font-size:14px;color:inherit;opacity:0.85'>{_preg} region · "
                         f"<span style='color:{_pdiff_col};font-weight:700'>{_pdiff_lbl}</span></div>"
                         f"</div></div>"
                         f"</div>",
@@ -4878,8 +4878,8 @@ with official_tab:
             f"text-transform:uppercase;letter-spacing:1px;margin-bottom:4px'>🏆 CarmPom Champion</div>"
             f"<div style='font-size:26px;font-weight:800;color:#f1f8e9;margin-bottom:2px'>"
             f"{_op_img(_ch['winner'], 28)}{_ch['winner']}</div>"
-            f"<div style='color:#aed581;font-size:13px'>Seed #{_ch_seed} Â· "
-            f"CarmPom #{_ch_rank} Â· Champ probability: <b>{_ch_champ_pct:.1f}%</b></div>"
+            f"<div style='color:#aed581;font-size:13px'>Seed #{_ch_seed} · "
+            f"CarmPom #{_ch_rank} · Champ probability: <b>{_ch_champ_pct:.1f}%</b></div>"
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -4942,7 +4942,7 @@ with official_tab:
             champ_pct = _op_sim_lu.get(e8_winner, {}).get("Champ%", 0)
 
             with st.expander(
-                f"**{region}** — {e8_winner} ({e8_seed} seed) Â· Champ {champ_pct:.1f}%",
+                f"**{region}** — {e8_winner} ({e8_seed} seed) · Champ {champ_pct:.1f}%",
                 expanded=False,
             ):
                 for rnd_key, sim_col, rnd_label, n_games in _round_cfg:
