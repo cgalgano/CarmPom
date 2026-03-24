@@ -3872,6 +3872,34 @@ with upset_tab:
                     for i, mk in enumerate(_uv_mkeys)
                 )
 
+                # Predicted score using AdjO × AdjD / 100 × avg_tempo / 100
+                _fav_r = _uv_lu.get(fav, {})
+                _dog_r = _uv_lu.get(dog, {})
+                _adjo_f  = float(_fav_r.get("AdjO", 100))
+                _adjd_f  = float(_fav_r.get("AdjD", 100))
+                _adjt_f  = float(_fav_r.get("AdjT", 68))
+                _adjo_d  = float(_dog_r.get("AdjO", 100))
+                _adjd_d  = float(_dog_r.get("AdjD", 100))
+                _adjt_d  = float(_dog_r.get("AdjT", 68))
+                _poss    = (_adjt_f + _adjt_d) / 2
+                _pts_f   = round(_adjo_f * _adjd_d / 100 * _poss / 100)
+                _pts_d   = round(_adjo_d * _adjd_f / 100 * _poss / 100)
+                _diff    = _pts_f - _pts_d
+                _spread_str = f"{fav} by {abs(_diff)}" if _diff > 0 else (f"{dog} by {abs(_diff)}" if _diff < 0 else "Pick'em")
+                _score_html = (
+                    f"<div style='background:#f0f4f8;border-radius:6px;padding:6px 10px;"
+                    f"margin-bottom:8px;display:flex;justify-content:space-between;align-items:center'>"
+                    f"<div style='font-size:12px;color:#333'>"
+                    f"<span style='color:#555;font-weight:600'>{fav}</span>"
+                    f"<span style='font-size:16px;font-weight:800;color:#1a237e;margin:0 6px'>{_pts_f}</span>"
+                    f"<span style='color:#999;font-size:11px'>—</span>"
+                    f"<span style='font-size:16px;font-weight:800;color:#b71c1c;margin:0 6px'>{_pts_d}</span>"
+                    f"<span style='color:#555;font-weight:600'>{dog}</span>"
+                    f"</div>"
+                    f"<span style='font-size:10px;color:#777;font-style:italic'>{_spread_str}</span>"
+                    f"</div>"
+                )
+
                 with _uv_rcols[_uv_soff]:
                     st.markdown(
                         f"<div style='border:1px solid #e0e0e0;border-radius:10px;"
@@ -3895,6 +3923,9 @@ with upset_tab:
                         f"border-radius:6px;padding:5px 10px;text-align:center;flex:1'>"
                         f"<div style='font-size:16px;font-weight:800;color:{heat_c}'>{upset_score:.0f}</div>"
                         f"<div style='font-size:10px;color:#888'>Upset Score /100</div></div></div>"
+                        # projected score
+                        + _score_html
+                        +
                         # metric breakdown
                         f"<div style='font-size:10px;font-weight:700;color:#555;margin-bottom:4px;"
                         f"text-transform:uppercase;letter-spacing:0.5px'>Metric Breakdown</div>"
