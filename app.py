@@ -2985,6 +2985,18 @@ with scatter_tab:
             st.caption("3PT offense data unavailable.")
 
 # ---------------------------------------------------------------------------
+# Hardcoded actual tournament results — update as rounds are eliminated.
+# Sweet 16 is now set (as of March 23, 2026).
+# ---------------------------------------------------------------------------
+
+_ACTUAL_SWEET_16: dict[str, set[str]] = {
+    "East":    {"Duke Blue Devils", "UConn Huskies", "Michigan State Spartans", "St. John's Red Storm"},
+    "West":    {"Arizona Wildcats", "Purdue Boilermakers", "Arkansas Razorbacks", "Texas Longhorns"},
+    "South":   {"Houston Cougars", "Illinois Fighting Illini", "Nebraska Cornhuskers", "Iowa Hawkeyes"},
+    "Midwest": {"Michigan Wolverines", "Iowa State Cyclones", "Tennessee Volunteers", "Alabama Crimson Tide"},
+}
+
+# ---------------------------------------------------------------------------
 # Bracket tab
 # ---------------------------------------------------------------------------
 
@@ -4831,15 +4843,6 @@ with picks_tab:
 # Official Picks tab  — CarmPom's bracket, built round-by-round using
 # simulation advancement probabilities rather than raw AdjEM chalk.
 # ---------------------------------------------------------------------------
-
-# Hardcoded actual results — updated as the tournament progresses.
-# Sweet 16 is now set (as of March 23, 2026).
-_ACTUAL_SWEET_16: dict[str, set[str]] = {
-    "East":    {"Duke Blue Devils", "UConn Huskies", "Michigan State Spartans", "St. John's Red Storm"},
-    "West":    {"Arizona Wildcats", "Purdue Boilermakers", "Arkansas Razorbacks", "Texas Longhorns"},
-    "South":   {"Houston Cougars", "Illinois Fighting Illini", "Nebraska Cornhuskers", "Iowa Hawkeyes"},
-    "Midwest": {"Michigan Wolverines", "Iowa State Cyclones", "Tennessee Volunteers", "Alabama Crimson Tide"},
-}
 
 with official_tab:
     _op_brkt = load_real_bracket(_SEASON)
