@@ -3654,9 +3654,23 @@ with upset_tab:
     st.markdown(
         "<h2 style='font-family:system-ui,sans-serif;margin-bottom:4px'>💡 Sweet 16 Upset Radar</h2>"
         "<p style='color:#aaa;font-size:13px;margin-top:0'>"
-        "Which underdogs have the right tools to pull off an upset? We score every Sweet 16 underdog "
-        "on the five metrics that historically produce March upsets, then map which playstyles "
-        "counter the favorites.</p>",
+        "Which underdogs have the right tools to pull off an upset? Every Sweet 16 underdog is scored "
+        "on five metrics that historically drive March upsets.</p>"
+        "<div style='background:#1e2a3a;border-radius:8px;padding:10px 16px;margin:6px 0 10px'>"
+        "<span style='color:#90caf9;font-size:12px;font-weight:700;letter-spacing:0.5px'>"
+        "UPSET SCORE</span> "
+        "<span style='color:#ccc;font-size:12px'>=&nbsp;</span>"
+        "<span style='color:#a5d6a7;font-size:12px'>AdjEM vs Seed</span>"
+        "<span style='color:#666;font-size:12px'>&nbsp;+&nbsp;</span>"
+        "<span style='color:#a5d6a7;font-size:12px'>3PT Threat</span>"
+        "<span style='color:#666;font-size:12px'>&nbsp;+&nbsp;</span>"
+        "<span style='color:#a5d6a7;font-size:12px'>Pace Disruption</span>"
+        "<span style='color:#666;font-size:12px'>&nbsp;+&nbsp;</span>"
+        "<span style='color:#a5d6a7;font-size:12px'>Turnover Forcing</span>"
+        "<span style='color:#666;font-size:12px'>&nbsp;+&nbsp;</span>"
+        "<span style='color:#a5d6a7;font-size:12px'>Off. Rebounding</span>"
+        "<span style='color:#666;font-size:12px'>&nbsp;&nbsp;·&nbsp; averaged to 0–100</span>"
+        "</div>",
         unsafe_allow_html=True,
     )
 
@@ -3717,7 +3731,7 @@ with upset_tab:
     st.markdown("### 🔬 Sweet 16 Underdog Spotlight")
     st.markdown(
         "Each matchup's underdog (higher seed) scored on all five metrics. "
-        "**●●●** = top-third nationally · **●●○** = middle · **●○○** = bottom third."
+        "**🟢🟢🟢** = top-third nationally · **🟡🟡⚪** = middle · **🔴⚪⚪** = bottom third."
     )
 
     if _uv_brkt is None:
@@ -3889,123 +3903,9 @@ with upset_tab:
                         unsafe_allow_html=True,
                     )
 
-    # ── Section 3: Playstyle Counter Matchups ────────────────────────────
-    st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)
-    st.markdown("### 🎭 Playstyle Counter Matchups")
-    st.markdown(
-        "Some upsets happen because of *who* is playing, not just *how good* they are. "
-        "These are the specific style mismatches that could create trouble for the favorites."
-    )
-
-    if _uv_brkt is not None:
-        _counter_rows: list[dict] = []
-
-        for _uv_ri in range(4):
-            _reg = _BP_REGIONS[_uv_ri]
-            for _uv_soff in range(2):
-                _s16sl = _uv_ri * 2 + _uv_soff
-                ta, tb = _bp_candidates(2, _s16sl, _uv_bp, _uv_brkt)
-                if ta == "TBD" or tb == "TBD":
-                    continue
-                _bra = _uv_brkt[_uv_brkt["Team"] == ta]
-                _brb = _uv_brkt[_uv_brkt["Team"] == tb]
-                sa = int(_bra["seed"].values[0]) if len(_bra) else 8
-                sb = int(_brb["seed"].values[0]) if len(_brb) else 9
-                if sa <= sb:
-                    fav, dog, sf, sd = ta, tb, sa, sb
-                else:
-                    fav, dog, sf, sd = tb, ta, sb, sa
-
-                if sd - sf < 2:
-                    continue  # skip near-even matchups
-
-                fav_r  = _uv_lu.get(fav, {})
-                dog_r  = _uv_lu.get(dog, {})
-                fav_pg = _uv_pg_lu.get(fav, {})
-                dog_pg = _uv_pg_lu.get(dog, {})
-
-                fav_adjt  = float(fav_r.get("AdjT", 70))
-                dog_adjt  = float(dog_r.get("AdjT", 70))
-                fav_tov   = float(fav_pg.get("TOPG", 12))
-                dog_stl   = float(dog_pg.get("StlPG", 0))
-                dog_3pct  = float(dog_pg.get("3P%", 33))
-                dog_3pa   = float(dog_pg.get("3PaPG", 20))
-                fav_3d    = float(fav_pg.get("Opp3P%", 33))
-                dog_oreb  = float(dog_pg.get("OrebPG", 0))
-                fav_dreb_nr = int(fav_pg.get("RebPG_nr", _uv_n))
-
-                counters: list[str] = []
-
-                if dog_adjt < 67 and fav_adjt > 70:
-                    counters.append(
-                        f"**Pace trap:** {dog} plays at {dog_adjt:.0f} poss/40 — among the "
-                        f"slowest teams nationally. {fav} thrives at {fav_adjt:.0f} poss/40. "
-                        f"Every extra 30-second possession chips away at the talent gap."
-                    )
-
-                if dog_stl > 7.5 and fav_tov > 13.0:
-                    counters.append(
-                        f"**Turnover pressure:** {dog} forces {dog_stl:.1f} steals/game. "
-                        f"{fav} turns it over {fav_tov:.1f} times a game. "
-                        f"That combination could produce 6–8 easy transition buckets for the underdog."
-                    )
-
-                if dog_3pct > 36.0 and fav_3d > 34.0:
-                    counters.append(
-                        f"**3PT exploit:** {dog} shoots {dog_3pct:.1f}% from deep "
-                        f"and {fav} allows {fav_3d:.1f}% from three. "
-                        f"A hot shooting quarter can overcome a double-digit AdjEM gap in 10 minutes."
-                    )
-
-                if dog_oreb > 11.0 and fav_dreb_nr > _uv_n // 2:
-                    counters.append(
-                        f"**Glass crashing:** {dog} averages {dog_oreb:.1f} offensive boards/game "
-                        f"and {fav}'s defensive rebounding ranks outside the top half nationally. "
-                        f"Repeated second chances can turn a 4-point deficit into a 2-point lead."
-                    )
-
-                em_margin = abs(float(fav_r.get("AdjEM", 0)) - float(dog_r.get("AdjEM", 0)))
-                if em_margin < 6 and not counters:
-                    counters.append(
-                        f"Small AdjEM gap ({em_margin:.1f} pts/100) — this is essentially a toss-up "
-                        f"regardless of seeding. Any team can win on a given night."
-                    )
-                elif not counters:
-                    counters.append(
-                        f"{fav} holds structural advantages that are difficult to counter stylistically. "
-                        f"An upset would require {dog} to shoot significantly above their season average."
-                    )
-
-                _counter_rows.append({
-                    "reg": _reg, "fav": fav, "dog": dog, "sf": sf, "sd": sd,
-                    "counters": counters,
-                    "em_fav": float(fav_r.get("AdjEM", 0)),
-                    "em_dog": float(dog_r.get("AdjEM", 0)),
-                })
-
-        if not _counter_rows:
-            st.info("Sweet 16 matchups will appear here once bracket data is loaded.", icon="ℹ️")
-        else:
-            for _cr in _counter_rows:
-                _cr_fav, _cr_dog = _cr["fav"], _cr["dog"]
-                _cr_sf, _cr_sd   = _cr["sf"], _cr["sd"]
-                with st.expander(
-                    f"({_cr_sd}) {_cr_dog}  vs  ({_cr_sf}) {_cr_fav}  ·  "
-                    f"{_BP_REGION_EMOJI[_cr['reg']]} {_cr['reg']}",
-                    expanded=True,
-                ):
-                    _cv1, _cv2 = st.columns([1, 3])
-                    with _cv1:
-                        _wp_d = 1.0 - _win_prob(_cr["em_fav"], _cr["em_dog"])
-                        st.metric(f"({_cr_sd}) {_cr_dog}", f"{_wp_d*100:.0f}%", "upset probability")
-                    with _cv2:
-                        for _bullet in _cr["counters"]:
-                            st.markdown(f"- {_bullet}")
-
     st.caption(
         "⚠️ Metric scores are season-long averages. Hot/cold streaks, matchup-specific "
-        "preparation, and injury status are not reflected. Style counters are identified "
-        "algorithmically — use as a starting point for deeper research."
+        "preparation, and injury status are not reflected."
     )
 
 # ---------------------------------------------------------------------------
