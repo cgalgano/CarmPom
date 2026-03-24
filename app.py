@@ -3788,17 +3788,17 @@ with upset_tab:
             return 50.0, "—"
 
         def _badge(pct: float, val: str) -> str:
-            if pct >= 67:   bg, fg, dots = "#c8e6c9", "#1b5e20", "●●●"
-            elif pct >= 34: bg, fg, dots = "#fff9c4", "#f57f17", "●●○"
-            else:           bg, fg, dots = "#ffcdd2", "#c62828", "●○○"
+            if pct >= 67:   bg, fg, dots = "#c8e6c9", "#1b5e20", "🟢🟢🟢"
+            elif pct >= 34: bg, fg, dots = "#fff9c4", "#f57f17", "🟡🟡⚪"
+            else:           bg, fg, dots = "#ffcdd2", "#c62828", "🔴⚪⚪"
             return (
                 f"<div style='background:{bg};border-radius:5px;padding:3px 9px;"
                 f"margin:2px 0;flex:1;min-width:0;display:flex;"
                 f"justify-content:space-between;align-items:center;gap:8px'>"
                 f"<span style='font-size:11px;color:{fg};font-weight:600;"
                 f"overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>{val}</span>"
-                f"<span style='font-size:11px;color:{fg};font-family:monospace;"
-                f"letter-spacing:1px;white-space:nowrap;flex-shrink:0'>{dots}</span>"
+                f"<span style='font-size:13px;white-space:nowrap;flex-shrink:0;"
+                f"letter-spacing:2px'>{dots}</span>"
                 f"</div>"
             )
 
@@ -3866,9 +3866,9 @@ with upset_tab:
                         f"<div style='display:flex;justify-content:space-between;"
                         f"align-items:center;margin-bottom:8px'>"
                         f"<div style='font-size:13px'>"
-                        f"<span style='color:#888;font-size:11px'>{img_f}({sf}) {fav}</span>"
-                        f"<span style='color:#aaa;margin:0 5px'>vs</span>"
-                        f"<span style='font-weight:700'>{img_d}({sd}) {dog}</span></div>"
+                        f"<span style='color:#444;font-size:12px'>{img_f}({sf}) {fav}</span>"
+                        f"<span style='color:#999;margin:0 5px'>vs</span>"
+                        f"<span style='color:#111;font-size:14px;font-weight:700'>{img_d}({sd}) {dog}</span></div>"
                         f"<span style='background:{heat_c};color:white;border-radius:20px;"
                         f"padding:2px 8px;font-size:11px;font-weight:700'>{heat_l}</span></div>"
                         # win prob + upset score
