@@ -34,7 +34,7 @@ sns.set_theme(style="whitegrid", palette="muted")
 
 st.set_page_config(
     page_title="CarmPom",
-    page_icon="🏀",
+    page_icon="ðŸ€",
     layout="wide",
 )
 
@@ -243,7 +243,7 @@ for _, row in feat_df.iterrows():
     )
     if is_top:
         st.markdown(
-            f"**🏆 {label}** &nbsp; {pct_badge}",
+            f"**ðŸ† {label}** &nbsp; {pct_badge}",
             unsafe_allow_html=True,
         )
     else:
@@ -424,11 +424,11 @@ def load_per_game_stats(season: int) -> pd.DataFrame:
         "PPG": False, "OppPPG": True, "RebPG": False, "AstPG": False,
         "OrebPG": False, "TOPG": True, "FG%": False, "3P%": False,
         "3PaPG": False, "3PmPG": False, "FT%": False, "FTmPG": False,
-        # 3PT defense: lower attempts/% allowed = better → ascending rank
+        # 3PT defense: lower attempts/% allowed = better â†’ ascending rank
         "Opp3PaPG": True, "Opp3P%": True,
-        # Interior defense: lower opp 2PT FG% = better → ascending rank
+        # Interior defense: lower opp 2PT FG% = better â†’ ascending rank
         "Opp2P%": True,
-        # Disruption stats: more steals/blocks = better → descending rank
+        # Disruption stats: more steals/blocks = better â†’ descending rank
         "StlPG": False, "BlkPG": False,
     }
     for col, asc in stat_rank_cfg.items():
@@ -444,7 +444,7 @@ def load_per_game_stats(season: int) -> pd.DataFrame:
 @st.cache_data(ttl=3600)
 def load_kenpom_comparison(season: int) -> pd.DataFrame:
     """Join CarmPom ratings with KenPom 2026 ranks and return disagreement data."""
-    kp_ranks = pd.read_csv(ROOT / "data" / "kenpom2026_ranks.csv")
+    kp_ranks = pd.read_csv(ROOT / "data" / f"kenpom{_SEASON}_ranks.csv")
 
     with SessionLocal() as session:
         cp_rows = (
@@ -481,7 +481,7 @@ def load_kenpom_comparison(season: int) -> pd.DataFrame:
 import math
 
 # S-curve region assignment for 64 teams.
-# Seeds 1-4 → one #1 seed per region; odd groups go E→W→S→MW, even reverse.
+# Seeds 1-4 â†’ one #1 seed per region; odd groups go Eâ†’Wâ†’Sâ†’MW, even reverse.
 _REGIONS = ["East", "West", "South", "Midwest"]
 _SCURVE_REGIONS: list[int] = []
 for _g in range(16):
@@ -503,11 +503,17 @@ def build_projected_bracket(df: pd.DataFrame, n_teams: int = 64) -> pd.DataFrame
     return top
 
 
-_BRACKET_CSV = ROOT / "data" / "bracket_2026.csv"
+# â”€â”€ Season constant â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Change this one number each November to roll the whole app forward.
+# Also update: data/bracket_{SEASON}.csv, data/kenpom{SEASON}_ranks.csv,
+# _ACTUAL_SWEET_16 (app.py), and _FIRST_FOUR (app.py) each March.
+_SEASON: int = 2026
+
+_BRACKET_CSV = ROOT / "data" / f"bracket_{_SEASON}.csv"
 
 
-def load_real_bracket(season: int = 2026) -> pd.DataFrame | None:
-    """Read data/bracket_2026.csv and merge in CarmPom ratings.
+def load_real_bracket(season: int = _SEASON) -> pd.DataFrame | None:
+    """Read data/bracket_{season}.csv and merge in CarmPom ratings.
 
     Returns a bracket DataFrame (same shape as build_projected_bracket output)
     when the CSV is fully filled out (all 64 rows have a team name), otherwise
@@ -544,7 +550,7 @@ def load_real_bracket(season: int = 2026) -> pd.DataFrame | None:
             columns=["team_id", "Rank", "AdjEM", "AdjO", "AdjD", "W", "L"],
         )
 
-    # Build a lookup: normalized db name → team_id
+    # Build a lookup: normalized db name â†’ team_id
     db_teams["norm"] = db_teams["db_name"].str.lower().str.strip()
     norm_to_id = dict(zip(db_teams["norm"], db_teams["team_id"]))
     norm_to_name = dict(zip(db_teams["norm"], db_teams["db_name"]))
@@ -648,7 +654,7 @@ def simulate_bracket(
                 winner_em = a_em if winner == a_tid else b_em
                 survivors.append((winner, winner_em))
             adjem_map = {t[1]: t[2] for t in region_teams}
-            # Rounds 32 → E8 (round_idx 1,2,3)
+            # Rounds 32 â†’ E8 (round_idx 1,2,3)
             for rnd_idx in range(1, 4):
                 next_survivors: list[tuple[int, float]] = []
                 for i in range(0, len(survivors), 2):
@@ -682,7 +688,7 @@ def simulate_bracket(
         winner = a_tid if rng.random() < _win_prob(a_em, b_em) else b_tid
         # Mark champion as having won the championship round
         # (we count reaching the game, not winning — add an extra column for actual wins)
-        advance[winner][5] += 1  # counted twice → subtract later for actual champ %
+        advance[winner][5] += 1  # counted twice â†’ subtract later for actual champ %
         # Actually let's track champ wins separately with a bonus index
 
     # Build result df
@@ -713,10 +719,10 @@ def _build_official_picks(bracket: pd.DataFrame, sim: pd.DataFrame) -> dict:
     """Build the CarmPom Official Bracket with historically calibrated upset picks.
 
     Upset calibration targets (last 6 NCAA tournaments average):
-        R64:  ~10 upsets / 32 games  → pick underdog if wp >= 33%
-        R32:  ~4  upsets / 16 games  → pick underdog if wp >= 40%
-        S16:  ~2  upsets /  8 games  → pick underdog if wp >= 43%
-        E8:   ~1  upset  /  4 games  → pick underdog if wp >= 46%
+        R64:  ~10 upsets / 32 games  â†’ pick underdog if wp >= 33%
+        R32:  ~4  upsets / 16 games  â†’ pick underdog if wp >= 40%
+        S16:  ~2  upsets /  8 games  â†’ pick underdog if wp >= 43%
+        E8:   ~1  upset  /  4 games  â†’ pick underdog if wp >= 46%
         F4/Champ: pure AdjEM (1-2 upsets possible)
 
     For R64, uses the simulation R32% column — these are game-specific win
@@ -865,27 +871,27 @@ def generate_matchup_analysis(
     # --- Overall outlook ---
     if abs(adjem_diff) < 2:
         bullets.append(
-            f"🎲 **True toss-up** — CarmPom rates these teams within {abs(adjem_diff):.1f} pts/100 of each other. "
+            f"ðŸŽ² **True toss-up** — CarmPom rates these teams within {abs(adjem_diff):.1f} pts/100 of each other. "
             "Either team wins this on any given night."
         )
     elif abs(adjem_diff) < 6:
         fav = a_name if adjem_diff > 0 else b_name
         bullets.append(
-            f"📊 **Slight edge for {fav}** — a {abs(adjem_diff):.1f} pt/100 efficiency gap is meaningful "
+            f"ðŸ“Š **Slight edge for {fav}** — a {abs(adjem_diff):.1f} pt/100 efficiency gap is meaningful "
             "but absolutely beatable in a single game."
         )
     elif abs(adjem_diff) < 15:
         fav = a_name if adjem_diff > 0 else b_name
         dog = b_name if adjem_diff > 0 else a_name
         bullets.append(
-            f"📈 **{fav} is the clear favorite** ({abs(adjem_diff):.1f} pts/100 better). "
+            f"ðŸ“ˆ **{fav} is the clear favorite** ({abs(adjem_diff):.1f} pts/100 better). "
             f"{dog} needs to neutralize that edge early or it could get away from them."
         )
     else:
         fav = a_name if adjem_diff > 0 else b_name
         dog = b_name if adjem_diff > 0 else a_name
         bullets.append(
-            f"⚡ **Big mismatch** — {fav} is {abs(adjem_diff):.1f} pts/100 more efficient. "
+            f"âš¡ **Big mismatch** — {fav} is {abs(adjem_diff):.1f} pts/100 more efficient. "
             f"{dog} would need an historically great performance to pull this off."
         )
 
@@ -902,7 +908,7 @@ def generate_matchup_analysis(
         faces_def = b_name if adjo_diff > 0 else a_name
         def_rating = adjd_b if adjo_diff > 0 else adjd_a
         bullets.append(
-            f"⚔️ **Offensive mismatch** — {better_off}'s offense ({max(adjo_a, adjo_b):.1f} AdjO) "
+            f"âš”ï¸ **Offensive mismatch** — {better_off}'s offense ({max(adjo_a, adjo_b):.1f} AdjO) "
             f"is the best attack {faces_def} has seen all season. Their defense gives up {def_rating:.1f} pts/100."
         )
 
@@ -912,7 +918,7 @@ def generate_matchup_analysis(
         opp_def = b_name if adjd_diff < 0 else a_name
         best_def = min(adjd_a, adjd_b)
         bullets.append(
-            f"🛡️ **Defensive anchor** — {better_def} ({best_def:.1f} AdjD) is one of the stingiest "
+            f"ðŸ›¡ï¸ **Defensive anchor** — {better_def} ({best_def:.1f} AdjD) is one of the stingiest "
             f"defenses in the country. {opp_def} will need to shoot well to keep up."
         )
 
@@ -924,7 +930,7 @@ def generate_matchup_analysis(
         faster = a_name if adjt_a > adjt_b else b_name
         slower = b_name if adjt_a > adjt_b else a_name
         bullets.append(
-            f"🏃 **Pace battle** — {faster} wants to run, {slower} wants to grind. "
+            f"ðŸƒ **Pace battle** — {faster} wants to run, {slower} wants to grind. "
             "Whoever imposes their preferred tempo gains a structural edge — watch the early possessions."
         )
 
@@ -936,7 +942,7 @@ def generate_matchup_analysis(
     if high_seed >= 10 and model_wp < 0.80:
         underdog = a_name if seed_a > seed_b else b_name
         bullets.append(
-            f"👀 **Upset potential** — the #{high_seed} seed ({underdog}) is closer in efficiency "
+            f"ðŸ‘€ **Upset potential** — the #{high_seed} seed ({underdog}) is closer in efficiency "
             "than the seed gap suggests. Don't sleep on this one."
         )
 
@@ -1096,7 +1102,7 @@ def generate_clash_narrative(ta: pd.Series, tb: pd.Series, wp_a: float, n: int) 
 
     parts: list[str] = []
 
-    # ── 1. Pace battle ──────────────────────────────────────────────────────
+    # â”€â”€ 1. Pace battle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     tempo_gap = abs(adjt_nr_a - adjt_nr_b)
     if tempo_gap >= 120:
         faster   = name_a if adjt_nr_a < adjt_nr_b else name_b
@@ -1125,7 +1131,7 @@ def generate_clash_narrative(ta: pd.Series, tb: pd.Series, wp_a: float, n: int) 
             "down the other's defense will ultimately separate them."
         )
 
-    # ── 2. Efficiency + key matchup angle ───────────────────────────────────
+    # â”€â”€ 2. Efficiency + key matchup angle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     em_gap   = abs(em_a - em_b)
     fav_name = name_a if em_a >= em_b else name_b
     dog_name = name_b if em_a >= em_b else name_a
@@ -1182,7 +1188,7 @@ def generate_clash_narrative(ta: pd.Series, tb: pd.Series, wp_a: float, n: int) 
                 "shooting variance just to stay within range into the second half."
             )
 
-    # ── 3. Three-point style (if per-game data available) ────────────────────
+    # â”€â”€ 3. Three-point style (if per-game data available) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if three_pa_a > 0 and three_pa_b > 0:
         three_gap = abs(three_pa_a - three_pa_b)
         pct_gap   = abs(three_pct_a - three_pct_b)
@@ -1206,7 +1212,7 @@ def generate_clash_narrative(ta: pd.Series, tb: pd.Series, wp_a: float, n: int) 
                 f"vs the other team's {w_pct:.1f}% — in a close game that gap compounds quickly over 20+ attempts."
             )
 
-    # ── 4. Ball security vs. defensive disruption ────────────────────────────
+    # â”€â”€ 4. Ball security vs. defensive disruption â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if topg_a > 0 and topg_b > 0:
         to_gap = abs(topg_a - topg_b)
         if to_gap >= 1.5:
@@ -1220,7 +1226,7 @@ def generate_clash_narrative(ta: pd.Series, tb: pd.Series, wp_a: float, n: int) 
                 "to swing a momentum run in either team's direction."
             )
 
-    # ── 5. Schedule / luck context ───────────────────────────────────────────
+    # â”€â”€ 5. Schedule / luck context â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     sos_gap = abs(sos_nr_a - sos_nr_b)
     if sos_gap >= 120:
         harder = name_a if sos_nr_a < sos_nr_b else name_b
@@ -1351,7 +1357,7 @@ def _generate_single_game_bullets(
     adjt_b = float(tb.get("AdjT", 68))
     avg_tempo = (adjt_a + adjt_b) / 2.0
 
-    # ── Expected score estimate ──────────────────────────────────────────
+    # â”€â”€ Expected score estimate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # Uses AdjO * AdjD cross formula (comparable to KenPom pythagorean)
     _NAT_AVG = 100.0
     eff_a = adjo_a * (adjd_b / _NAT_AVG)    # pts/100 for team A vs this defense
@@ -1366,7 +1372,7 @@ def _generate_single_game_bullets(
     dog_deficit = abs(margin)
 
     bullets.append(
-        f"📐 **Projected score** (AdjEM/AdjT model): {name_a} **{pts_a}** – {name_b} **{pts_b}**. "
+        f"ðŸ“ **Projected score** (AdjEM/AdjT model): {name_a} **{pts_a}** – {name_b} **{pts_b}**. "
         f"{fav_name} is expected to win by ~{dog_deficit} points."
     )
 
@@ -1377,7 +1383,7 @@ _BP_REGIONS    = ["East", "West", "South", "Midwest"]
 # Light background + border accent per region for visual differentiation
 _BP_REGION_BG: dict[str, str]     = {"East": "#dbeafe", "West": "#fee2e2", "South": "#dcfce7", "Midwest": "#fef3c7"}
 _BP_REGION_ACC: dict[str, str]    = {"East": "#1d4ed8", "West": "#b91c1c", "South": "#15803d", "Midwest": "#d97706"}
-_BP_REGION_EMOJI: dict[str, str]  = {"East": "🔵", "West": "🔴", "South": "🟢", "Midwest": "🟡"}
+_BP_REGION_EMOJI: dict[str, str]  = {"East": "ðŸ”µ", "West": "ðŸ”´", "South": "ðŸŸ¢", "Midwest": "ðŸŸ¡"}
 _BP_ROUND_NAMES = ["1st Round", "Round of 32", "Sweet 16", "Elite Eight", "Final Four", "Championship"]
 _BP_ROUND_SLOTS = [32, 16, 8, 4, 2, 1]  # total games per round
 
@@ -1495,7 +1501,7 @@ def _bp_autofill(
 # ---------------------------------------------------------------------------
 
 rankings_tab, team_tab, scatter_tab, bracket_tab, upset_tab, picks_tab, official_tab, about_tab = st.tabs(
-    ["📊 Team Rankings", "🏀 Team Profile", "📈 Valuable Charts", "🏆 Bracket", "💡 Upset Value", "� Runs to Watch", "📋 Official Picks", "ℹ️ About"]
+    ["ðŸ“Š Team Rankings", "ðŸ€ Team Profile", "ðŸ“ˆ Valuable Charts", "ðŸ† Bracket", "ðŸ’¡ Upset Value", "ï¿½ Runs to Watch", "ðŸ“‹ Official Picks", "â„¹ï¸ About"]
 )
 
 # ---------------------------------------------------------------------------
@@ -1514,7 +1520,7 @@ with rankings_tab:
     col_season, col_search, col_conf, col_n, col_tourn = st.columns([1, 2, 2, 1, 1.4])
 
     with col_season:
-        season = st.selectbox("Season", [2026], index=0)
+        season = st.selectbox("Season", [_SEASON], index=0)
 
     df = load_rankings(season)
 
@@ -1550,13 +1556,13 @@ with rankings_tab:
     st.caption(
         f"{len(filtered)} teams shown  |  Efficiency cells: **value  national\_rank**  |  "
         "**AdjEM** = pts/100 margin  |  **AdjO** = off. eff.  |  **AdjD** = def. eff. (lower=better)  |  "
-        "**AdjT** = tempo (red=fast, blue=slow)  |  **Luck** = actual W%−expected W%  |  "
+        "**AdjT** = tempo (red=fast, blue=slow)  |  **Luck** = actual W%âˆ’expected W%  |  "
         "**OppPPG** = opponent pts/game  |  **TOPG** = turnovers/game"
     )
 
     # Build display DataFrame — efficiency cols get inline national rank, stat cols are plain numbers.
     # gmap= feeds raw numeric values to the gradient so colors work on string cells.
-    # ── KenPom comparison: badge teams CarmPom rates higher ─────────────────
+    # â”€â”€ KenPom comparison: badge teams CarmPom rates higher â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     _kp_compare = load_kenpom_comparison(season)
     _kp_diff: dict[int, int] = dict(zip(
         _kp_compare["team_id"].astype(int),
@@ -1573,14 +1579,14 @@ with rankings_tab:
             return (
                 f"<span style='background:#1b5e20;color:#e8f5e9;border-radius:4px;"
                 f"padding:2px 7px;font-weight:700;font-size:11px;white-space:nowrap'>"
-                f"▲ +{diff}</span>"
+                f"â–² +{diff}</span>"
             )
         if diff <= -5:
             # KenPom meaningfully higher — muted red
             return (
                 f"<span style='background:#4a1010;color:#ffcdd2;border-radius:4px;"
                 f"padding:2px 7px;font-weight:700;font-size:11px;white-space:nowrap'>"
-                f"▼ {diff}</span>"
+                f"â–¼ {diff}</span>"
             )
         # Within 4 spots — neutral
         sign = "+" if diff > 0 else ""
@@ -1640,7 +1646,7 @@ with rankings_tab:
         lambda m: (
             m.group(1).rstrip('>') + ' style="background-color:#f4f6f8;padding:7px 14px">'
             f'<a href="{m.group(2)}" target="_blank" '
-            'style="color:#1565C0;text-decoration:none;font-size:12px;font-weight:500">Stats ↗</a></td>'
+            'style="color:#1565C0;text-decoration:none;font-size:12px;font-weight:500">Stats â†—</a></td>'
         ),
         _table_html,
     )
@@ -1671,8 +1677,8 @@ with rankings_tab:
         user-select: none;
     }
     .crp-wrap thead th:hover { background: #2a3f59 !important; }
-    .crp-wrap thead th[data-dir='asc']::after  { content: ' ▲'; font-size: 10px; opacity: .8; }
-    .crp-wrap thead th[data-dir='desc']::after { content: ' ▼'; font-size: 10px; opacity: .8; }
+    .crp-wrap thead th[data-dir='asc']::after  { content: ' â–²'; font-size: 10px; opacity: .8; }
+    .crp-wrap thead th[data-dir='desc']::after { content: ' â–¼'; font-size: 10px; opacity: .8; }
     .crp-wrap td {
         padding: 7px 14px;
         border-bottom: 1px solid #e3e7ec;
@@ -1705,7 +1711,7 @@ with rankings_tab:
         'Conf':   'Conference',
         'Record': 'Win-loss record (includes conference tournament)',
         'Player Stats': 'Link to ESPN player stats page for this team',
-        'vs KP':  'CarmPom rank vs KenPom rank. ▲ = CarmPom rates this team higher. ▼ = KenPom rates them higher. Number = spots difference.',
+        'vs KP':  'CarmPom rank vs KenPom rank. â–² = CarmPom rates this team higher. â–¼ = KenPom rates them higher. Number = spots difference.',
         'AdjEM':  'Adjusted Efficiency Margin — points scored minus allowed per 100 possessions, adjusted for opponent strength. The headline ranking stat.',
         'AdjO':   'Adjusted Offensive Efficiency — points scored per 100 possessions, adjusted for opponent defense. Higher is better.',
         'AdjD':   'Adjusted Defensive Efficiency — points allowed per 100 possessions, adjusted for opponent offense. Lower is better.',
@@ -1727,7 +1733,7 @@ with rankings_tab:
         var ths = table.querySelectorAll('thead th');
         ths.forEach(function(th, colIdx) {
           // Set tooltip from the map, falling back to the header text itself
-          var label = th.innerText.trim().replace(/[\s▲▼]+$/, '');
+          var label = th.innerText.trim().replace(/[\sâ–²â–¼]+$/, '');
           if (COL_TIPS[label]) th.title = COL_TIPS[label];
 
           th.addEventListener('click', function() {
@@ -1871,130 +1877,130 @@ def generate_playstyle_name(t: pd.Series, ts: pd.Series | None, n: int) -> tuple
         forced_to      = _stl_nr  <= 60           # top ~16% by steals/game — disruptive defense
         rim_protector  = _blk_nr  <= 60           # top ~16% by blocks/game — paint deterrent
 
-    # ── Top-10 national elite: prestige label inflected by dominant style ──
+    # â”€â”€ Top-10 national elite: prestige label inflected by dominant style â”€â”€
     if national_elite:
         if fast and three_heavy:
-            return "👑 Run-and-Gun Elite", "One of the nation's best — relentless pace and perimeter firepower"
+            return "ðŸ‘‘ Run-and-Gun Elite", "One of the nation's best — relentless pace and perimeter firepower"
         if slow and three_light and glass_eater:
-            return "👑 Dominant Inside Force", "Elite program that controls games in the paint and grinds opponents down"
+            return "ðŸ‘‘ Dominant Inside Force", "Elite program that controls games in the paint and grinds opponents down"
         if slow and adjo_nr <= 15:
-            return "👑 Half-Court Juggernaut", "Elite half-court offense that methodically takes what the defense gives"
+            return "ðŸ‘‘ Half-Court Juggernaut", "Elite half-court offense that methodically takes what the defense gives"
         if adjd_nr <= 15:
-            return "👑 Defensive Powerhouse", "One of the toughest defensive teams in the country this season"
+            return "ðŸ‘‘ Defensive Powerhouse", "One of the toughest defensive teams in the country this season"
         if three_heavy and three_accurate:
-            return "👑 Perimeter Blitz", "Elite shooting team — opens the floor and buries opponents with threes"
+            return "ðŸ‘‘ Perimeter Blitz", "Elite shooting team — opens the floor and buries opponents with threes"
         if rim_protector and forced_to:
-            return "👑 Lockdown Machine", "Elite two-way disruption — protects the rim and creates chaos with steals"
-        return "👑 National Contender", "One of the most complete programs in the country"
+            return "ðŸ‘‘ Lockdown Machine", "Elite two-way disruption — protects the rim and creates chaos with steals"
+        return "ðŸ‘‘ National Contender", "One of the most complete programs in the country"
 
-    # ── Fast-pace identity ────────────────────────────────────────────────
+    # â”€â”€ Fast-pace identity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if fast and three_heavy and three_accurate:
-        return "🚀 Push-and-Shoot", "Runs the floor before defenses set, then buries the open three"
+        return "ðŸš€ Push-and-Shoot", "Runs the floor before defenses set, then buries the open three"
     if fast and three_heavy:
-        return "⚡ Pace-and-Space", "Uses relentless tempo to strain the defense and launch threes in transition"
+        return "âš¡ Pace-and-Space", "Uses relentless tempo to strain the defense and launch threes in transition"
     if fast and glass_eater:
-        return "💥 Crash-and-Dash", "Pushes the pace and crashes every miss — second chances fuel the offense"
+        return "ðŸ’¥ Crash-and-Dash", "Pushes the pace and crashes every miss — second chances fuel the offense"
     if fast and pass_first and ball_safe:
-        return "🎭 Motion Machine", "High-tempo unselfish offense built on constant movement and clean decision-making"
+        return "ðŸŽ­ Motion Machine", "High-tempo unselfish offense built on constant movement and clean decision-making"
     if fast and ft_heavy:
-        return "🏃 Attacking Guards", "Pushes pace and attacks downhill — earns trips to the line at a high rate"
+        return "ðŸƒ Attacking Guards", "Pushes pace and attacks downhill — earns trips to the line at a high rate"
     if fast and ball_wild:
-        return "🌪️ Chaotic Speed", "Plays at a breakneck pace but turns it over too often — explosive but sloppy"
+        return "ðŸŒªï¸ Chaotic Speed", "Plays at a breakneck pace but turns it over too often — explosive but sloppy"
     if fast:
-        return "⚡ Up-Tempo Pusher", "Lives in transition — plays fast, scores early, and makes opponents uncomfortable"
+        return "âš¡ Up-Tempo Pusher", "Lives in transition — plays fast, scores early, and makes opponents uncomfortable"
 
-    # ── Slow-pace identity ────────────────────────────────────────────────
+    # â”€â”€ Slow-pace identity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if slow and three_light and glass_eater and ft_heavy:
-        return "⚒️ Paint Dominant", "Grinds the game down and punishes teams inside — boards, fouls, and buckets"
+        return "âš’ï¸ Paint Dominant", "Grinds the game down and punishes teams inside — boards, fouls, and buckets"
     if slow and three_light and glass_eater:
-        return "⚒️ Post-Up Bully", "Controls pace and the glass — score deep in the shot clock near the rim"
+        return "âš’ï¸ Post-Up Bully", "Controls pace and the glass — score deep in the shot clock near the rim"
     if slow and three_light and ball_safe:
-        return "🐢 Half-Court Surgeon", "Patient, disciplined offense that takes care of the ball and attacks the paint"
+        return "ðŸ¢ Half-Court Surgeon", "Patient, disciplined offense that takes care of the ball and attacks the paint"
     if slow and three_light:
-        return "⚒️ Half-Court Grinder", "Methodical interior attack — uses the whole clock and minimizes big misses"
+        return "âš’ï¸ Half-Court Grinder", "Methodical interior attack — uses the whole clock and minimizes big misses"
     if slow and three_heavy and three_accurate:
-        return "🎯 Patient Marksmen", "Slows the game down, moves the ball, and waits for the open three"
+        return "ðŸŽ¯ Patient Marksmen", "Slows the game down, moves the ball, and waits for the open three"
     if slow and three_heavy:
-        return "🐢 Deliberate Gunners", "Unhurried offense that settles into the half court and fires from deep"
+        return "ðŸ¢ Deliberate Gunners", "Unhurried offense that settles into the half court and fires from deep"
     if slow and pass_first and ball_safe:
-        return "🎭 Half-Court Orchestra", "Deliberate possession-by-possession offense driven by ball movement and shot selection"
+        return "ðŸŽ­ Half-Court Orchestra", "Deliberate possession-by-possession offense driven by ball movement and shot selection"
     if slow and good_dreb:
-        return "🐢 Rebounding Grind", "Controls the pace and cleans the glass on both ends — physical and deliberate"
+        return "ðŸ¢ Rebounding Grind", "Controls the pace and cleans the glass on both ends — physical and deliberate"
     if slow:
-        return "🐢 Half-Court Grinder", "Uses every second of the shot clock and forces opponents into a grinding game"
+        return "ðŸ¢ Half-Court Grinder", "Uses every second of the shot clock and forces opponents into a grinding game"
 
-    # ── Three-point identity (mid-pace) ──────────────────────────────────
+    # â”€â”€ Three-point identity (mid-pace) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if three_heavy and three_accurate and pass_first:
-        return "🎯 Precision Shooters", "Crisp ball movement generates clean looks — and they actually knock them down"
+        return "ðŸŽ¯ Precision Shooters", "Crisp ball movement generates clean looks — and they actually knock them down"
     if three_heavy and three_accurate:
-        return "🎯 Perimeter Marksmen", "High three-point volume backed by genuine shooting accuracy — a real threat from deep"
+        return "ðŸŽ¯ Perimeter Marksmen", "High three-point volume backed by genuine shooting accuracy — a real threat from deep"
     if three_heavy and ball_safe and pass_first:
-        return "🎯 Sharpshooter System", "Takes care of the ball, shares it freely, and searches for the open three"
+        return "ðŸŽ¯ Sharpshooter System", "Takes care of the ball, shares it freely, and searches for the open three"
     if three_heavy and ball_safe:
-        return "🏹 Clean Shooters", "Fires a lot of threes and rarely gives the ball away — low-chaos perimeter attack"
+        return "ðŸ¹ Clean Shooters", "Fires a lot of threes and rarely gives the ball away — low-chaos perimeter attack"
     if three_heavy and three_inaccurate:
-        return "🎲 Boom-or-Bust Shooters", "High three-point volume with poor accuracy — games depend on which shooting night shows up"
+        return "ðŸŽ² Boom-or-Bust Shooters", "High three-point volume with poor accuracy — games depend on which shooting night shows up"
     if three_heavy:
-        return "🌍 Arc-Heavy Attack", "Lives behind the arc — run with the shooting variance and the wins follow"
+        return "ðŸŒ Arc-Heavy Attack", "Lives behind the arc — run with the shooting variance and the wins follow"
 
-    # ── Paint/rebounding identity ─────────────────────────────────────────
+    # â”€â”€ Paint/rebounding identity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if glass_eater and ft_heavy and three_light:
-        return "💪 Physical Bully", "Punishes teams at the rim — cleans the glass, draws fouls, and scores the hard way"
+        return "ðŸ’ª Physical Bully", "Punishes teams at the rim — cleans the glass, draws fouls, and scores the hard way"
     if glass_eater and ft_heavy:
-        return "💪 Board-and-Foul Machine", "Dominates second chances and earns trips to the line — tough to keep off the scoreboard"
+        return "ðŸ’ª Board-and-Foul Machine", "Dominates second chances and earns trips to the line — tough to keep off the scoreboard"
     if glass_eater and pass_first:
-        return "💪 Team Glass Crashers", "Coordinated offensive rebounding attack that gives the offense constant second looks"
+        return "ðŸ’ª Team Glass Crashers", "Coordinated offensive rebounding attack that gives the offense constant second looks"
     if glass_eater:
-        return "💪 Board Crashers", "Second-chance opportunities are the engine — winning the offensive glass is the identity"
+        return "ðŸ’ª Board Crashers", "Second-chance opportunities are the engine — winning the offensive glass is the identity"
 
-    # ── Ball movement / passing identity ─────────────────────────────────
+    # â”€â”€ Ball movement / passing identity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if pass_first and ball_safe and ft_heavy:
-        return "🧠 Mistake-Free Machine", "Shares the ball, protects it, and gets to the line — coaches dream of this formula"
+        return "ðŸ§  Mistake-Free Machine", "Shares the ball, protects it, and gets to the line — coaches dream of this formula"
     if pass_first and ball_safe:
-        return "🎭 Ball Movement Offense", "Patient and unselfish — low turnovers and high assists define the attack"
+        return "ðŸŽ­ Ball Movement Offense", "Patient and unselfish — low turnovers and high assists define the attack"
     if pass_first and three_accurate:
-        return "🎭 Playmaking Shooters", "Ball movement creates open looks — and the personnel finishes them from outside"
+        return "ðŸŽ­ Playmaking Shooters", "Ball movement creates open looks — and the personnel finishes them from outside"
     if pass_first:
-        return "🎭 Unselfish Playmakers", "High assist rate shows a team that always finds the better shot"
+        return "ðŸŽ­ Unselfish Playmakers", "High assist rate shows a team that always finds the better shot"
 
-    # ── Free throw / aggression identity ─────────────────────────────────
+    # â”€â”€ Free throw / aggression identity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if ft_heavy and ball_safe:
-        return "🏋️ Foul-Drawing Grinders", "Gets into the lane, draws contact, and converts at the line — earns every point"
+        return "ðŸ‹ï¸ Foul-Drawing Grinders", "Gets into the lane, draws contact, and converts at the line — earns every point"
     if ft_heavy:
-        return "🏋️ Foul Hunters", "Attacks aggressively and lives at the free throw line"
+        return "ðŸ‹ï¸ Foul Hunters", "Attacks aggressively and lives at the free throw line"
 
-    # ── Ball security (alone) ─────────────────────────────────────────────
+    # â”€â”€ Ball security (alone) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if ball_safe and good_dreb:
-        return "🧠 Low-Turnover Defense", "Takes care of the ball and cleans the glass — limits extra opportunities for opponents"
+        return "ðŸ§  Low-Turnover Defense", "Takes care of the ball and cleans the glass — limits extra opportunities for opponents"
     if ball_safe:
-        return "🧠 Ball-Control Offense", "Rarely gives it away — methodical possession-by-possession approach"
+        return "ðŸ§  Ball-Control Offense", "Rarely gives it away — methodical possession-by-possession approach"
     if ball_wild:
-        return "🎲 High-Turnover Risk", "Capable scorers but prone to giveaways — opponent fast breaks are the danger"
+        return "ðŸŽ² High-Turnover Risk", "Capable scorers but prone to giveaways — opponent fast breaks are the danger"
 
-    # ── Forced turnovers (steals) ─────────────────────────────────────────
+    # â”€â”€ Forced turnovers (steals) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if forced_to and fast:
-        return "🪤 Press-and-Run", "Forces turnovers and immediately converts them — defense triggers the offense"
+        return "ðŸª¤ Press-and-Run", "Forces turnovers and immediately converts them — defense triggers the offense"
     if forced_to and rim_protector:
-        return "🛡️ Two-Way Disruptors", "Generates steals on the perimeter and blocks at the rim — defense is the identity"
+        return "ðŸ›¡ï¸ Two-Way Disruptors", "Generates steals on the perimeter and blocks at the rim — defense is the identity"
     if forced_to and good_dreb:
-        return "🪤 Chaos Defense", "Swarms passing lanes, crashes the glass, and turns disruption into points"
+        return "ðŸª¤ Chaos Defense", "Swarms passing lanes, crashes the glass, and turns disruption into points"
     if forced_to:
-        return "🪤 Pickpocket Defense", "Leads the country in getting into the passing lanes — defense creates offense"
+        return "ðŸª¤ Pickpocket Defense", "Leads the country in getting into the passing lanes — defense creates offense"
 
-    # ── Rim protection (blocks) ───────────────────────────────────────────
+    # â”€â”€ Rim protection (blocks) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if rim_protector and slow and three_light:
-        return "🧱 Paint Fortress", "Anchors the defense at the rim, controls pace, and dares opponents to shoot over them"
+        return "ðŸ§± Paint Fortress", "Anchors the defense at the rim, controls pace, and dares opponents to shoot over them"
     if rim_protector and good_dreb:
-        return "🧱 Interior Anchor", "Protects the basket and wins the glass — opponents think twice before attacking the rim"
+        return "ðŸ§± Interior Anchor", "Protects the basket and wins the glass — opponents think twice before attacking the rim"
     if rim_protector:
-        return "🧱 Shot Blocker", "Elite rim presence changes how opponents attack — keeps the defense behind them"
+        return "ðŸ§± Shot Blocker", "Elite rim presence changes how opponents attack — keeps the defense behind them"
 
-    # ── Rebounding (alone) ────────────────────────────────────────────────
+    # â”€â”€ Rebounding (alone) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if good_dreb:
-        return "🏀 Rebounding Foundation", "Controls the glass consistently and limits opponent second-chance opportunities"
+        return "ðŸ€ Rebounding Foundation", "Controls the glass consistently and limits opponent second-chance opportunities"
 
-    # ── Fallback ──────────────────────────────────────────────────────────
-    return "⚖️ Balanced", "No single dominant trait — competes in multiple phases without a glaring weakness"
+    # â”€â”€ Fallback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    return "âš–ï¸ Balanced", "No single dominant trait — competes in multiple phases without a glaring weakness"
 
 
 def generate_team_writeup(t: pd.Series, ts: pd.Series | None, n: int) -> str:
@@ -2197,11 +2203,11 @@ _FIRST_FOUR: dict[str, tuple[str, str]] = {
 # ---------------------------------------------------------------------------
 
 with team_tab:
-    _all_teams = load_rankings(2026)
+    _all_teams = load_rankings(_SEASON)
 
     # Limit to tournament teams when the real bracket is available.
     # Also include First Four challengers (teams playing today/tomorrow for a spot).
-    _profile_bracket = load_real_bracket(2026)
+    _profile_bracket = load_real_bracket(_SEASON)
     _ff_challenger_names = {v[0] for v in _FIRST_FOUR.values()}
     if _profile_bracket is not None and "Team" in _profile_bracket.columns:
         _tourn_names = set(_profile_bracket["Team"].tolist()) | _ff_challenger_names
@@ -2228,7 +2234,7 @@ with team_tab:
     # Search input filters the dropdown
     _search_query = st.text_input(
         "Search team",
-        placeholder="🔍  Type a team name to filter...",
+        placeholder="ðŸ”  Type a team name to filter...",
         label_visibility="collapsed",
         key="team_profile_search",
     )
@@ -2257,34 +2263,34 @@ with team_tab:
     )
 
     _t    = _all_teams[_all_teams["Team"] == selected_team].iloc[0]
-    _stats_df = load_per_game_stats(2026)
+    _stats_df = load_per_game_stats(_SEASON)
     _ts_rows  = _stats_df[_stats_df["team_id"] == _t["team_id"]]
     _ts   = _ts_rows.iloc[0] if len(_ts_rows) > 0 else None
     _n    = len(_all_teams)
     _team_id = int(_t["team_id"])
 
-    # ── Seed lookup ──────────────────────────────────────────────────────────
+    # â”€â”€ Seed lookup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # CarmPom projected seed: where the S-curve would place this team (top 64 only)
     _cp_rank = int(_t["Rank"])
     _cp_seed_str: str | None = None
     if _cp_rank <= 64:
-        _cp_seed_num = ((_cp_rank - 1) // 4) + 1  # S-curve: ranks 1-4 → seed 1, 5-8 → seed 2, etc.
+        _cp_seed_num = ((_cp_rank - 1) // 4) + 1  # S-curve: ranks 1-4 â†’ seed 1, 5-8 â†’ seed 2, etc.
         _cp_seed_str = f"#{_cp_seed_num} seed (CarmPom)"
 
     # Real bracket seed: from bracket_2026.csv if loaded
     _real_seed_str: str | None = None
     try:
-        _brk_loaded = load_real_bracket(2026)
+        _brk_loaded = load_real_bracket(_SEASON)
         if _brk_loaded is not None:
             _brk_row = _brk_loaded[_brk_loaded["Team"] == selected_team]
             if not _brk_row.empty:
                 _rs = int(_brk_row.iloc[0]["seed"])
                 _rr = _brk_row.iloc[0]["region"]
-                _real_seed_str = f"#{_rs} seed · {_rr}"
+                _real_seed_str = f"#{_rs} seed Â· {_rr}"
     except Exception:
         pass
 
-    # ── Header ──────────────────────────────────────────────────────────────
+    # â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     espn_url  = _t["Player Stats"] if pd.notna(_t.get("Player Stats")) else None
     logo_url  = _t["logo_url"] if pd.notna(_t.get("logo_url")) else None
 
@@ -2296,16 +2302,16 @@ with team_tab:
         st.markdown(f"## {selected_team}")
         _seed_parts = []
         if _real_seed_str:
-            _seed_parts.append(f"🏆 {_real_seed_str}")
+            _seed_parts.append(f"ðŸ† {_real_seed_str}")
         if _cp_seed_str:
             _seed_parts.append(_cp_seed_str)
-        _seed_line = "  ·  ".join(_seed_parts)
-        _subline = f"**{_t['Conf']}** · {_t['Record']} · CarmPom rank **#{_cp_rank}**"
+        _seed_line = "  Â·  ".join(_seed_parts)
+        _subline = f"**{_t['Conf']}** Â· {_t['Record']} Â· CarmPom rank **#{_cp_rank}**"
         if _seed_line:
-            _subline += f"  ·  {_seed_line}"
+            _subline += f"  Â·  {_seed_line}"
         st.markdown(_subline)
     try:
-        _brk_for_cf = load_real_bracket(2026)
+        _brk_for_cf = load_real_bracket(_SEASON)
         _tourn_cf = _all_teams[_all_teams["Team"].isin(set(_brk_for_cf["Team"].tolist()))] if _brk_for_cf is not None else _all_teams
     except Exception:
         _tourn_cf = _all_teams
@@ -2345,11 +2351,11 @@ with team_tab:
     _stat_card(h3, "AdjO",  f"{_t['AdjO']:.1f}",  int(_t['AdjO_nr']),  "AdjO")
     _stat_card(h4, "AdjD",  f"{_t['AdjD']:.1f}",  int(_t['AdjD_nr']),  "AdjD")
     if espn_url:
-        st.markdown(f"**ESPN Player Stats Page:** [View on ESPN ↗]({espn_url})")
+        st.markdown(f"**ESPN Player Stats Page:** [View on ESPN â†—]({espn_url})")
 
     st.divider()
 
-    # ── AI overview + radar chart ────────────────────────────────────────────
+    # â”€â”€ AI overview + radar chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     overview_col, radar_col = st.columns([3, 2], gap="large")
 
     with overview_col:
@@ -2363,7 +2369,7 @@ with team_tab:
             """Convert a national rank to a 0-100 percentile (higher = better)."""
             return round((1 - (nr - 1) / _n) * 100)
 
-        # ── Playstyle name badge ────────────────────────────────────────────
+        # â”€â”€ Playstyle name badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         _style_name, _style_tag = generate_playstyle_name(_t, _ts, _n)
         st.markdown(
             f"<div style='background:#1e2d40;color:white;border-radius:8px;padding:10px 16px;"
@@ -2373,7 +2379,7 @@ with team_tab:
             unsafe_allow_html=True,
         )
 
-        # ── 10-spoke playstyle radar (no Offense/Defense spokes) ─────────────
+        # â”€â”€ 10-spoke playstyle radar (no Offense/Defense spokes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         # All spokes describe HOW the team plays, not efficiency ratings.
         _radar_labels = ["Pace", "3PT Volume", "3PT Accuracy", "Off. Rebounding",
                          "Ball Security", "FT Drawing", "Assists", "Def. Rebounding",
@@ -2384,7 +2390,7 @@ with team_tab:
             _3pa_pct   = _pct(_ts["3PaPG_nr"])
             _3pct_pct  = _pct(_ts["3P%_nr"])
             _oreb_pct  = _pct(_ts["OrebPG_nr"])
-            _to_pct    = _pct(_ts["TOPG_nr"])    # rank 1 = fewest TOs → high percentile = ball safe
+            _to_pct    = _pct(_ts["TOPG_nr"])    # rank 1 = fewest TOs â†’ high percentile = ball safe
             _ftm_pct   = _pct(_ts["FTmPG_nr"])   # free throws drawn/made per game
             _ast_pct   = _pct(_ts["AstPG_nr"])
             _dreb_pct  = round((1 - (_ts["RebPG_nr"] - 1) / _n) * 100)
@@ -2418,11 +2424,11 @@ with team_tab:
         plt.tight_layout()
         st.pyplot(fig_r, use_container_width=True)
         plt.close(fig_r)
-        st.caption("Each spoke = national percentile for that playstyle dimension. Ball Security = inverted turnover rate · Forced TOs = steals/game · Paint Def. = opp 2PT FG% (lower allowed = better).")
+        st.caption("Each spoke = national percentile for that playstyle dimension. Ball Security = inverted turnover rate Â· Forced TOs = steals/game Â· Paint Def. = opp 2PT FG% (lower allowed = better).")
 
     st.divider()
 
-    # ── Strengths & Weaknesses ───────────────────────────────────────────────
+    # â”€â”€ Strengths & Weaknesses â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     st.markdown("#### Strengths & Weaknesses")
     sw_col_a, sw_col_b = st.columns(2)
 
@@ -2454,7 +2460,7 @@ with team_tab:
     _weaknesses = sorted([m for m in _all_metrics if m[1] < 40], key=lambda x: x[1])[:6]
 
     with sw_col_a:
-        st.markdown("**💪 Strengths** *(top 25% nationally)*")
+        st.markdown("**ðŸ’ª Strengths** *(top 25% nationally)*")
         if _strengths:
             for lbl, pct_val in _strengths:
                 st.markdown(f"- **{lbl}** — {pct_val}th percentile")
@@ -2462,7 +2468,7 @@ with team_tab:
             st.caption("No standout strengths identified.")
 
     with sw_col_b:
-        st.markdown("**⚠️ Weaknesses** *(bottom 40% nationally)*")
+        st.markdown("**âš ï¸ Weaknesses** *(bottom 40% nationally)*")
         if _weaknesses:
             for lbl, pct_val in _weaknesses:
                 st.markdown(f"- **{lbl}** — {pct_val}th percentile")
@@ -2471,7 +2477,7 @@ with team_tab:
 
     st.divider()
 
-    # ── Efficiency metrics (compact row) ────────────────────────────────────
+    # â”€â”€ Efficiency metrics (compact row) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     st.markdown("#### Full Efficiency Breakdown")
     m1, m2, m3, m4, m5, m6 = st.columns(6)
 
@@ -2494,7 +2500,7 @@ with team_tab:
                 f"<div style='font-size:12px;color:#9aa5b4;font-weight:500'>{label}</div>"
                 f"<div style='font-size:26px;font-weight:700;color:#ffffff;margin:2px 0'>{value}</div>"
                 f"<div style='font-size:12px;font-weight:600;color:{rank_color}'>"
-                f"↑ #{nat_rank} · {pct_val}th pct</div>"
+                f"â†‘ #{nat_rank} Â· {pct_val}th pct</div>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
@@ -2559,7 +2565,7 @@ with team_tab:
         def _stat_bar_html(rows: list[dict]) -> str:
             """Render a list of stat rows as color-coded HTML bars.
 
-            Green ≥ 75th pct, amber 40–74, red < 40.
+            Green â‰¥ 75th pct, amber 40–74, red < 40.
             """
             def _bar_color(pct: int) -> str:
                 if pct >= 80: return "#2e7d32"
@@ -2588,16 +2594,16 @@ with team_tab:
 
         _sc_a, _sc_b = st.columns(2)
         with _sc_a:
-            st.markdown("**⚔️ Offense**")
+            st.markdown("**âš”ï¸ Offense**")
             st.markdown(_stat_bar_html(off_rows), unsafe_allow_html=True)
         with _sc_b:
-            st.markdown("**🛡️ Defense**")
+            st.markdown("**ðŸ›¡ï¸ Defense**")
             st.markdown(_stat_bar_html(def_rows), unsafe_allow_html=True)
 
     st.divider()
 
-    # ── Game history ────────────────────────────────────────────────────────
-    _games_df = load_team_games(_team_id, 2026)
+    # â”€â”€ Game history â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    _games_df = load_team_games(_team_id, _SEASON)
 
     games_big_col, games_recent_col = st.columns(2, gap="large")
 
@@ -2650,13 +2656,13 @@ with team_tab:
 # ---------------------------------------------------------------------------
 
 with scatter_tab:
-    st.markdown("### 📈 Valuable Charts")
+    st.markdown("### ðŸ“ˆ Valuable Charts")
     st.markdown(
         "Visual breakdowns across key dimensions — each logo is a tournament team. "
         "Hover for details."
     )
     st.info(
-        "📍 **How to read these charts:** "
+        "ðŸ“ **How to read these charts:** "
         "**Top-right = elite** on both axes shown — the best teams. "
         "**Bottom-left = weakest** on both axes. "
         "The dashed white lines mark the tournament median — anything above/right of both lines "
@@ -2664,8 +2670,8 @@ with scatter_tab:
         icon=None,
     )
 
-    _sc_ratings = load_rankings(2026)
-    _sc_pg = load_per_game_stats(2026)
+    _sc_ratings = load_rankings(_SEASON)
+    _sc_pg = load_per_game_stats(_SEASON)
     try:
         _sc_brk = pd.read_csv("data/bracket_2026.csv")
         _sc_brk["team"] = _sc_brk["team"].str.strip()
@@ -2682,7 +2688,7 @@ with scatter_tab:
     )
     _sc_merged["seed"] = pd.to_numeric(_sc_merged["seed"], errors="coerce")
 
-    # ── Filters ───────────────────────────────────────────────────────────────
+    # â”€â”€ Filters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     _filt_col1, _filt_col2, _filt_col3 = st.columns([2, 2, 3], gap="small")
 
     # Conference filter
@@ -2829,7 +2835,7 @@ with scatter_tab:
 
     with _sc_col1:
         # Chart 1: Efficiency Landscape (AdjO vs AdjD)
-        st.markdown("**⚡ Efficiency Landscape**")
+        st.markdown("**âš¡ Efficiency Landscape**")
         if not _sc_plot.empty and "AdjO" in _sc_plot.columns:
             st.altair_chart(
                 _scatter_chart(
@@ -2849,7 +2855,7 @@ with scatter_tab:
                 "Teams in the **top-right** dominate on both ends — historically the profile of "
                 "Final Four teams. In March, a coaching upset can mask a bad defense for one game, "
                 "but elite two-way teams consistently advance. "
-                "Dashed lines = tournament median. Better offense → right; better defense → up.</small>",
+                "Dashed lines = tournament median. Better offense â†’ right; better defense â†’ up.</small>",
                 unsafe_allow_html=True,
             )
         else:
@@ -2857,12 +2863,12 @@ with scatter_tab:
 
     with _sc_col2:
         # Chart 2: Ball Security vs FT Drawing
-        st.markdown("**🔒 Ball Security vs Free-Throw Drawing**")
+        st.markdown("**ðŸ”’ Ball Security vs Free-Throw Drawing**")
         if not _sc_plot.empty and "TOPG" in _sc_plot.columns and "FTmPG" in _sc_plot.columns:
             st.altair_chart(
                 _scatter_chart(
                     _sc_plot, "TOPG", "FTmPG",
-                    "Turnovers per Game (fewer = better →)",
+                    "Turnovers per Game (fewer = better â†’)",
                     "Free Throws Made per Game",
                     invert_x=True,
                     x_ref=float(_sc_merged["TOPG"].median()),
@@ -2876,7 +2882,7 @@ with scatter_tab:
                 "<small>Turnovers are magnified in elimination games — one late giveaway can end a season. "
                 "Teams in the **top-right** take care of the ball *and* draw fouls, giving them two reliable "
                 "scoring paths when half-court offense stalls in tournament pressure. "
-                "Fewer turnovers → right; more FTs made → up.</small>",
+                "Fewer turnovers â†’ right; more FTs made â†’ up.</small>",
                 unsafe_allow_html=True,
             )
         else:
@@ -2907,7 +2913,7 @@ with scatter_tab:
                 "mid-major can beat anyone if left open. This chart identifies teams that **both** "
                 "contest 3PT attempts (volume) and limit the conversion rate. "
                 "Top-right = elite 3PT defense that removes the game's highest-variance shot. "
-                "Limits volume → right; limits % → up.</small>",
+                "Limits volume â†’ right; limits % â†’ up.</small>",
                 unsafe_allow_html=True,
             )
         else:
@@ -2915,7 +2921,7 @@ with scatter_tab:
 
     with _sc_col4:
         # Chart 4: 3PT Offense — volume vs accuracy
-        st.markdown("**🎯 3PT Offense — Volume vs Accuracy**")
+        st.markdown("**ðŸŽ¯ 3PT Offense — Volume vs Accuracy**")
         if not _sc_plot.empty and "3PaPG" in _sc_plot.columns and "3P%" in _sc_plot.columns:
             st.altair_chart(
                 _scatter_chart(
@@ -2935,7 +2941,7 @@ with scatter_tab:
                 "**Top-right** teams (high volume + high accuracy) are legitimately dangerous — they can "
                 "go supernova or stay ice-cold. **Bottom-left** teams rarely win with 3s and survive "
                 "on interior play and defense. Use this to read *how* a team will try to beat you. "
-                "Heavy volume → right; better accuracy → up.</small>",
+                "Heavy volume â†’ right; better accuracy â†’ up.</small>",
                 unsafe_allow_html=True,
             )
         else:
@@ -2946,9 +2952,9 @@ with scatter_tab:
 # ---------------------------------------------------------------------------
 
 with bracket_tab:
-    # ── Load all data needed for this tab ────────────────────────────────
+    # â”€â”€ Load all data needed for this tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     _pk_brkt = load_real_bracket()
-    _pk_df   = load_rankings(2026)
+    _pk_df   = load_rankings(_SEASON)
     _pk_lu   = _pk_df.set_index("Team").to_dict("index")
     _pk_logo_lu: dict[str, str] = {
         row["Team"]: str(row["logo_url"])
@@ -2957,7 +2963,7 @@ with bracket_tab:
     }
     _n_teams = len(_pk_df)
     _r_lookup = _pk_lu
-    _pg_df_bp = load_per_game_stats(2026)
+    _pg_df_bp = load_per_game_stats(_SEASON)
     _pg_named = _pk_df[["team_id", "Team"]].merge(_pg_df_bp, on="team_id", how="left")
     _pg_lu: dict = _pg_named.set_index("Team").to_dict("index")
     _odds_lu: dict = _load_odds_data()
@@ -3042,9 +3048,9 @@ with bracket_tab:
             f"padding:14px 18px;font-size:14px;color:#e8eaf0;line-height:1.75;font-weight:400'>{_clash}</div>",
             unsafe_allow_html=True,
         )
-        # ── Playstyle Profiles ─────────────────────────────────────────────
+        # â”€â”€ Playstyle Profiles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         st.markdown("<div style='margin-top:22px'></div>", unsafe_allow_html=True)
-        st.markdown("#### 🎨 Playstyle Profiles")
+        st.markdown("#### ðŸŽ¨ Playstyle Profiles")
         _ps_col_a, _ps_col_b = st.columns(2, gap="large")
 
         def _pct_dp(nr: int | float, n_total: int) -> float:
@@ -3112,7 +3118,7 @@ with bracket_tab:
 
         _radar_for_team(_ta_full, _ps_col_a)
         _radar_for_team(_tb_full, _ps_col_b)
-        st.caption("Each spoke = national percentile. Ball Sec. = inverted TO rate · Forced TO = steals/game · Paint Def. = opp 2PT% allowed (lower = better).")
+        st.caption("Each spoke = national percentile. Ball Sec. = inverted TO rate Â· Forced TO = steals/game Â· Paint Def. = opp 2PT% allowed (lower = better).")
 
         st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
         with st.expander("\U0001f4cb Key Factors", expanded=True):
@@ -3189,7 +3195,7 @@ with bracket_tab:
     if _pk_brkt is None:
         st.warning("Bracket data not loaded.", icon="\u26a0\ufe0f")
     else:
-        # ── Session state ─────────────────────────────────────────────────
+        # â”€â”€ Session state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if "dev_view" not in st.session_state:
             st.session_state["dev_view"] = "overview"
         if "dev_region" not in st.session_state:
@@ -3198,7 +3204,7 @@ with bracket_tab:
         _dv = st.session_state["dev_view"]
         _dr = st.session_state["dev_region"]
 
-        # ── Game card HTML (display only — no interactive elements) ────────
+        # â”€â”€ Game card HTML (display only — no interactive elements) â”€â”€â”€â”€â”€â”€â”€â”€
         def _dev_card_html(
             ta: str, tb: str, sa, sb,
             em_a: float, em_b: float, wp_a: float,
@@ -3227,8 +3233,8 @@ with bracket_tab:
             ) if url else ""
             seed_bg_a = "#1e2d40"
             seed_bg_b = "#78909c"
-            chk_a = "✅ " if sel_a else ""
-            chk_b = "✅ " if sel_b else ""
+            chk_a = "âœ… " if sel_a else ""
+            chk_b = "âœ… " if sel_b else ""
             fw_a = "700" if sel_a else "500"
             fw_b = "700" if sel_b else "500"
 
@@ -3268,7 +3274,7 @@ with bracket_tab:
                 f"flex-shrink:0;margin-left:6px'>{em_b:+.1f}</span></div></div>"
             )
 
-        # ── One matchup block: card + pick buttons + analyze ──────────────
+        # â”€â”€ One matchup block: card + pick buttons + analyze â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         def _dev_matchup(rnd: int, slot: int) -> None:
             """Render card + pick buttons + analyze button for (rnd, slot)."""
             _dv_picks = st.session_state.get("bp_picks", {})
@@ -3314,7 +3320,7 @@ with bracket_tab:
                     st.session_state["bp_picks"][(rnd, slot)] = ta
                     st.rerun()
             with _cx:
-                if picked and st.button("✕", key=f"dv_{rnd}_{slot}_x", use_container_width=True):
+                if picked and st.button("âœ•", key=f"dv_{rnd}_{slot}_x", use_container_width=True):
                     st.session_state["bp_picks"].pop((rnd, slot), None)
                     _cs = slot
                     for _cr in range(rnd + 1, 6):
@@ -3341,7 +3347,7 @@ with bracket_tab:
                     st.session_state[_ak] = False
                 _open = st.session_state[_ak]
                 if st.button(
-                    "✖ Close" if _open else "📊 Analyze",
+                    "âœ– Close" if _open else "ðŸ“Š Analyze",
                     key=f"dv_{rnd}_{slot}_az",
                     use_container_width=True,
                     type="primary" if _open else "secondary",
@@ -3354,7 +3360,7 @@ with bracket_tab:
                     st.session_state[_ak] = _nv
                     st.rerun()
 
-        # ── Inline analysis renderer ───────────────────────────────────────
+        # â”€â”€ Inline analysis renderer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         def _dev_analyses(rnd: int, slots) -> None:
             """Render any open analysis panels for the given slots."""
             for _s in slots:
@@ -3376,13 +3382,13 @@ with bracket_tab:
                 st.markdown(
                     f"<div style='background:#1e2d40;color:white;border-radius:8px 8px 0 0;"
                     f"padding:10px 18px'><span style='font-size:15px;font-weight:700'>"
-                    f"📊 ({_asa}) {_ata} vs ({_asb}) {_atb}</span></div>",
+                    f"ðŸ“Š ({_asa}) {_ata} vs ({_asb}) {_atb}</span></div>",
                     unsafe_allow_html=True,
                 )
                 with st.container(border=True):
                     _detail_panel(_ata_s, _atb_s, _awp, _n_teams)
 
-        # ── Shared pick count helper ───────────────────────────────────────
+        # â”€â”€ Shared pick count helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         def _reg_pick_count(ri: int) -> tuple[int, int]:
             """Return (made, total) picks for one region across all 4 regional rounds."""
             dv_p = st.session_state.get("bp_picks", {})
@@ -3393,23 +3399,23 @@ with bracket_tab:
             )
             return made, 15  # 8+4+2+1
 
-        # ══════════════════════════════════════════════════════════════════
+        # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         # OVERVIEW — 4 region cards
-        # ══════════════════════════════════════════════════════════════════
+        # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         if _dv == "overview":
             st.markdown(
-                "<h2 style='font-family:system-ui,sans-serif;margin-bottom:2px'>🏟️ 2026 NCAA Tournament</h2>"
+                "<h2 style='font-family:system-ui,sans-serif;margin-bottom:2px'>ðŸŸï¸ 2026 NCAA Tournament</h2>"
                 "<p style='color:#666;font-size:13px;margin-top:0'>Pick a region to start filling out your bracket.</p>",
                 unsafe_allow_html=True,
             )
 
-            # ── Quick-fill strip ──────────────────────────────────────────
+            # â”€â”€ Quick-fill strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             _qf_l, _qf_r = st.columns([3, 1], gap="small")
             with _qf_l:
                 st.markdown(
                     "<div style='background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;"
                     "padding:10px 14px;font-family:system-ui,sans-serif'>"
-                    "<span style='font-size:13px;font-weight:700;color:#1b5e20'>⚡ Suggested for Quickness</span>"
+                    "<span style='font-size:13px;font-weight:700;color:#1b5e20'>âš¡ Suggested for Quickness</span>"
                     "<span style='font-size:12px;color:#388e3c;margin-left:8px'>"
                     "Fill every game with CarmPom's top pick, then adjust any you disagree with.</span>"
                     "</div>",
@@ -3417,7 +3423,7 @@ with bracket_tab:
                 )
             with _qf_r:
                 st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
-                if st.button("🎯 Fill with CarmPom Picks", use_container_width=True, key="dv_autofill_chalk"):
+                if st.button("ðŸŽ¯ Fill with CarmPom Picks", use_container_width=True, key="dv_autofill_chalk"):
                     st.session_state["bp_picks"] = _bp_autofill(
                         "chalk",
                         st.session_state.get("bp_picks", {}),
@@ -3438,7 +3444,7 @@ with bracket_tab:
                 _emo_ov = _BP_REGION_EMOJI[_oreg]
                 _made_ov, _tot_ov = _reg_pick_count(_ri_ov)
 
-                # Build mini bracket: 4 columns (R64 → R32 → S16 → E8) logo+seed only
+                # Build mini bracket: 4 columns (R64 â†’ R32 â†’ S16 â†’ E8) logo+seed only
                 _dv_picks_ov = st.session_state.get("bp_picks", {})
                 _ov_col_labels = ["R64", "R32", "S16", "E8"]
                 _bracket_col_html = ""
@@ -3513,7 +3519,7 @@ with bracket_tab:
                         unsafe_allow_html=True,
                     )
                     if st.button(
-                        f"{'✅ ' if _made_ov == _tot_ov else ''}Make picks — {_oreg} Region →",
+                        f"{'âœ… ' if _made_ov == _tot_ov else ''}Make picks — {_oreg} Region â†’",
                         key=f"dv_enter_{_oreg}",
                         use_container_width=True,
                     ):
@@ -3521,9 +3527,9 @@ with bracket_tab:
                         st.session_state["dev_region"] = _oreg
                         st.rerun()
 
-            # ── Final Four + Championship ──────────────────────────────────
+            # â”€â”€ Final Four + Championship â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             st.divider()
-            st.markdown("### 🏆 Final Four & Championship")
+            st.markdown("### ðŸ† Final Four & Championship")
             _f4c1, _f4c2 = st.columns(2, gap="medium")
             for _f4i, (_ra, _rb, _lbl) in enumerate([
                 ("East", "South", "East vs South"),
@@ -3536,13 +3542,13 @@ with bracket_tab:
 
             _ncl, _ncm, _ncr = st.columns([2, 4, 2])
             with _ncm:
-                st.markdown("**🏆 National Championship**")
+                st.markdown("**ðŸ† National Championship**")
                 _dev_matchup(5, 0)
             _dev_analyses(5, range(1))
 
-        # ══════════════════════════════════════════════════════════════════
+        # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         # REGION VIEW — single region, all 4 rounds side by side
-        # ══════════════════════════════════════════════════════════════════
+        # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         elif _dv == "region" and _dr is not None:
             _ri = _BP_REGIONS.index(_dr)
             _acc_r = _BP_REGION_ACC[_dr]
@@ -3552,7 +3558,7 @@ with bracket_tab:
             # Header row
             _hdr_back, _hdr_title = st.columns([1, 6])
             with _hdr_back:
-                if st.button("← Overview", key="dv_back"):
+                if st.button("â† Overview", key="dv_back"):
                     st.session_state["dev_view"] = "overview"
                     st.session_state["dev_region"] = None
                     st.rerun()
@@ -3608,7 +3614,7 @@ with bracket_tab:
                             )
                         _dev_matchup(_rnd, _slot)
 
-            # ── Inline analysis for this region (all rounds) ───────────────
+            # â”€â”€ Inline analysis for this region (all rounds) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             st.markdown("<div style='margin-top:20px'></div>", unsafe_allow_html=True)
             for _rnd_an in range(4):
                 _ng = 8 >> _rnd_an
@@ -3632,9 +3638,9 @@ with upset_tab:
         unsafe_allow_html=True,
     )
 
-    _uv_brkt = load_real_bracket(2026)
+    _uv_brkt = load_real_bracket(_SEASON)
     _uv_odds = _load_odds_data()
-    _uv_rankings = load_rankings(2026)
+    _uv_rankings = load_rankings(_SEASON)
     _uv_lu = _uv_rankings.set_index("Team").to_dict("index")
     _uv_logo_lu = {
         row["Team"]: str(row["logo_url"])
@@ -3768,7 +3774,7 @@ with upset_tab:
             cp_margin_str = f"{fav} by {cp_margin:.1f}"
             if fav_spread is not None:
                 spread_str = f"{fav_spread:+.1f}" if fav_spread != 0 else "PK"
-                es = f"CP: {cp_margin:.1f} · Line: {spread_str}"
+                es = f"CP: {cp_margin:.1f} Â· Line: {spread_str}"
             else:
                 es = f"CP projects {cp_margin:.1f} pt margin"
         ml_disp = f" &nbsp;(ML: {r['dog_ml']:+d})" if r.get("dog_ml") is not None else ""
@@ -3829,7 +3835,7 @@ with upset_tab:
             r = _uv_build_row(ta, tb, brkt, _uv_lu, _uv_odds)
             if r:
                 rows.append(r)
-        # CarmPom actually favours the seed-underdog → top tier regardless of odds
+        # CarmPom actually favours the seed-underdog â†’ top tier regardless of odds
         cp_fav_dog   = sorted([r for r in rows if r.get("cp_favors_dog")],     key=lambda x: x["cp_dog_pct"], reverse=True)
         with_edge    = sorted([r for r in rows if not r.get("cp_favors_dog") and r["edge"] is not None], key=lambda x: x["edge"], reverse=True)
         without_edge = sorted([r for r in rows if not r.get("cp_favors_dog") and r["edge"] is None],    key=lambda x: x["cp_dog_pct"], reverse=True)
@@ -3880,7 +3886,7 @@ with upset_tab:
 
 with picks_tab:
     st.markdown(
-        "<h2 style='font-family:system-ui,sans-serif;margin-bottom:2px'>🎯 CarmPom Tournament Picks</h2>"
+        "<h2 style='font-family:system-ui,sans-serif;margin-bottom:2px'>ðŸŽ¯ CarmPom Tournament Picks</h2>"
         "<p style='color:#ccc;font-size:13px;margin-top:0'>"
         "CarmPom's bracket predictions powered by 50,000 Monte Carlo simulations. "
         "Highlights teams positioned to exceed seed expectations, whether through a favorable "
@@ -3890,11 +3896,11 @@ with picks_tab:
         unsafe_allow_html=True,
     )
 
-    _pkl_brkt = load_real_bracket(2026)
+    _pkl_brkt = load_real_bracket(_SEASON)
     if _pkl_brkt is None:
         st.warning(
             "Bracket data not fully loaded — fill in `data/bracket_2026.csv` with all 64 teams.",
-            icon="⚠️",
+            icon="âš ï¸",
         )
     else:
         # Run simulation — heavy, so cache in session state to avoid re-running on every interaction
@@ -3931,7 +3937,7 @@ with picks_tab:
 
         # -----------------------------------------------------------------------
         # NCAA bracket seed pairing structure within a 16-team region.
-        # seed → (r64_opponent_seed, r32_pod_seeds, s16_half_seeds, e8_other_half_seeds)
+        # seed â†’ (r64_opponent_seed, r32_pod_seeds, s16_half_seeds, e8_other_half_seeds)
         # Left half of region:  1,16,8,9 | 5,12,4,13
         # Right half of region: 6,11,3,14 | 7,10,2,15
         # -----------------------------------------------------------------------
@@ -3954,7 +3960,7 @@ with picks_tab:
             15: (2,  [7, 10],     [3, 6, 11, 14],    [1, 4, 5, 8, 9, 12, 13, 16]),
         }
 
-        # Build a quick lookup: (region, seed) → (AdjEM, R32%, S16%, E8%) from sim
+        # Build a quick lookup: (region, seed) â†’ (AdjEM, R32%, S16%, E8%) from sim
         # Used to probability-weight path difficulty — favorites in a pod get higher weight
         # because they're more likely to actually show up as your opponent.
         _pkl_sim_lu: dict[tuple[str, int], dict] = {}
@@ -4053,7 +4059,7 @@ with picks_tab:
         # Rankings lookup for logos
         _pkl_rank_lu: dict[str, dict] = {
             row["Team"]: row.to_dict()
-            for _, row in load_rankings(2026).iterrows()
+            for _, row in load_rankings(_SEASON).iterrows()
         }
 
         def _pkl_logo(team: str) -> str:
@@ -4095,7 +4101,7 @@ with picks_tab:
         # -----------------------------------------------------------------------
         st.markdown(
             "<h3 style='font-family:system-ui,sans-serif;margin-bottom:4px;color:#f0f0f0'>"
-            "🏃 March Madness Runs to Watch</h3>"
+            "ðŸƒ March Madness Runs to Watch</h3>"
             "<p style='color:#ccc;font-size:12px;margin-top:0'>"
             "Research-backed run candidates drawn from CarmPom's efficiency model and historical "
             "tournament pattern analysis. Over the last 10 seasons, teams that advanced beyond "
@@ -4108,11 +4114,11 @@ with picks_tab:
         )
 
         # Load per-game stats for playstyle analysis (cached)
-        _pkl_pgs = load_per_game_stats(2026)
+        _pkl_pgs = load_per_game_stats(_SEASON)
         _pkl_pgs_lu: dict[int, pd.Series] = {
             int(r["team_id"]): r for _, r in _pkl_pgs.iterrows()
         }
-        _pkl_n = len(load_rankings(2026))
+        _pkl_n = len(load_rankings(_SEASON))
 
         def _pkl_ts(team_id: int) -> pd.Series | None:
             """Per-game stats row for a team, or None."""
@@ -4152,13 +4158,13 @@ with picks_tab:
             "shooting":        70,   # 3P% rank: top-70 (accurate from deep)
             "three_volume":    80,   # 3PaPG rank: top-80 (uses the three as a weapon)
             "paint_defense":   80,   # Opp2P% rank: top-80 (limits interior scoring)
-            "tempo_control":  200,   # AdjT rank: ≥200 (slow teams can dictate pace)
+            "tempo_control":  200,   # AdjT rank: â‰¥200 (slow teams can dictate pace)
         }
 
         def _pkl_run_traits(t: pd.Series, ts: pd.Series | None, path_row: pd.Series) -> list[tuple[str, str, str]]:
             """Return list of (icon, trait_label, explanation) tuples for this team's run case.
 
-            Each tuple is a green ✅ (strength), amber ⚠️ (mixed), or red ❌ (concern).
+            Each tuple is a green âœ… (strength), amber âš ï¸ (mixed), or red âŒ (concern).
             Grounded in historical patterns from the last 10 NCAA tournaments.
             """
             traits: list[tuple[str, str, str]] = []
@@ -4170,26 +4176,26 @@ with picks_tab:
 
             # --- Defense ---
             if adjd_nr <= _HIST_BENCHMARKS["defense_elite"]:
-                traits.append(("✅", "Elite defense",
+                traits.append(("âœ…", "Elite defense",
                     f"#{adjd_nr} nationally in AdjD ({adjd:.1f} pts/100) — "
-                    "top-40 defenses have reached the Elite Eight at 3× the rate of median teams "
+                    "top-40 defenses have reached the Elite Eight at 3Ã— the rate of median teams "
                     "over the last 10 seasons. The most reliable single predictor of a deep run."))
             elif adjd_nr <= _HIST_BENCHMARKS["defense_good"]:
-                traits.append(("✅", "Solid defense",
+                traits.append(("âœ…", "Solid defense",
                     f"#{adjd_nr} in AdjD nationally — above the top-80 threshold. "
                     "Not elite, but good enough to keep them in tight games against stronger opponents."))
             else:
-                traits.append(("❌", "Defensive liability",
+                traits.append(("âŒ", "Defensive liability",
                     f"#{adjd_nr} in AdjD — historically, teams outside the top 100 defensively "
                     "rarely survive beyond the Sweet 16 against elite opposition."))
 
             # --- Offense ---
             if adjo_nr <= _HIST_BENCHMARKS["offense_elite"]:
-                traits.append(("✅", "Elite offense",
+                traits.append(("âœ…", "Elite offense",
                     f"#{adjo_nr} in AdjO ({adjo:.1f} pts/100) — pairs a high floor with the upside "
                     "needed to outscore quality opponents when the bracket demands it."))
             elif adjo_nr <= _HIST_BENCHMARKS["offense_good"]:
-                traits.append(("✅", "Efficient offense",
+                traits.append(("âœ…", "Efficient offense",
                     f"Top-60 offense nationally (#{adjo_nr} AdjO) — enough firepower to punish "
                     "teams that focus entirely on take-away schemes."))
 
@@ -4203,37 +4209,37 @@ with picks_tab:
                 three_pa  = float(ts.get("3PaPG", 0) or 0)
 
                 if topg_nr <= _HIST_BENCHMARKS["ball_security"]:
-                    traits.append(("✅", "Ball security",
+                    traits.append(("âœ…", "Ball security",
                         f"#{topg_nr} nationally in turnover rate — "
                         "clean ball-handling removes the free possessions that fuel upsets. "
-                        "Top-80 TO teams have historically advanced at 1.6× the rate of sloppy teams "
+                        "Top-80 TO teams have historically advanced at 1.6Ã— the rate of sloppy teams "
                         "once they reach the second weekend."))
                 else:
-                    traits.append(("⚠️", "Turnover risk",
+                    traits.append(("âš ï¸", "Turnover risk",
                         f"#{topg_nr} in turnover rate — carelessness with the ball has burned "
                         "tournament teams against high-pressure defenses. One of the key variables "
                         "to watch in their opener."))
 
                 # --- Shooting weapon ---
                 if thp_nr <= _HIST_BENCHMARKS["shooting"] and three_nr <= _HIST_BENCHMARKS["three_volume"]:
-                    traits.append(("✅", "3PT weapon",
+                    traits.append(("âœ…", "3PT weapon",
                         f"{thpct:.1f}% from deep (#{thp_nr} nationally) on {three_pa:.1f} attempts/game "
                         f"(#{three_nr}) — a team that shoots accurately at volume can make any "
                         "single-game bracket advantage irrelevant in 30 minutes."))
                 elif thp_nr <= _HIST_BENCHMARKS["shooting"]:
-                    traits.append(("✅", "3PT efficiency",
+                    traits.append(("âœ…", "3PT efficiency",
                         f"{thpct:.1f}% from three (#{thp_nr} nationally) — when they get clean "
                         "looks they knock them down. Quality > quantity here."))
 
                 # --- Interior defense ---
                 if opp2p_nr <= _HIST_BENCHMARKS["paint_defense"]:
-                    traits.append(("✅", "Interior defense",
+                    traits.append(("âœ…", "Interior defense",
                         f"#{opp2p_nr} nationally in opponent 2PT% — limits easy buckets at the rim, "
                         "which matters enormously against athletic big-seed opponents."))
 
             # --- Tempo as a weapon ---
             if adjt_nr >= _HIST_BENCHMARKS["tempo_control"]:
-                traits.append(("✅", "Pace control",
+                traits.append(("âœ…", "Pace control",
                     f"#{adjt_nr} nationally in tempo (one of the slowest) — slow teams force "
                     "fast opponents to play an uncomfortable half-court game. Historically, "
                     "deliberate teams punch above their seed in single-elimination by reducing variance."))
@@ -4244,26 +4250,26 @@ with picks_tab:
                 / len(_pkl_enriched) * 100
             )
             if path_pctile < 25:
-                traits.append(("✅", "Favorable bracket path",
+                traits.append(("âœ…", "Favorable bracket path",
                     f"Path score {float(path_row['path_score']):.2f} — bottom quartile of "
                     "all tournament teams (easier draw). Lighter weighted-average opponent AdjEM "
                     "through the E8 gives them extra margin for error."))
             elif path_pctile < 50:
-                traits.append(("✅", "Manageable path",
+                traits.append(("âœ…", "Manageable path",
                     f"Path score {float(path_row['path_score']):.2f} — below-median difficulty. "
                     "Not a cakewalk, but they won't have to beat a top-5 team to reach the Elite Eight."))
             elif path_pctile > 75:
-                traits.append(("⚠️", "Tough bracket draw",
+                traits.append(("âš ï¸", "Tough bracket draw",
                     f"Path score {float(path_row['path_score']):.2f} — top quartile difficulty. "
                     "They'll likely need to beat a title contender-caliber team to reach the Final Four."))
 
             # --- Seed gap (CP rates them much higher than committee) ---
             seed_gap = int(path_row.get("seed_gap", 0))
             if seed_gap >= 3:
-                traits.append(("✅", f"Underseeded by committee (+{seed_gap})",
+                traits.append(("âœ…", f"Underseeded by committee (+{seed_gap})",
                     f"CarmPom's efficiency model rates them {seed_gap} seed lines higher than their "
                     "actual seed. The committee used win-loss record and resume; CarmPom uses margin "
-                    "quality. When that gap is ≥3, the team is structurally better than bracket position implies."))
+                    "quality. When that gap is â‰¥3, the team is structurally better than bracket position implies."))
 
             return traits
 
@@ -4337,9 +4343,9 @@ with picks_tab:
 
         # Tier labels and accents
         _PKL_TIER_CFG = [
-            ("👑 Seeds 1–2: Elite Programs with a Clear Path to the Final Four", "#3d2c00", "#fff8e1", _pkl_tier0),
-            ("🎯 Seeds 3–7: Contenders Primed for a Deep Run", "#1e3a5f", "#e8f0fe", _pkl_tier1),
-            ("💣 Seeds 8–13: The Sleepers with Real Structural Upside", "#4a1a2c", "#fce4ec", _pkl_tier2),
+            ("ðŸ‘‘ Seeds 1–2: Elite Programs with a Clear Path to the Final Four", "#3d2c00", "#fff8e1", _pkl_tier0),
+            ("ðŸŽ¯ Seeds 3–7: Contenders Primed for a Deep Run", "#1e3a5f", "#e8f0fe", _pkl_tier1),
+            ("ðŸ’£ Seeds 8–13: The Sleepers with Real Structural Upside", "#4a1a2c", "#fce4ec", _pkl_tier2),
         ]
 
         for _tier_title, _tier_accent, _tier_bg, _tier_df in _PKL_TIER_CFG:
@@ -4412,7 +4418,7 @@ with picks_tab:
 </style><span id="{_exp_uid}"></span>""",
                         unsafe_allow_html=True,
                     )
-                    # ── Top stats bar ──────────────────────────────────────────
+                    # â”€â”€ Top stats bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     _t_row  = _pkl_t_row(_pteam)
                     _tid    = int(_pkl_brkt[_pkl_brkt["Team"] == _pteam]["team_id"].values[0]) if len(_pkl_brkt[_pkl_brkt["Team"] == _pteam]) else None
                     _ts_row = _pkl_ts(_tid) if _tid else None
@@ -4427,7 +4433,7 @@ with picks_tab:
                     _adjt_v   = float(_t_row.get("AdjT",   68.0)) if _t_row is not None else 0.0
 
                     def _sbadge(label: str, val: str, rank: int, good_thr: int = 50, bg: str = "#e3f2fd", tc: str = "#1565c0") -> str:
-                        """Small inline stat badge; turns green if rank ≤ good_thr."""
+                        """Small inline stat badge; turns green if rank â‰¤ good_thr."""
                         _bc = "#e8f5e9" if rank <= good_thr else bg
                         _tc2 = "#2e7d32" if rank <= good_thr else tc
                         return (
@@ -4464,7 +4470,7 @@ with picks_tab:
                         _pr,
                     )
 
-                    # ── Render ─────────────────────────────────────────────────
+                    # â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     # Row 1: team identity
                     st.markdown(
                         f"<div style='display:flex;align-items:center;"
@@ -4473,7 +4479,7 @@ with picks_tab:
                         f"{_pimg.replace('width:22px;height:22px', 'width:32px;height:32px')}"
                         f"<div>"
                         f"<div style='font-size:21px;font-weight:800;color:inherit'>{_pteam}</div>"
-                        f"<div style='font-size:14px;color:inherit;opacity:0.85'>{_preg} region · "
+                        f"<div style='font-size:14px;color:inherit;opacity:0.85'>{_preg} region Â· "
                         f"<span style='color:{_pdiff_col};font-weight:700'>{_pdiff_lbl}</span></div>"
                         f"</div></div>"
                         f"</div>",
@@ -4560,7 +4566,7 @@ with picks_tab:
                             unsafe_allow_html=True,
                         )
                         for _icon, _tlabel, _texpl in _traits:
-                            _tc = "#2e7d32" if _icon == "✅" else ("#e65100" if _icon == "⚠️" else "#c62828")
+                            _tc = "#2e7d32" if _icon == "âœ…" else ("#e65100" if _icon == "âš ï¸" else "#c62828")
                             st.markdown(
                                 f"<div style='display:flex;gap:8px;margin-bottom:9px;"
                                 f"padding:8px 12px;background:#f8f9fa;border-radius:7px;"
@@ -4627,7 +4633,7 @@ with picks_tab:
 
         # -----------------------------------------------------------------------
         st.markdown(
-            "<h3 style='font-family:system-ui,sans-serif;margin-bottom:4px;color:#f0f0f0'>📋 Full Simulation Results</h3>"
+            "<h3 style='font-family:system-ui,sans-serif;margin-bottom:4px;color:#f0f0f0'>ðŸ“‹ Full Simulation Results</h3>"
             "<p style='color:#ccc;font-size:12px;margin-top:0'>"
             "All 64 teams sorted by CarmPom champion probability from 50,000 simulations. "
             "<b>Run Score</b> = model edge vs historical seed baseline across S16–Champ (positive = CarmPom likes this "
@@ -4673,7 +4679,7 @@ with picks_tab:
         _pkl_draw_a, _pkl_draw_b = st.columns(2)
         with _pkl_draw_a:
             _easiest = _pkl_enriched.nsmallest(5, "path_score")[["Team", "Seed", "Region", "path_score", "Champ%"]]
-            st.markdown("**🟢 Easiest Bracket Draws**")
+            st.markdown("**ðŸŸ¢ Easiest Bracket Draws**")
             for _, _er in _easiest.iterrows():
                 st.markdown(
                     f"<div style='display:flex;justify-content:space-between;padding:4px 8px;"
@@ -4686,7 +4692,7 @@ with picks_tab:
                 )
         with _pkl_draw_b:
             _hardest = _pkl_enriched.nlargest(5, "path_score")[["Team", "Seed", "Region", "path_score", "Champ%"]]
-            st.markdown("**🔴 Hardest Bracket Draws**")
+            st.markdown("**ðŸ”´ Hardest Bracket Draws**")
             for _, _hr in _hardest.iterrows():
                 st.markdown(
                     f"<div style='display:flex;justify-content:space-between;padding:4px 8px;"
@@ -4699,7 +4705,7 @@ with picks_tab:
                 )
 
         st.caption(
-            "⚠️ All probabilities are model-based (AdjEM / efficiency ratings only). "
+            "âš ï¸ All probabilities are model-based (AdjEM / efficiency ratings only). "
             "They do not account for injuries, momentum, coaching, or situational factors. "
             "Run Score > 0 = model projects this team above their historical seed average. "
             "Path Score: lower = easier projected bracket draw."
@@ -4723,9 +4729,9 @@ _ACTUAL_SWEET_16: dict[str, set[str]] = {
 }
 
 with official_tab:
-    _op_brkt = load_real_bracket(2026)
+    _op_brkt = load_real_bracket(_SEASON)
     if _op_brkt is None:
-        st.warning("Bracket data not loaded.", icon="⚠️")
+        st.warning("Bracket data not loaded.", icon="âš ï¸")
     else:
         # Run simulation (cache in session state — same 50K sim as picks tab)
         if "pkl_sim_results_v2" not in st.session_state:
@@ -4737,7 +4743,7 @@ with official_tab:
         _op_sim_lu   = _op_picks["sim_lu"]
         _op_logo_lu  = {
             row["Team"]: str(row["logo_url"])
-            for _, row in load_rankings(2026).iterrows()
+            for _, row in load_rankings(_SEASON).iterrows()
             if pd.notna(row.get("logo_url")) and row.get("logo_url")
         }
 
@@ -4761,17 +4767,17 @@ with official_tab:
                 f"{upset_badge}"
             )
 
-        # ── Header ────────────────────────────────────────────────────────
+        # â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         st.markdown(
             "<h2 style='font-family:system-ui,sans-serif;margin-bottom:2px'>"
-            "📋 CarmPom Official 2026 Bracket Picks</h2>"
+            "ðŸ“‹ CarmPom Official 2026 Bracket Picks</h2>"
             "<p style='color:#ccc;font-size:13px;margin-top:0'>"
             "Picks generated round-by-round using AdjEM efficiency ratings and "
             "50,000 Monte Carlo simulations. Progress tracker updated as results come in.</p>",
             unsafe_allow_html=True,
         )
 
-        # ── Progress tracker ──────────────────────────────────────────────
+        # â”€â”€ Progress tracker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         # CarmPom's predicted S16 = the 4 R32 winners per region
         _carmpom_s16: dict[str, list[str]] = {
             region: [g["winner"] for g in _op_picks["regions"][region]["R32"]]
@@ -4808,7 +4814,7 @@ with official_tab:
             f"border-radius:10px;padding:12px 16px;text-align:center'>"
             f"<div style='font-size:32px;font-weight:800;color:#4caf50'>{_f4_still_alive}/4</div>"
             f"<div style='font-size:11px;color:#aaa;margin-top:2px'>Final Four picks still alive</div>"
-            f"<div style='font-size:22px;margin-top:6px'>{'✅' * _f4_still_alive}{'⬜' * (4 - _f4_still_alive)}</div>"
+            f"<div style='font-size:22px;margin-top:6px'>{'âœ…' * _f4_still_alive}{'â¬œ' * (4 - _f4_still_alive)}</div>"
             f"</div>"
             f"</div>",
             unsafe_allow_html=True,
@@ -4826,12 +4832,12 @@ with official_tab:
             _rows_html = ""
             for _pick in _reg_picks:
                 _hit = _pick in _actual_set
-                _icon = "✅" if _hit else "❌"
+                _icon = "âœ…" if _hit else "âŒ"
                 _seed = _op_seed_lu.get(_pick, "?")
-                _name_short = _pick.split()[-2] if len(_pick.split()) >= 2 else _pick  # e.g. "Blue Devils" → drop mascot? Use last word
+                _name_short = _pick.split()[-2] if len(_pick.split()) >= 2 else _pick  # e.g. "Blue Devils" â†’ drop mascot? Use last word
                 # Use first meaningful word(s) of team name — trim mascot to keep it short
                 _parts = _pick.split()
-                _name_short = " ".join(_parts[:-1]) if len(_parts) > 2 else _pick  # "Duke Blue Devils" → "Duke Blue"
+                _name_short = " ".join(_parts[:-1]) if len(_parts) > 2 else _pick  # "Duke Blue Devils" â†’ "Duke Blue"
                 _clr = "#c8e6c9" if _hit else "#ffcdd2"
                 _rows_html += (
                     f"<div style='display:flex;align-items:center;gap:6px;padding:4px 0;"
@@ -4857,7 +4863,7 @@ with official_tab:
 
         st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
-        # ── Champion card ────────────────────────────────────────────────
+        # â”€â”€ Champion card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         _ch = _op_picks["champ"]
         _ch_seed = _op_seed_lu.get(_ch["winner"], "?")
         _ch_champ_pct = _ch["champ_pct"]
@@ -4868,19 +4874,19 @@ with official_tab:
             f"border:2px solid #4caf50;border-radius:12px;padding:18px 24px;"
             f"margin:12px 0 20px;text-align:center'>"
             f"<div style='color:#81c784;font-size:11px;font-weight:700;"
-            f"text-transform:uppercase;letter-spacing:1px;margin-bottom:4px'>🏆 CarmPom Champion</div>"
+            f"text-transform:uppercase;letter-spacing:1px;margin-bottom:4px'>ðŸ† CarmPom Champion</div>"
             f"<div style='font-size:26px;font-weight:800;color:#f1f8e9;margin-bottom:2px'>"
             f"{_op_img(_ch['winner'], 28)}{_ch['winner']}</div>"
-            f"<div style='color:#aed581;font-size:13px'>Seed #{_ch_seed} · "
-            f"CarmPom #{_ch_rank} · Champ probability: <b>{_ch_champ_pct:.1f}%</b></div>"
+            f"<div style='color:#aed581;font-size:13px'>Seed #{_ch_seed} Â· "
+            f"CarmPom #{_ch_rank} Â· Champ probability: <b>{_ch_champ_pct:.1f}%</b></div>"
             f"</div>",
             unsafe_allow_html=True,
         )
 
-        # ── Final Four ────────────────────────────────────────────────────
+        # â”€â”€ Final Four â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         st.markdown(
             "<h3 style='font-family:system-ui,sans-serif;margin-bottom:6px;color:#f0f0f0'>"
-            "🏟️ Final Four Picks</h3>",
+            "ðŸŸï¸ Final Four Picks</h3>",
             unsafe_allow_html=True,
         )
         _f4c_l, _f4c_r = st.columns(2, gap="large")
@@ -4901,7 +4907,7 @@ with official_tab:
                     f"<div style='display:flex;align-items:center;justify-content:space-between;"
                     f"background:#1b3a1b;border-radius:6px;padding:7px 10px;margin-bottom:4px'>"
                     f"<div>{_op_team_html(_f4win, upset=_f4up)}</div>"
-                    f"<span style='color:#4caf50;font-size:12px;font-weight:700'>✓ {_pct_w:.1f}%</span>"
+                    f"<span style='color:#4caf50;font-size:12px;font-weight:700'>âœ“ {_pct_w:.1f}%</span>"
                     f"</div>"
                     # loser row
                     f"<div style='display:flex;align-items:center;justify-content:space-between;"
@@ -4914,10 +4920,10 @@ with official_tab:
 
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
-        # ── Regional bracket picks ────────────────────────────────────────
+        # â”€â”€ Regional bracket picks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         st.markdown(
             "<h3 style='font-family:system-ui,sans-serif;margin-bottom:6px;color:#f0f0f0'>"
-            "🗺️ Regional Breakdown</h3>",
+            "ðŸ—ºï¸ Regional Breakdown</h3>",
             unsafe_allow_html=True,
         )
 
@@ -4935,7 +4941,7 @@ with official_tab:
             champ_pct = _op_sim_lu.get(e8_winner, {}).get("Champ%", 0)
 
             with st.expander(
-                f"**{region}** — {e8_winner} ({e8_seed} seed) · Champ {champ_pct:.1f}%",
+                f"**{region}** — {e8_winner} ({e8_seed} seed) Â· Champ {champ_pct:.1f}%",
                 expanded=False,
             ):
                 for rnd_key, sim_col, rnd_label, n_games in _round_cfg:
@@ -4982,7 +4988,7 @@ with official_tab:
         st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
         st.caption(
-            "⚠️ Model-based picks only. Does not account for injuries, coaching decisions, "
+            "âš ï¸ Model-based picks only. Does not account for injuries, coaching decisions, "
             "hot/cold streaks, or situational factors. Picks are derived from 50,000 Monte Carlo "
             "simulations using AdjEM efficiency ratings."
         )
