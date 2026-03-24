@@ -3792,10 +3792,13 @@ with upset_tab:
             elif pct >= 34: bg, fg, dots = "#fff9c4", "#f57f17", "●●○"
             else:           bg, fg, dots = "#ffcdd2", "#c62828", "●○○"
             return (
-                f"<div style='background:{bg};border-radius:5px;padding:3px 7px;"
-                f"margin:2px 0;display:flex;justify-content:space-between;align-items:center'>"
-                f"<span style='font-size:11px;color:{fg};font-weight:600'>{val}</span>"
-                f"<span style='font-size:10px;color:{fg};font-family:monospace'>{dots}</span>"
+                f"<div style='background:{bg};border-radius:5px;padding:3px 9px;"
+                f"margin:2px 0;flex:1;min-width:0;display:flex;"
+                f"justify-content:space-between;align-items:center;gap:8px'>"
+                f"<span style='font-size:11px;color:{fg};font-weight:600;"
+                f"overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>{val}</span>"
+                f"<span style='font-size:11px;color:{fg};font-family:monospace;"
+                f"letter-spacing:1px;white-space:nowrap;flex-shrink:0'>{dots}</span>"
                 f"</div>"
             )
 
